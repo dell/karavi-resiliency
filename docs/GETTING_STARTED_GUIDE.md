@@ -49,7 +49,7 @@ service docker restart
 ```
 
 ## Deploying New Project
-Karavi-Resiliency is deployed as a side-car to DellEMC CSI Drivers. A reference to the Karavi-Resiliency image 
+Karavi Resiliency is deployed as a side-car to DellEMC CSI Drivers. A reference to the Karavi Resiliency image 
 to use should be specified in the DellEMC CSI Driver values.yaml file. An example of that specification:
 
 ```yaml
@@ -72,7 +72,7 @@ podmon:
 ```
 
 _NB: The above is generic example. The parameters are not necessarily correct for running with a real DellEMC CSI driver._
-_See a Karavi-Resiliency supported DellEMC CSI Driver for a better example._
+_See a Karavi Resiliency supported DellEMC CSI Driver for a better example._
 
 Before building the image, set up some environmental variables:
 ```shell
