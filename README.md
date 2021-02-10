@@ -8,7 +8,7 @@ You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-# _ProjectName_
+# Karavi-Resiliency
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-v2.0%20adopted-ff69b4.svg)](docs/CODE_OF_CONDUCT.md)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Releases](https://img.shields.io/badge/Releases-green.svg)](https://eos2git.cec.lab.emc.com/DevCon/NewProjectTemplate/releases)
@@ -48,6 +48,6 @@ Issues](https://eos2git.cec.lab.emc.com/DevCon/NewProjectTemplate/issues).
 
 ## About
 
-_ProjectName_ is 100% open source and community-driven. All components are available
+Karavi-Resiliency is 100% open source and community-driven. All components are available
 under [Apache 2 License](https://www.apache.org/licenses/LICENSE-2.0.html) on
 GitHub.

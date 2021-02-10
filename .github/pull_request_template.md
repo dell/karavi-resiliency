@@ -6,8 +6,7 @@ List the GitHub issues impacted by this PR:
 
 | GitHub Issue # |
 | -------------- |
-| 13089          |
-| 13088          |
+| |
 
 # Checklist:
 
