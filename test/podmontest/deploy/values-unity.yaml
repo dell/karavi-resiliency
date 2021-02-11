@@ -1,0 +1,5 @@
+podmonTest:
+  image: "registry:port/podmontest:v0.0.54"
+  namespace: "podmontest"
+  driverLabel: csi-unity
+  storageClassName: unity-notopo

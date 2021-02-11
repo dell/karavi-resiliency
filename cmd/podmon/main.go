@@ -1,0 +1,184 @@
+package main
+
+import (
+	"context"
+	"flag"
+	csiext "github.com/dell/dell-csi-extensions/podmon"
+	"github.com/kubernetes-csi/csi-lib-utils/leaderelection"
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+	"podmon/internal/csiapi"
+	"podmon/internal/k8sapi"
+	"podmon/internal/monitor"
+	"sync"
+	"time"
+)
+
+type leaderElection interface {
+	Run() error
+	WithNamespace(namespace string)
+}
+
+const (
+	arrayConnectivityPollRate                = 15
+	arrayConnectivityConnectionLossThreshold = 3
+	csisock                                  = ""
+	enableLeaderElection                     = true
+	kubeconfig                               = ""
+	labelKey                                 = "podmon.dellemc.com/driver"
+	labelValue                               = "csi-vxflexos"
+	mode                                     = "controller"
+	skipArrayConnectionValidation            = false
+	driverPath                               = "csi-vxflexos.dellemc.com"
+)
+
+var K8sApi k8sapi.K8sApi = &k8sapi.K8sClient
+var LeaderElection = k8sLeaderElection
+var StartAPIMonitorFn = monitor.StartAPIMonitor
+var StartPodMonitorFn = monitor.StartPodMonitor
+var StartNodeMonitorFn = monitor.StartNodeMonitor
+var ArrayConnMonitorFc = monitor.PodMonitor.ArrayConnectivityMonitor
+var PodMonWait = podMonWait
+var GetCSIClient = csiapi.NewCSIClient
+var createArgsOnce sync.Once
+
+func main() {
+	log.SetFormatter(&log.TextFormatter{
+		DisableColors:   true,
+		FullTimestamp:   true,
+		TimestampFormat: time.RFC1123,
+	})
+	getArgs()
+	switch *args.mode {
+	case "controller":
+		monitor.PodMonitor.Mode = *args.mode
+	case "node":
+		monitor.PodMonitor.Mode = *args.mode
+	case "standalone":
+		monitor.PodMonitor.Mode = *args.mode
+	default:
+		log.Error("invalid mode; choose controller, node, or standalone")
+		return
+	}
+	log.Infof("Running in %s mode", monitor.PodMonitor.Mode)
+	monitor.ArrayConnectivityPollRate = time.Duration(*args.arrayConnectivityPollRate) * time.Second
+	monitor.ArrayConnectivityConnectionLossThreshold = *args.arrayConnectivityConnectionLossThreshold
+	err := K8sApi.Connect(args.kubeconfig)
+	if err != nil {
+		log.Errorf("kubernetes connection error: %s", err)
+		return
+	}
+	monitor.K8sApi = K8sApi
+	if *args.csisock != "" {
+		clientOpts := []grpc.DialOption{
+			grpc.WithInsecure(),
+			grpc.WithBackoffMaxDelay(time.Second),
+			grpc.WithBlock(),
+			grpc.WithTimeout(10 * time.Second),
+		}
+		log.Infof("Attempting driver connection at: %s", *args.csisock)
+		monitor.CSIApi, err = GetCSIClient(*args.csisock, clientOpts...)
+		defer monitor.CSIApi.Close()
+		if *args.skipArrayConnectionValidation {
+			monitor.PodMonitor.SkipArrayConnectionValidation = true
+			log.Infof("Skipping array connection validation")
+		}
+		// Check if CSI Extensions are present
+		req := &csiext.ValidateVolumeHostConnectivityRequest{}
+		_, err := monitor.CSIApi.ValidateVolumeHostConnectivity(context.Background(), req)
+		if err != nil {
+			log.Errorf("Error checking presence of ValidateVolumeHostConnectivity: %s", err.Error())
+		} else {
+			monitor.PodMonitor.CSIExtensionsPresent = true
+		}
+	}
+	monitor.PodMonitor.DriverPathStr = *args.driverPath
+	log.Infof("PodMonitor.DriverPathStr = %s", monitor.PodMonitor.DriverPathStr)
+	run := func(context.Context) {
+		if *args.mode == "node" {
+			err := StartAPIMonitorFn()
+			if err != nil {
+				log.Errorf("Couldn't start API monitor: %s", err.Error())
+				return
+			}
+		} else if *args.mode == "controller" {
+			if monitor.PodMonitor.CSIExtensionsPresent {
+				go ArrayConnMonitorFc()
+			}
+			// monitor all the nodes with no label required
+			go StartNodeMonitorFn(k8sapi.K8sClient.Client, "", "")
+		}
+
+		// monitor the pods with the designated label key/value
+		go StartPodMonitorFn(k8sapi.K8sClient.Client, *args.labelKey, *args.labelValue)
+		for {
+			log.Printf("podmon alive...")
+			if stop := PodMonWait(); stop {
+				break
+			}
+		}
+	}
+	log.Printf("leader election: %t", *args.enableLeaderElection)
+	if *args.enableLeaderElection == true {
+		var le leaderElection
+		le = LeaderElection(run)
+		if err := le.Run(); err != nil {
+			log.Printf("failed to initialize leader election: %v", err)
+		}
+	} else {
+		run(context.Background())
+	}
+}
+
+type PodmonArgs struct {
+	arrayConnectivityPollRate                *int    // time in seconds
+	arrayConnectivityConnectionLossThreshold *int    // number of failed attempts before declaring connection loss
+	csisock                                  *string // path to CSI socket
+	enableLeaderElection                     *bool   // enable leader election
+	kubeconfig                               *string // kubeconfig absolute path for running as stand-alone program (testing)
+	labelKey                                 *string // labelKey for annotating objects to be watched/processed
+	labelValue                               *string // label value for annotating objects to be watched/processed
+	mode                                     *string // running mode, either "controller" for controller sidecar, "node" node sidecar, "standalone"
+	skipArrayConnectionValidation            *bool   // skip the validation that array connectivity has been lost
+	driverPath                               *string // driverPath to use for parsing csi.volume.kubernetes.io/nodeid annotation
+}
+
+var args PodmonArgs
+
+func getArgs() {
+	createArgsOnce.Do(func() {
+		// -- Use Once so that we can run unit tests against main --
+		args.arrayConnectivityPollRate = flag.Int("arrayConnectivityPollRate", arrayConnectivityPollRate, "time in seconds to poll for array connection status")
+		args.arrayConnectivityConnectionLossThreshold = flag.Int("arrayConnectivityConnectionLossThreshold", arrayConnectivityConnectionLossThreshold, "number of failed connection polls to declare connection lost")
+		args.csisock = flag.String("csisock", csisock, "path to csi.sock like unix:/var/run/unix.sock")
+		args.enableLeaderElection = flag.Bool("leaderelection", enableLeaderElection, "boolean to enable leader election")
+		args.kubeconfig = flag.String("kubeconfig", kubeconfig, "absolute path to the kubeconfig file")
+		args.labelKey = flag.String("labelkey", labelKey, "label key for pods or other objects to be monitored")
+		args.labelValue = flag.String("labelvalue", labelValue, "label value for pods or other objects to be monitored")
+		args.mode = flag.String("mode", mode, "operating mode: controller (default), node, or standalone")
+		args.skipArrayConnectionValidation = flag.Bool("skiparrayConnectionvalidation", skipArrayConnectionValidation, "skip validation of array connectivity loss before killing pod")
+		args.driverPath = flag.String("driverPath", driverPath, "driverPath to use for parsing csi.volume.kubernetes.io/nodeid annotation")
+	})
+
+	// -- For testing purposes. Re-default the values since main will be called multiple times --
+	*args.arrayConnectivityPollRate = arrayConnectivityPollRate
+	*args.arrayConnectivityConnectionLossThreshold = arrayConnectivityConnectionLossThreshold
+	*args.csisock = csisock
+	*args.enableLeaderElection = enableLeaderElection
+	*args.kubeconfig = kubeconfig
+	*args.labelKey = labelKey
+	*args.labelValue = labelValue
+	*args.mode = mode
+	*args.skipArrayConnectionValidation = skipArrayConnectionValidation
+	*args.driverPath = driverPath
+	flag.Parse()
+}
+
+func k8sLeaderElection(runFunc func(ctx context.Context)) leaderElection {
+	return leaderelection.NewLeaderElection(k8sapi.K8sClient.Client, "podmon-1", runFunc)
+}
+
+func podMonWait() bool {
+	time.Sleep(10 * time.Minute)
+	return false
+}
