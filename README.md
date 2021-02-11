@@ -11,7 +11,7 @@ You may obtain a copy of the License at
 # Karavi Resiliency
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-v2.0%20adopted-ff69b4.svg)](docs/CODE_OF_CONDUCT.md)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Releases](https://img.shields.io/badge/Releases-green.svg)](https://eos2git.cec.lab.emc.com/DevCon/NewProjectTemplate/releases)
+[![Releases](https://img.shields.io/badge/Releases-green.svg)](https://github.com/dell/karavi-resiliency/releases)
 
 User applications, especially those deployed with StatefulSets that use PersistentVolumeClaims, can have problems if 
 you want their Pods to be resilient to node failure. Kubernetes does not clean up StatefulSet Pods because it makes 
@@ -42,9 +42,8 @@ scheduled on a functioning node.
 
 ## Support
 
-Don’t hesitate to ask! Contact the team and community on the [mailing lists](https://group) or on [slack](https://<slack instance>.slack.com/) if you need any help.
-Open an issue if you found a bug on [Github
-Issues](https://eos2git.cec.lab.emc.com/DevCon/NewProjectTemplate/issues).
+Don’t hesitate to ask! Contact the team and community on the [Support Page](./docs/SUPPORT.md) if you need any help.
+Open an issue if you found a bug on [Github Issues](https://github.com/dell/karavi-resiliency/issues).
 
 ## About
 
