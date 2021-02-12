@@ -15,9 +15,16 @@ import (
 	"time"
 )
 
+//APICheckInterval interval to wait before calling node API after successful call
 var APICheckInterval = NodeAPIInterval
+
+//APICheckRetryTimeout retry wait after failure
 var APICheckRetryTimeout = ShortTimeout
+
+//APICheckFirstTryTimeout retry wait after the first failure
 var APICheckFirstTryTimeout = MediumTimeout
+
+//APIMonitorWait a function reference that can control the API monitor loop
 var APIMonitorWait = internalAPIMonitorWait
 
 // StartAPIMonitor checks API connectivity by pinging the indicated (self) node
@@ -42,11 +49,11 @@ func (pm *PodMonitorType) apiMonitorLoop(nodeName string) {
 	pm.APIConnected = true
 	for {
 		// Retrieve our Node's state
-		node, err := K8sApi.GetNodeWithTimeout(APICheckFirstTryTimeout, nodeName)
+		node, err := K8sAPI.GetNodeWithTimeout(APICheckFirstTryTimeout, nodeName)
 		if err != nil {
 			for i := 0; i < 3; i++ {
 				time.Sleep(APICheckRetryTimeout)
-				_, err = K8sApi.GetNodeWithTimeout(APICheckRetryTimeout, nodeName)
+				_, err = K8sAPI.GetNodeWithTimeout(APICheckRetryTimeout, nodeName)
 				if err == nil {
 					break
 				}
@@ -88,7 +95,7 @@ func internalAPIMonitorWait() bool {
 
 // nodeModePodHandler handles node mode functionality when a pod event happens.
 func (pm *PodMonitorType) nodeModePodHandler(pod *v1.Pod, eventType watch.EventType) error {
-	ctx, cancel := K8sApi.GetContext(LongTimeout)
+	ctx, cancel := K8sAPI.GetContext(LongTimeout)
 	defer cancel()
 	// Copy the pod
 	pod = pod.DeepCopy()
@@ -122,7 +129,7 @@ func (pm *PodMonitorType) nodeModePodHandler(pod *v1.Pod, eventType watch.EventT
 			for _, volumeEntry := range volumeEntries {
 				pvName := volumeEntry.Name()
 				log.Debugf("pvName %s", pvName)
-				pv, err := K8sApi.GetPersistentVolume(ctx, pvName)
+				pv, err := K8sAPI.GetPersistentVolume(ctx, pvName)
 				if err != nil {
 					log.Errorf("Couldn't read PV %s: %s", pvName, err.Error())
 				} else {
@@ -144,7 +151,7 @@ func (pm *PodMonitorType) nodeModePodHandler(pod *v1.Pod, eventType watch.EventT
 			// Do not delete a NodePodInfo structure (which is used to cleanup pods)
 			// if our node is currently tainted. We could be in a situation where
 			// the pod force delete finished and the event propogated while we were cleaning up.
-			node, err := K8sApi.GetNodeWithTimeout(MediumTimeout, nodeName)
+			node, err := K8sAPI.GetNodeWithTimeout(MediumTimeout, nodeName)
 			if err == nil && !nodeHasTaint(node, podmonTaintKey, v1.TaintEffectNoSchedule) {
 				pm.PodKeyMap.Delete(podKey)
 			}
@@ -153,22 +160,22 @@ func (pm *PodMonitorType) nodeModePodHandler(pod *v1.Pod, eventType watch.EventT
 	return nil
 }
 
+//MountPathVolumeInfo composes the mount path and volume
 type MountPathVolumeInfo struct {
 	Path     string
 	VolumeID string
 }
+
+//NodePodInfo information used for monitoring a node
 type NodePodInfo struct { // information we keep on hand about a pod
 	Pod    *v1.Pod               // Copy of the pod itself
 	PodUID string                // Pod user id
 	Mounts []MountPathVolumeInfo // information about a mount
 }
 
-var KubeletPodsPath = "/var/lib/kubelet/pods/"
-var PodToVolumesPath = "/volumes/kubernetes.io~csi/"
-
 // nodeModeCleanupPods attempts cleanup of all the pods that were registered from the pod Watcher nodeModePodHandler
 func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) {
-	ctx, cancel := K8sApi.GetContext(MediumTimeout)
+	ctx, cancel := K8sAPI.GetContext(MediumTimeout)
 	defer cancel()
 	// Retrieve the podKeys we've been watching for our node
 	removeTaint := true
@@ -181,7 +188,7 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) {
 
 		// Check to make sure the pod has been deleted, or still exists
 		namespace, name := splitPodKey(podKey)
-		currentPod, err := K8sApi.GetPod(ctx, namespace, name)
+		currentPod, err := K8sAPI.GetPod(ctx, namespace, name)
 		if err == nil {
 			// We retrieve a pod for the namespace/name... see if same one
 			currentUID := string(currentPod.ObjectMeta.UID)
@@ -222,6 +229,7 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) {
 	}
 }
 
+//RemoveDir reference to a function used to clean up directories
 var RemoveDir = os.Remove
 
 func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo) error {

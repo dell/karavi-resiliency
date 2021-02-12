@@ -39,13 +39,13 @@ func (m *mainFeature) aPodmonInstance() error {
 	m.csiapiMock = new(csiapi.CSIMock)
 	m.k8sapiMock = new(k8sapi.K8sMock)
 	GetCSIClient = m.mockGetCSIClient
-	K8sApi = m.k8sapiMock
+	K8sAPI = m.k8sapiMock
 	m.leaderElect = &mockLeaderElect{}
 	LeaderElection = m.mockLeaderElection
 	StartAPIMonitorFn = m.mockStartAPIMonitor
 	StartPodMonitorFn = m.mockStartPodMonitor
 	StartNodeMonitorFn = m.mockStartNodeMonitor
-	monitor.K8sApi = m.k8sapiMock
+	monitor.K8sAPI = m.k8sapiMock
 	gofsutil.UseMockFS()
 	PodMonWait = m.mockPodMonWait
 	saveOriginalArgs.Do(func() {

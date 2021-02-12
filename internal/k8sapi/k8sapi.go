@@ -19,22 +19,27 @@ import (
 	"time"
 )
 
-type K8sApiStruct struct {
+//Client holds a reference to a Kubernetes client
+type Client struct {
 	Client *kubernetes.Clientset
 	Lock   sync.Mutex
 }
 
-var K8sClient K8sApiStruct
+//K8sClient references the k8sapi.Client
+var K8sClient Client
 
-func (api *K8sApiStruct) GetClient() *kubernetes.Clientset {
+//GetClient returns instance of Kubernetes.Clientset
+func (api *Client) GetClient() *kubernetes.Clientset {
 	return api.Client
 }
 
-func (api *K8sApiStruct) GetContext(duration time.Duration) (context.Context, context.CancelFunc) {
+//GetContext returns clientContext and cancel function based on the duration
+func (api *Client) GetContext(duration time.Duration) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), duration)
 }
 
-func (api *K8sApiStruct) DeletePod(ctx context.Context, namespace, name string, force bool) error {
+//DeletePod deletes a Pod referenced by a namespace and name
+func (api *Client) DeletePod(ctx context.Context, namespace, name string, force bool) error {
 	deleteOptions := metav1.DeleteOptions{}
 	if force {
 		gracePeriodSec := int64(0)
@@ -48,7 +53,8 @@ func (api *K8sApiStruct) DeletePod(ctx context.Context, namespace, name string, 
 	return err
 }
 
-func (api *K8sApiStruct) GetPod(ctx context.Context, namespace, name string) (*v1.Pod, error) {
+//GetPod returns a Pod object referenced by the namespace and name
+func (api *Client) GetPod(ctx context.Context, namespace, name string) (*v1.Pod, error) {
 	getopt := metav1.GetOptions{}
 	pod, err := api.Client.CoreV1().Pods(namespace).Get(context.Background(), name, getopt)
 	if err != nil {
@@ -58,7 +64,7 @@ func (api *K8sApiStruct) GetPod(ctx context.Context, namespace, name string) (*v
 }
 
 // GetVolumeAttachments retrieves all the volume attachments
-func (api *K8sApiStruct) GetVolumeAttachments(ctx context.Context) (*storagev1.VolumeAttachmentList, error) {
+func (api *Client) GetVolumeAttachments(ctx context.Context) (*storagev1.VolumeAttachmentList, error) {
 	volumeAttachments, err := api.Client.StorageV1().VolumeAttachments().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
@@ -67,7 +73,7 @@ func (api *K8sApiStruct) GetVolumeAttachments(ctx context.Context) (*storagev1.V
 }
 
 // DeleteVolumeAttachment deletes a volume attachment by name.
-func (api *K8sApiStruct) DeleteVolumeAttachment(ctx context.Context, va string) error {
+func (api *Client) DeleteVolumeAttachment(ctx context.Context, va string) error {
 	deleteOptions := metav1.DeleteOptions{}
 	log.Infof("Deleting volume attachment: %s", va)
 	err := api.Client.StorageV1().VolumeAttachments().Delete(ctx, va, deleteOptions)
@@ -78,7 +84,7 @@ func (api *K8sApiStruct) DeleteVolumeAttachment(ctx context.Context, va string) 
 }
 
 // GetPersistentVolumeClaimsInNamespace returns all the pvcs in a namespace.
-func (api *K8sApiStruct) GetPersistentVolumeClaimsInNamespace(ctx context.Context, namespace string) (*v1.PersistentVolumeClaimList, error) {
+func (api *Client) GetPersistentVolumeClaimsInNamespace(ctx context.Context, namespace string) (*v1.PersistentVolumeClaimList, error) {
 	persistentVolumes, err := api.Client.CoreV1().PersistentVolumeClaims(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
@@ -87,7 +93,7 @@ func (api *K8sApiStruct) GetPersistentVolumeClaimsInNamespace(ctx context.Contex
 }
 
 // GetPersistentVolumeClaimsInPod returns all the pvcs in a pod.
-func (api *K8sApiStruct) GetPersistentVolumeClaimsInPod(ctx context.Context, pod *v1.Pod) ([]*v1.PersistentVolumeClaim, error) {
+func (api *Client) GetPersistentVolumeClaimsInPod(ctx context.Context, pod *v1.Pod) ([]*v1.PersistentVolumeClaim, error) {
 	pvcs := make([]*v1.PersistentVolumeClaim, 0)
 	for _, vol := range pod.Spec.Volumes {
 		if vol.VolumeSource.PersistentVolumeClaim != nil {
@@ -103,7 +109,7 @@ func (api *K8sApiStruct) GetPersistentVolumeClaimsInPod(ctx context.Context, pod
 
 // GetPersistentVolumesInPod returns all the pvs referenced from a pod.
 // Any unbound pvcs are not returned.
-func (api *K8sApiStruct) GetPersistentVolumesInPod(ctx context.Context, pod *v1.Pod) ([]*v1.PersistentVolume, error) {
+func (api *Client) GetPersistentVolumesInPod(ctx context.Context, pod *v1.Pod) ([]*v1.PersistentVolume, error) {
 	pvs := make([]*v1.PersistentVolume, 0)
 	pvcs, err := api.GetPersistentVolumeClaimsInPod(ctx, pod)
 	if err != nil {
@@ -125,7 +131,7 @@ func (api *K8sApiStruct) GetPersistentVolumesInPod(ctx context.Context, pod *v1.
 }
 
 // IsVolumeAttachmentToPod returns true if va is attached to the specified pod.
-func (api *K8sApiStruct) IsVolumeAttachmentToPod(ctx context.Context, va *storagev1.VolumeAttachment, pod *v1.Pod) (bool, error) {
+func (api *Client) IsVolumeAttachmentToPod(ctx context.Context, va *storagev1.VolumeAttachment, pod *v1.Pod) (bool, error) {
 	if pod.Spec.NodeName != va.Spec.NodeName || va.Spec.Source.PersistentVolumeName == nil {
 		return false, nil
 	}
@@ -136,7 +142,11 @@ func (api *K8sApiStruct) IsVolumeAttachmentToPod(ctx context.Context, va *storag
 			if err != nil {
 				return false, fmt.Errorf("Could not retrieve PVC: %s/%s", pod.ObjectMeta.Namespace, vol.VolumeSource.PersistentVolumeClaim.ClaimName)
 			}
-			log.Debugf("va.pv %s pvc.pv %s", *va.Spec.Source.PersistentVolumeName, pvc.Spec.VolumeName)
+			volumeName := "nil"
+			if pvc != nil {
+				volumeName = pvc.Spec.VolumeName
+			}
+			log.Debugf("va.pv %s pvc.pv %s", *va.Spec.Source.PersistentVolumeName, volumeName)
 			if pvc != nil && va.Spec.Source.PersistentVolumeName != nil && *va.Spec.Source.PersistentVolumeName == pvc.Spec.VolumeName {
 				return true, nil
 			}
@@ -146,7 +156,7 @@ func (api *K8sApiStruct) IsVolumeAttachmentToPod(ctx context.Context, va *storag
 }
 
 // GetPersistentVolumeClaimName returns the PVC name referenced from PV named as input argument
-func (api *K8sApiStruct) GetPersistentVolumeClaimName(ctx context.Context, pvName string) (string, error) {
+func (api *Client) GetPersistentVolumeClaimName(ctx context.Context, pvName string) (string, error) {
 	pvcname := ""
 	pv, err := api.GetPersistentVolume(ctx, pvName)
 	if err != nil {
@@ -163,7 +173,7 @@ func (api *K8sApiStruct) GetPersistentVolumeClaimName(ctx context.Context, pvNam
 }
 
 // GetPersistentVolume retrieves a persistent volume given the pv name. It returns a PersistentVolume struct.
-func (api *K8sApiStruct) GetPersistentVolume(ctx context.Context, pvName string) (*v1.PersistentVolume, error) {
+func (api *Client) GetPersistentVolume(ctx context.Context, pvName string) (*v1.PersistentVolume, error) {
 	var err error
 	if api.Client == nil {
 		return nil, errors.New("No connection")
@@ -176,7 +186,8 @@ func (api *K8sApiStruct) GetPersistentVolume(ctx context.Context, pvName string)
 	return pv, err
 }
 
-func (api *K8sApiStruct) GetPersistentVolumeClaim(ctx context.Context, namespace, pvcName string) (*v1.PersistentVolumeClaim, error) {
+//GetPersistentVolumeClaim returns a PVC object given its namespace and name
+func (api *Client) GetPersistentVolumeClaim(ctx context.Context, namespace, pvcName string) (*v1.PersistentVolumeClaim, error) {
 	var err error
 	if api.Client == nil {
 		return nil, errors.New("No connection")
@@ -190,7 +201,8 @@ func (api *K8sApiStruct) GetPersistentVolumeClaim(ctx context.Context, namespace
 	return pvc, err
 }
 
-func (api *K8sApiStruct) GetNode(ctx context.Context, nodeName string) (*v1.Node, error) {
+//GetNode returns a Node object given its name
+func (api *Client) GetNode(ctx context.Context, nodeName string) (*v1.Node, error) {
 	node, err := api.Client.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
 		log.Error("error retrieving node: " + nodeName + " : " + err.Error())
@@ -198,14 +210,15 @@ func (api *K8sApiStruct) GetNode(ctx context.Context, nodeName string) (*v1.Node
 	return node, err
 }
 
-func (api *K8sApiStruct) GetNodeWithTimeout(duration time.Duration, nodeName string) (*v1.Node, error) {
+//GetNodeWithTimeout returns a Node object given its name waiting for certain duration before timing out
+func (api *Client) GetNodeWithTimeout(duration time.Duration, nodeName string) (*v1.Node, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
 	return api.GetNode(ctx, nodeName)
 }
 
-// connect establishes a connection with the k8s API server.
-func (api *K8sApiStruct) Connect(kubeconfig *string) error {
+//Connect connect establishes a connection with the k8s API server.
+func (api *Client) Connect(kubeconfig *string) error {
 	var err error
 	var client *kubernetes.Clientset
 	log.Info("attempting k8sapi connection")
@@ -233,7 +246,8 @@ func (api *K8sApiStruct) Connect(kubeconfig *string) error {
 	return nil
 }
 
-func (api *K8sApiStruct) GetVolumeHandleFromVA(ctx context.Context, va *storagev1.VolumeAttachment) (string, error) {
+//GetVolumeHandleFromVA returns a the CSI.VolumeHandle string for a given VolumeAttachment
+func (api *Client) GetVolumeHandleFromVA(ctx context.Context, va *storagev1.VolumeAttachment) (string, error) {
 	pvname, err := api.GetPVNameFromVA(va)
 	if err != nil {
 		return "", err
@@ -249,19 +263,22 @@ func (api *K8sApiStruct) GetVolumeHandleFromVA(ctx context.Context, va *storagev
 	return "", fmt.Errorf("PV is not a CSI volume")
 }
 
-func (api *K8sApiStruct) GetPVNameFromVA(va *storagev1.VolumeAttachment) (string, error) {
+//GetPVNameFromVA returns the PV name given a VolumeAttachment object reference
+func (api *Client) GetPVNameFromVA(va *storagev1.VolumeAttachment) (string, error) {
 	if va.Spec.Source.PersistentVolumeName != nil {
 		return *va.Spec.Source.PersistentVolumeName, nil
 	}
 	return "", fmt.Errorf("Could not find PersistentVolume from VolumeAttachment %s", va.ObjectMeta.Name)
 }
 
-func (api *K8sApiStruct) SetupPodWatch(ctx context.Context, namespace string, listOptions metav1.ListOptions) (watch.Interface, error) {
+//SetupPodWatch returns a watch.Interface given the namespace and list options
+func (api *Client) SetupPodWatch(ctx context.Context, namespace string, listOptions metav1.ListOptions) (watch.Interface, error) {
 	watcher, err := api.Client.CoreV1().Pods(namespace).Watch(ctx, listOptions)
 	return watcher, err
 }
 
-func (api *K8sApiStruct) SetupNodeWatch(ctx context.Context, listOptions metav1.ListOptions) (watch.Interface, error) {
+//SetupNodeWatch returns a watch.Interface given the list options
+func (api *Client) SetupNodeWatch(ctx context.Context, listOptions metav1.ListOptions) (watch.Interface, error) {
 	watcher, err := api.Client.CoreV1().Nodes().Watch(ctx, listOptions)
 	return watcher, err
 }

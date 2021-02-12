@@ -6,6 +6,7 @@ import (
 	csiext "github.com/dell/dell-csi-extensions/podmon"
 )
 
+//CSIApi is an interface for CSI driver calls
 type CSIApi interface {
 	// Returns if the podmon is connected to the driver
 	Connected() bool

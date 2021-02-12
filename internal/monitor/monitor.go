@@ -25,16 +25,25 @@ const (
 )
 
 var (
-	ShortTimeout            = 10 * time.Second
-	MediumTimeout           = 30 * time.Second
-	LongTimeout             = 180 * time.Second
-	PendingRetryTime        = 30 * time.Second
-	NodeAPIInterval         = 30 * time.Second
-	CSIMaxRetries           = 3
+	//ShortTimeout used for initial try
+	ShortTimeout = 10 * time.Second
+	//MediumTimeout is a wait-backoff after the ShortTimeout
+	MediumTimeout = 30 * time.Second
+	//LongTimeout is a longer wait-backoff period
+	LongTimeout = 180 * time.Second
+	//PendingRetryTime time between retry of certain CSI calls
+	PendingRetryTime = 30 * time.Second
+	//NodeAPIInterval time between NodeAPI checks
+	NodeAPIInterval = 30 * time.Second
+	//CSIMaxRetries max times to retry certain CSI calls
+	CSIMaxRetries = 3
+	//MonitorRestartTimeDelay time to wait before restarting monitor
 	MonitorRestartTimeDelay = 10 * time.Second
-	LockSleepTimeDelay      = 1 * time.Second
+	//LockSleepTimeDelay wait for lock retry
+	LockSleepTimeDelay = 1 * time.Second
 )
 
+//PodMonitorType structure is tracking data for the pod monitor
 type PodMonitorType struct {
 	Mode                          string   // controller, node, or standalone
 	PodKeyMap                     sync.Map // podkey to *v1.Pod in controller (temporal) or *NodePodInfo in node
@@ -46,9 +55,16 @@ type PodMonitorType struct {
 	DriverPathStr                 string   // CSI Driver path string for parsing csi.volume.kubernetes.io/nodeid annotation
 }
 
+//PodMonitor is a reference to tracking data for the pod monitor
 var PodMonitor PodMonitorType
-var K8sApi k8sapi.K8sApi
+
+//K8sAPI is a reference to the internal k8s API wrapper
+var K8sAPI k8sapi.K8sAPI
+
+//CSIApi is a reference to the internal CSI API wrapper
 var CSIApi csiapi.CSIApi
+
+//CSIVolumePathFormat is a formatter string used for producing the full path of a volume mount
 var CSIVolumePathFormat = "/var/lib/kubelet/pods/%s/volumes/kubernetes.io~csi"
 
 func getPodKey(pod *v1.Pod) string {
@@ -72,6 +88,7 @@ type Monitor struct {
 	Watcher  watch.Interface
 }
 
+//Lock acquires a sync lock based on the pod reference and key
 func Lock(podkey string, pod *v1.Pod) {
 	_, loaded := PodMonitor.PodKeyMap.LoadOrStore(podkey, pod)
 	for loaded {
@@ -80,6 +97,7 @@ func Lock(podkey string, pod *v1.Pod) {
 	}
 }
 
+//Unlock returns a sync lock based on a pod key reference
 func Unlock(podkey string) {
 	PodMonitor.PodKeyMap.Delete(podkey)
 }
@@ -130,7 +148,7 @@ func podMonitorHandler(eventType watch.EventType, object interface{}) error {
 	return nil
 }
 
-// Start the PodMonitor so that it is processing pods which might have problems.
+//StartPodMonitor starts the PodMonitor so that it is processing pods which might have problems.
 // The labelKey and labelValue are used for filtering.
 func StartPodMonitor(client kubernetes.Interface, labelKey, labelValue string) {
 	log.Infof("attempting to start PodMonitor\n")
@@ -145,7 +163,7 @@ func StartPodMonitor(client kubernetes.Interface, labelKey, labelValue string) {
 	}
 	for {
 		ctx := context.Background()
-		watcher, err := K8sApi.SetupPodWatch(ctx, "", listOptions)
+		watcher, err := K8sAPI.SetupPodWatch(ctx, "", listOptions)
 		if err != nil {
 			log.Errorf("Could not create PodWatcher: %s\n", err)
 			return
@@ -184,7 +202,7 @@ func nodeMonitorHandler(eventType watch.EventType, object interface{}) error {
 	return nil
 }
 
-// Start the NodeMonitor so that it is process nodes which might go offline.
+//StartNodeMonitor starts the NodeMonitor so that it is process nodes which might go offline.
 func StartNodeMonitor(client kubernetes.Interface, labelKey, labelValue string) {
 	log.Printf("attempting to start NodeMonitor\n")
 	nodeMonitor := Monitor{Client: client}
@@ -198,7 +216,7 @@ func StartNodeMonitor(client kubernetes.Interface, labelKey, labelValue string) 
 	}
 	for {
 		ctx := context.Background()
-		watcher, err := K8sApi.SetupNodeWatch(ctx, listOptions)
+		watcher, err := K8sAPI.SetupNodeWatch(ctx, listOptions)
 		if err != nil {
 			log.Errorf("Could not create NodeWatcher: %s", err)
 			return

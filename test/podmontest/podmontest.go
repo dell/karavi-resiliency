@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+//TAGSIZE standard size for a pod tab
 const TAGSIZE = 16
 
 var rootDir = "/"

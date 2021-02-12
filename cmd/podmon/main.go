@@ -32,13 +32,28 @@ const (
 	driverPath                               = "csi-vxflexos.dellemc.com"
 )
 
-var K8sApi k8sapi.K8sApi = &k8sapi.K8sClient
+//K8sAPI is reference to the internal Kubernetes wrapper client
+var K8sAPI k8sapi.K8sAPI = &k8sapi.K8sClient
+
+//LeaderElection is a reference to function returning a leaderElection object
 var LeaderElection = k8sLeaderElection
+
+//StartAPIMonitorFn is are reference to the function that initiates the APIMonitor
 var StartAPIMonitorFn = monitor.StartAPIMonitor
+
+//StartPodMonitorFn is are reference to the function that initiates the PodMonitor
 var StartPodMonitorFn = monitor.StartPodMonitor
+
+//StartNodeMonitorFn is are reference to the function that initiates the NodeMonitor
 var StartNodeMonitorFn = monitor.StartNodeMonitor
+
+//ArrayConnMonitorFc is are reference to the function that initiates the ArrayConnectivityMonitor
 var ArrayConnMonitorFc = monitor.PodMonitor.ArrayConnectivityMonitor
+
+//PodMonWait is reference to a function that handles podmon monitoring loop
 var PodMonWait = podMonWait
+
+//GetCSIClient is reference to a function that returns a new CSIClient
 var GetCSIClient = csiapi.NewCSIClient
 var createArgsOnce sync.Once
 
@@ -63,12 +78,12 @@ func main() {
 	log.Infof("Running in %s mode", monitor.PodMonitor.Mode)
 	monitor.ArrayConnectivityPollRate = time.Duration(*args.arrayConnectivityPollRate) * time.Second
 	monitor.ArrayConnectivityConnectionLossThreshold = *args.arrayConnectivityConnectionLossThreshold
-	err := K8sApi.Connect(args.kubeconfig)
+	err := K8sAPI.Connect(args.kubeconfig)
 	if err != nil {
 		log.Errorf("kubernetes connection error: %s", err)
 		return
 	}
-	monitor.K8sApi = K8sApi
+	monitor.K8sAPI = K8sAPI
 	if *args.csisock != "" {
 		clientOpts := []grpc.DialOption{
 			grpc.WithInsecure(),
@@ -119,9 +134,8 @@ func main() {
 		}
 	}
 	log.Printf("leader election: %t", *args.enableLeaderElection)
-	if *args.enableLeaderElection == true {
-		var le leaderElection
-		le = LeaderElection(run)
+	if *args.enableLeaderElection {
+		le := LeaderElection(run)
 		if err := le.Run(); err != nil {
 			log.Printf("failed to initialize leader election: %v", err)
 		}
@@ -130,6 +144,7 @@ func main() {
 	}
 }
 
+//PodmonArgs is structure holding the podmon command arguments
 type PodmonArgs struct {
 	arrayConnectivityPollRate                *int    // time in seconds
 	arrayConnectivityConnectionLossThreshold *int    // number of failed attempts before declaring connection loss

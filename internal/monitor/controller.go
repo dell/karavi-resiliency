@@ -16,10 +16,11 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 )
 
+//ControllerPodInfo has information for tracking health of the system
 type ControllerPodInfo struct { // information controller keeps on hand about a pod
 	PodKey   string   // the Pod Key (namespace/name) of the pod
 	Node     *v1.Node // the associated node structure
-	PodUid   string   // the pod container's UID
+	PodUID   string   // the pod container's UID
 	ArrayIDs []string // string of array IDs used by the pod's volumes
 }
 
@@ -38,16 +39,16 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 	Lock(podKey, pod)
 	defer Unlock(podKey)
 	// Check that pod is still present
-	ctx, cancel := K8sApi.GetContext(MediumTimeout)
+	ctx, cancel := K8sAPI.GetContext(MediumTimeout)
 	defer cancel()
-	pod, err := K8sApi.GetPod(ctx, pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
+	pod, err := K8sAPI.GetPod(ctx, pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 	if err != nil {
 		log.Errorf("GetPod failed: %s: %s", podKey, err)
 		return err
 	}
 	if pod.Spec.NodeName != "" {
 		log.Debugf("Getting node %s", pod.Spec.NodeName)
-		node, err := K8sApi.GetNode(ctx, pod.Spec.NodeName)
+		node, err := K8sAPI.GetNode(ctx, pod.Spec.NodeName)
 		if err != nil {
 			log.Errorf("GetNode failed: %s: %s", pod.Spec.NodeName, err)
 		} else {
@@ -77,11 +78,11 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 				if err != nil {
 					log.Errorf("Could not determine pod to arrayIDs: %s", err)
 				}
-				podUid := string(pod.ObjectMeta.UID)
+				podUID := string(pod.ObjectMeta.UID)
 				podInfo := &ControllerPodInfo{
 					PodKey:   podKey,
 					Node:     node,
-					PodUid:   podUid,
+					PodUID:   podUID,
 					ArrayIDs: arrayIDs,
 				}
 				cm.PodKeyToControllerPodInfo.Store(podKey, podInfo)
@@ -112,10 +113,10 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node) bool 
 	defer Unlock(podKey)
 
 	log.WithFields(fields).Infof("Cleaning up pod")
-	ctx, cancel := K8sApi.GetContext(LongTimeout)
+	ctx, cancel := K8sAPI.GetContext(LongTimeout)
 	defer cancel()
 	// Get the volume attachments
-	volumeAttachmentList, err := K8sApi.GetVolumeAttachments(ctx)
+	volumeAttachmentList, err := K8sAPI.GetVolumeAttachments(ctx)
 	if err != nil {
 		log.WithFields(fields).Errorf("Could not get volumeAttachments: %s", err)
 		return false
@@ -126,13 +127,13 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node) bool 
 	volIDs := make([]string, 0)
 	vaNamesToDelete := make([]string, 0)
 	for _, va := range volumeAttachmentList.Items {
-		podVA, err := K8sApi.IsVolumeAttachmentToPod(ctx, &va, pod)
+		podVA, err := K8sAPI.IsVolumeAttachmentToPod(ctx, &va, pod)
 		if err != nil {
 			log.WithFields(fields).Errorf("Aborting cleanup because could not determine if VA %s belongs to pod: %s", va.ObjectMeta.Name, err.Error())
 			return false
 		}
 		if podVA {
-			volID, err := K8sApi.GetVolumeHandleFromVA(ctx, &va)
+			volID, err := K8sAPI.GetVolumeHandleFromVA(ctx, &va)
 			if err != nil {
 				log.WithFields(fields).Errorf("Aborting cleanup because could not getVolumeHandleFromVA: %v %s", va, err.Error())
 				return false
@@ -178,7 +179,7 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node) bool 
 
 	// Delete all the volumeattachments attached to our pod
 	for _, vaName := range vaNamesToDelete {
-		err = K8sApi.DeleteVolumeAttachment(ctx, vaName)
+		err = K8sAPI.DeleteVolumeAttachment(ctx, vaName)
 		if err != nil {
 			log.WithFields(fields).Errorf("Couldn't delete VolumeAttachment: %s", vaName)
 			return false
@@ -186,7 +187,7 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node) bool 
 	}
 
 	// Force delete the pod.
-	err = K8sApi.DeletePod(ctx, pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, true)
+	err = K8sAPI.DeletePod(ctx, pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, true)
 	if err == nil {
 		log.WithFields(fields).Infof("Successfully cleaned up pod")
 		// Delete the ControllerPodInfo reference to this pod, we've deleted it.
@@ -285,7 +286,7 @@ func (cm *PodMonitorType) ArrayConnectivityMonitor() {
 			controllerPodInfo := value.(*ControllerPodInfo)
 			podKey := controllerPodInfo.PodKey
 			podNamespace, podName := splitPodKey(podKey)
-			podUid := controllerPodInfo.PodUid
+			podUID := controllerPodInfo.PodUID
 			node := controllerPodInfo.Node
 
 			// Check if we have connectivity for all our array ids
@@ -299,16 +300,16 @@ func (cm *PodMonitorType) ArrayConnectivityMonitor() {
 			}
 			if !connected {
 				// Fetch the pod.
-				ctx, cancel := K8sApi.GetContext(MediumTimeout)
+				ctx, cancel := K8sAPI.GetContext(MediumTimeout)
 				defer cancel()
-				pod, err := K8sApi.GetPod(ctx, podNamespace, podName)
+				pod, err := K8sAPI.GetPod(ctx, podNamespace, podName)
 				if err == nil {
-					if string(pod.ObjectMeta.UID) == podUid && pod.Spec.NodeName == node.ObjectMeta.Name {
+					if string(pod.ObjectMeta.UID) == podUID && pod.Spec.NodeName == node.ObjectMeta.Name {
 						log.Infof("Cleaning up pod %s/%s because of array connectivity loss", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 						cm.controllerCleanupPod(pod, node)
 					} else {
-						log.Infof("Skipping pod %s/%s podUid %s %s node %s %s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name,
-							string(pod.ObjectMeta.UID), podUid, pod.Spec.NodeName, node.ObjectMeta.Name)
+						log.Infof("Skipping pod %s/%s podUID %s %s node %s %s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name,
+							string(pod.ObjectMeta.UID), podUID, pod.Spec.NodeName, node.ObjectMeta.Name)
 					}
 				}
 			}
@@ -331,7 +332,7 @@ type nodeArrayConnectivityCache struct {
 
 var connectivityCache nodeArrayConnectivityCache
 
-// ConnectivityLossThreshold is the number of consecutive samples that must fail before we declare connectivity loss
+//ArrayConnectivityConnectionLossThreshold is the number of consecutive samples that must fail before we declare connectivity loss
 var ArrayConnectivityConnectionLossThreshold int = 3
 
 // CheckConnectivity returns true if the node has connectivity to the arrayID supplied
@@ -362,7 +363,7 @@ func (nacc *nodeArrayConnectivityCache) ResetSampled() {
 		nacc.nodeArrayConnectivityLossCount = make(map[string]int)
 	}
 	nacc.initialized = true
-	for key, _ := range nacc.nodeArrayConnectivitySampled {
+	for key := range nacc.nodeArrayConnectivitySampled {
 		nacc.nodeArrayConnectivitySampled[key] = false
 	}
 }
@@ -397,6 +398,7 @@ func getCSINodeIDAnnotation(node *v1.Node, driverPath string) string {
 	return ""
 }
 
+//KubectlTaint is a reference to a function that can update a node taint
 var KubectlTaint = callKubectlTaint
 
 func callKubectlTaint(operation, nodeName, taint string) error {

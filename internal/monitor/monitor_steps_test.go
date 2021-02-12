@@ -49,7 +49,7 @@ type feature struct {
 	failCSIVolumePathDirRead bool
 	failKubectlTaint         bool
 	failRemoveDir            string
-	maxNodeApiLoopTimes      int
+	maxNodeAPILoopTimes      int
 	// If true and the test case has expected loghook.LastEntry set to
 	//'none', it will validate if it indeed was a successful message.
 	validateLastMessage bool
@@ -64,7 +64,7 @@ func (f *feature) aControllerMonitor() error {
 	}
 	f.k8sapiMock = new(k8sapi.K8sMock)
 	f.k8sapiMock.Initialize()
-	K8sApi = f.k8sapiMock
+	K8sAPI = f.k8sapiMock
 	f.csiapiMock = new(csiapi.CSIMock)
 	CSIApi = f.csiapiMock
 	f.podmonMonitor = &PodMonitorType{}
@@ -499,12 +499,12 @@ func (f *feature) nodeEnvVarsSet(nodeName string) error {
 	return nil
 }
 
-func (f *feature) iAllowNodeApiMonitorLoopToRun(maxLoopTimes int) error {
-	f.maxNodeApiLoopTimes = maxLoopTimes
+func (f *feature) iAllowNodeAPIMonitorLoopToRun(maxLoopTimes int) error {
+	f.maxNodeAPILoopTimes = maxLoopTimes
 	return nil
 }
 
-func (f *feature) initApiLoopVariables() {
+func (f *feature) initAPILoopVariables() {
 	f.validateLastMessage = true
 
 	APICheckInterval = 30 * time.Millisecond
@@ -514,24 +514,23 @@ func (f *feature) initApiLoopVariables() {
 	loops := 0
 	APIMonitorWait = func() bool {
 		loops++
-		if loops >= f.maxNodeApiLoopTimes {
+		if loops >= f.maxNodeAPILoopTimes {
 			return true
-		} else {
-			time.Sleep(APICheckInterval)
-			return false
 		}
+		time.Sleep(APICheckInterval)
+		return false
 	}
 }
 
 func (f *feature) iCallStartAPIMonitor() error {
-	f.initApiLoopVariables()
+	f.initAPILoopVariables()
 	StartAPIMonitor()
 	time.Sleep(2 * APICheckInterval)
 	return nil
 }
 
-func (f *feature) iCallApiMonitorLoop(nodeName string) error {
-	f.initApiLoopVariables()
+func (f *feature) iCallAPIMonitorLoop(nodeName string) error {
+	f.initAPILoopVariables()
 	f.podmonMonitor.apiMonitorLoop(nodeName)
 	return nil
 }
@@ -655,9 +654,9 @@ func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^the controller cleaned up (\d+) pods for node "([^"]*)"$`, f.theControllerCleanedUpPodsForNode)
 	context.Step(`^the unmount returns "([^"]*)"$`, f.theUnmountReturns)
 	context.Step(`^node "([^"]*)" env vars set$`, f.nodeEnvVarsSet)
-	context.Step(`^I allow nodeApiMonitor loop to run (\d+)$`, f.iAllowNodeApiMonitorLoopToRun)
+	context.Step(`^I allow nodeApiMonitor loop to run (\d+)$`, f.iAllowNodeAPIMonitorLoopToRun)
 	context.Step(`^I call StartAPIMonitor$`, f.iCallStartAPIMonitor)
-	context.Step(`^I call apiMonitorLoop for "([^"]*)"$`, f.iCallApiMonitorLoop)
+	context.Step(`^I call apiMonitorLoop for "([^"]*)"$`, f.iCallAPIMonitorLoop)
 	context.Step(`^I induce error "([^"]*)" for "([^"]*)"$`, f.iInduceErrorForMaxTimes)
 	context.Step(`^I call StartPodMonitor with key "([^"]*)" and value "([^"]*)"$`, f.iCallStartPodMonitorWithKeyAndValue)
 	context.Step(`^I close the Watcher$`, f.iCloseTheWatcher)

@@ -13,6 +13,7 @@ func AssertExpectedAndActual(a ExpectedAndActualAssertion, expected, actual inte
 	return t.err
 }
 
+//ExpectedAndActualAssertion represents an assert function that tests an actual value to an expected value
 type ExpectedAndActualAssertion func(t assert.TestingT, expected, actual interface{}, msgAndArgs ...interface{}) bool
 
 // AssertActual is a helper function to allow the step function to call
@@ -24,6 +25,7 @@ func AssertActual(a ActualAssertion, actual interface{}, msgAndArgs ...interface
 	return t.err
 }
 
+//ActualAssertion represents an assert function that tests the value of a function
 type ActualAssertion func(t assert.TestingT, actual interface{}, msgAndArgs ...interface{}) bool
 
 // Asserter is used to be able to retrieve the error reported by the called assertion

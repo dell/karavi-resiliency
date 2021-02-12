@@ -15,8 +15,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-// K8sApi provides an API interface to kubernetes.
-type K8sApi interface {
+//K8sAPI provides an API interface to kubernetes.
+type K8sAPI interface {
 	// Connect connects to the Kubernetes system API
 	Connect(kubeconfig *string) error
 

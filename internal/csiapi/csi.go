@@ -9,16 +9,21 @@ import (
 	"time"
 )
 
-type CSIApiStruct struct {
+//Client holds clients related to CSI access
+type Client struct {
 	DriverConn       *grpc.ClientConn     // A grpc client connection to the driver
 	PodmonClient     csiext.PodmonClient  // A grpc CSIPodmonClient
 	ControllerClient csi.ControllerClient // A grpc CSI ControllerClient
 	NodeClient       csi.NodeClient       // A grpc CSI NodeClient
 }
 
-var CSIClient CSIApiStruct
+//CSIClient is reference to CSI Client
+var CSIClient Client
+
+//CSIClientDialRetry is timeout after failure to connect to the CSI Driver
 var CSIClientDialRetry = 30 * time.Second
 
+//NewCSIClient returns a new CSIApi interface
 func NewCSIClient(csiSock string, clientOpts ...grpc.DialOption) (CSIApi, error) {
 	var err error
 	for {
@@ -45,29 +50,35 @@ func NewCSIClient(csiSock string, clientOpts ...grpc.DialOption) (CSIApi, error)
 	return &CSIClient, nil
 }
 
-func (csi *CSIApiStruct) Connected() bool {
+//Connected returns true if there is non-nil driver connection
+func (csi *Client) Connected() bool {
 	return csi.DriverConn != nil
 }
 
-func (csi *CSIApiStruct) Close() error {
+//Close will close connections on the driver connection, if it exists
+func (csi *Client) Close() error {
 	if csi.Connected() {
 		return csi.DriverConn.Close()
 	}
 	return nil
 }
 
-func (csi *CSIApiStruct) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
+//ControllerUnpublishVolume calls the UnpublishVolume in the controller
+func (csi *Client) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
 	return CSIClient.ControllerClient.ControllerUnpublishVolume(ctx, req)
 }
 
-func (csi *CSIApiStruct) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
+//NodeUnpublishVolume calls the UnpublishVolume in the node
+func (csi *Client) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
 	return CSIClient.NodeClient.NodeUnpublishVolume(ctx, req)
 }
 
-func (csi *CSIApiStruct) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
+//NodeUnstageVolume calls UnstageVolume in the node
+func (csi *Client) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
 	return CSIClient.NodeClient.NodeUnstageVolume(ctx, req)
 }
 
-func (csi *CSIApiStruct) ValidateVolumeHostConnectivity(ctx context.Context, req *csiext.ValidateVolumeHostConnectivityRequest) (*csiext.ValidateVolumeHostConnectivityResponse, error) {
+//ValidateVolumeHostConnectivity calls the ValidateVolumeHostConnectivity in the podmon client
+func (csi *Client) ValidateVolumeHostConnectivity(ctx context.Context, req *csiext.ValidateVolumeHostConnectivityRequest) (*csiext.ValidateVolumeHostConnectivityResponse, error) {
 	return CSIClient.PodmonClient.ValidateVolumeHostConnectivity(ctx, req)
 }
