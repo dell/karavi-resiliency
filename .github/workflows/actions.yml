@@ -14,7 +14,7 @@ jobs:
       - name: Checkout dell-csi-extensions
         uses: actions/checkout@v2
         with:
-          repository: 'github.com/dell/dell-csi-extensions'
+          repository: 'dell/dell-csi-extensions'
           token: ${{secrets.DELL_EMC_XT_TOKEN}}
       - name: Run the formatter, linter, and vetter
         uses: dell/common-github-actions/go-code-formatter-linter-vetter@main
@@ -39,7 +39,7 @@ jobs:
       - name: Checkout dell-csi-extensions
         uses: actions/checkout@v2
         with:
-          repository: 'github.com/dell/dell-csi-extensions'
+          repository: 'dell/dell-csi-extensions'
           token: ${{secrets.DELL_EMC_XT_TOKEN}}
       - name: Run unit tests and check package coverage
         uses: dell/common-github-actions/go-code-tester@main
@@ -80,7 +80,7 @@ jobs:
       - name: Checkout dell-csi-extensions
         uses: actions/checkout@v2
         with:
-          repository: 'github.com/dell/dell-csi-extensions'
+          repository: 'dell/dell-csi-extensions'
       - name: Install Mockgen
         run: go get github.com/golang/mock/mockgen@v1.4.4
       - name: Get dependencies
