@@ -93,7 +93,7 @@ jobs:
       - name: Get dependencies
         run:  go mod download
       - name: Build podmon Docker Image
-        run: cd cmd/podmon; docker build -t podmon
+        run: cd cmd/podmon; docker build -t podmon .
       - name: Image scanner
         uses: Azure/container-scan@v0
         with:
