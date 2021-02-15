@@ -14,7 +14,7 @@ jobs:
       - name: Checkout dell-csi-extensions
         uses: actions/checkout@v2
         with:
-          repository: 'dell/dell-csi-extensions'
+          repository: 'dell/dell-csi-extensions@initial-code-commit'
           token: ${{secrets.DELL_EMC_XT_TOKEN}}
           path: dell-csi-extensions
       - name: Run the formatter, linter, and vetter
@@ -40,7 +40,7 @@ jobs:
       - name: Checkout dell-csi-extensions
         uses: actions/checkout@v2
         with:
-          repository: 'dell/dell-csi-extensions'
+          repository: 'dell/dell-csi-extensions@initial-code-commit'
           token: ${{secrets.DELL_EMC_XT_TOKEN}}
           path: dell-csi-extensions
       - name: Run unit tests and check package coverage
@@ -82,7 +82,7 @@ jobs:
       - name: Checkout dell-csi-extensions
         uses: actions/checkout@v2
         with:
-          repository: 'dell/dell-csi-extensions'
+          repository: 'dell/dell-csi-extensions@initial-code-commit'
           token: ${{secrets.DELL_EMC_XT_TOKEN}}
           path: dell-csi-extensions
       - name: Install Mockgen
