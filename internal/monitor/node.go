@@ -11,6 +11,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	"os"
+	"podmon/internal/k8sapi"
 	"strings"
 	"time"
 )
@@ -28,7 +29,7 @@ var APICheckFirstTryTimeout = MediumTimeout
 var APIMonitorWait = internalAPIMonitorWait
 
 // StartAPIMonitor checks API connectivity by pinging the indicated (self) node
-func StartAPIMonitor() error {
+func StartAPIMonitor(api k8sapi.K8sAPI, firstTimeout, retryTimeout, interval time.Duration, waitFor func(interval time.Duration) bool) error {
 	nodeName := os.Getenv("KUBE_NODE_NAME")
 	if nodeName == "" {
 		err := errors.New("KUBE_NODE_NAME environment variable must be set")
@@ -38,22 +39,22 @@ func StartAPIMonitor() error {
 
 	pm := &PodMonitor
 	fn := func() {
-		pm.apiMonitorLoop(nodeName)
+		pm.apiMonitorLoop(api, nodeName, firstTimeout, retryTimeout, interval, waitFor)
 	}
 	// Start a thread for the API monitor
 	go fn()
 	return nil
 }
 
-func (pm *PodMonitorType) apiMonitorLoop(nodeName string) {
+func (pm *PodMonitorType) apiMonitorLoop(api k8sapi.K8sAPI, nodeName string, firstTimeout, retryTimeout, interval time.Duration, waitFor func(interval time.Duration) bool) {
 	pm.APIConnected = true
 	for {
 		// Retrieve our Node's state
-		node, err := K8sAPI.GetNodeWithTimeout(APICheckFirstTryTimeout, nodeName)
+		node, err := api.GetNodeWithTimeout(firstTimeout, nodeName)
 		if err != nil {
 			for i := 0; i < 3; i++ {
 				time.Sleep(APICheckRetryTimeout)
-				_, err = K8sAPI.GetNodeWithTimeout(APICheckRetryTimeout, nodeName)
+				_, err = api.GetNodeWithTimeout(retryTimeout, nodeName)
 				if err == nil {
 					break
 				}
@@ -82,14 +83,14 @@ func (pm *PodMonitorType) apiMonitorLoop(nodeName string) {
 				pm.nodeModeCleanupPods(node)
 			}
 		}
-		if stopLoop := APIMonitorWait(); stopLoop {
+		if stopLoop := waitFor(interval); stopLoop {
 			break
 		}
 	}
 }
 
-func internalAPIMonitorWait() bool {
-	time.Sleep(APICheckInterval)
+func internalAPIMonitorWait(interval time.Duration) bool {
+	time.Sleep(interval)
 	return false
 }
 

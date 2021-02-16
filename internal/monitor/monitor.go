@@ -89,10 +89,10 @@ type Monitor struct {
 }
 
 //Lock acquires a sync lock based on the pod reference and key
-func Lock(podkey string, pod *v1.Pod) {
+func Lock(podkey string, pod *v1.Pod, delay time.Duration) {
 	_, loaded := PodMonitor.PodKeyMap.LoadOrStore(podkey, pod)
 	for loaded {
-		time.Sleep(LockSleepTimeDelay)
+		time.Sleep(delay)
 		_, loaded = PodMonitor.PodKeyMap.LoadOrStore(podkey, pod)
 	}
 }
@@ -150,7 +150,7 @@ func podMonitorHandler(eventType watch.EventType, object interface{}) error {
 
 //StartPodMonitor starts the PodMonitor so that it is processing pods which might have problems.
 // The labelKey and labelValue are used for filtering.
-func StartPodMonitor(client kubernetes.Interface, labelKey, labelValue string) {
+func StartPodMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, labelValue string, restartDelay time.Duration) {
 	log.Infof("attempting to start PodMonitor\n")
 	podMonitor := Monitor{Client: client}
 	listOptions := metav1.ListOptions{
@@ -163,7 +163,7 @@ func StartPodMonitor(client kubernetes.Interface, labelKey, labelValue string) {
 	}
 	for {
 		ctx := context.Background()
-		watcher, err := K8sAPI.SetupPodWatch(ctx, "", listOptions)
+		watcher, err := api.SetupPodWatch(ctx, "", listOptions)
 		if err != nil {
 			log.Errorf("Could not create PodWatcher: %s\n", err)
 			return
@@ -176,7 +176,7 @@ func StartPodMonitor(client kubernetes.Interface, labelKey, labelValue string) {
 			return
 		}
 		log.Errorf("PodWatcher stopped... attempting restart: %s", err)
-		time.Sleep(MonitorRestartTimeDelay)
+		time.Sleep(restartDelay)
 	}
 }
 
@@ -203,7 +203,7 @@ func nodeMonitorHandler(eventType watch.EventType, object interface{}) error {
 }
 
 //StartNodeMonitor starts the NodeMonitor so that it is process nodes which might go offline.
-func StartNodeMonitor(client kubernetes.Interface, labelKey, labelValue string) {
+func StartNodeMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, labelValue string, restartDelay time.Duration) {
 	log.Printf("attempting to start NodeMonitor\n")
 	nodeMonitor := Monitor{Client: client}
 	listOptions := metav1.ListOptions{
@@ -216,7 +216,7 @@ func StartNodeMonitor(client kubernetes.Interface, labelKey, labelValue string) 
 	}
 	for {
 		ctx := context.Background()
-		watcher, err := K8sAPI.SetupNodeWatch(ctx, listOptions)
+		watcher, err := api.SetupNodeWatch(ctx, listOptions)
 		if err != nil {
 			log.Errorf("Could not create NodeWatcher: %s", err)
 			return
@@ -230,6 +230,6 @@ func StartNodeMonitor(client kubernetes.Interface, labelKey, labelValue string) 
 			return
 		}
 		log.Errorf("NodeWatcher stopped... attempting restart: %s", err)
-		time.Sleep(MonitorRestartTimeDelay)
+		time.Sleep(restartDelay)
 	}
 }

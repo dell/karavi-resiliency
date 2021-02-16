@@ -15,6 +15,7 @@ import (
 	"podmon/internal/monitor"
 	"strings"
 	"sync"
+	"time"
 )
 
 type mainFeature struct {
@@ -74,13 +75,13 @@ func (m *mainFeature) mockGetCSIClient(csiSock string, clientOpts ...grpc.DialOp
 	return m.csiapiMock, nil
 }
 
-func (m *mainFeature) mockStartPodMonitor(client kubernetes.Interface, labelKey, labelValue string) {
+func (m *mainFeature) mockStartPodMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, labelValue string, duration time.Duration) {
 }
 
-func (m *mainFeature) mockStartNodeMonitor(client kubernetes.Interface, labelKey, labelValue string) {
+func (m *mainFeature) mockStartNodeMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, labelValue string, duration time.Duration) {
 }
 
-func (m *mainFeature) mockStartAPIMonitor() error {
+func (m *mainFeature) mockStartAPIMonitor(api k8sapi.K8sAPI, first, retry, interval time.Duration, waiter func(interval time.Duration) bool) error {
 	if m.failStartAPIMonitor {
 		return fmt.Errorf("induced StorageAPIMonitor failure")
 	}

@@ -111,21 +111,21 @@ func main() {
 	log.Infof("PodMonitor.DriverPathStr = %s", monitor.PodMonitor.DriverPathStr)
 	run := func(context.Context) {
 		if *args.mode == "node" {
-			err := StartAPIMonitorFn()
+			err := StartAPIMonitorFn(K8sAPI, monitor.APICheckFirstTryTimeout, monitor.APICheckRetryTimeout, monitor.APICheckInterval, monitor.APIMonitorWait)
 			if err != nil {
 				log.Errorf("Couldn't start API monitor: %s", err.Error())
 				return
 			}
 		} else if *args.mode == "controller" {
 			if monitor.PodMonitor.CSIExtensionsPresent {
-				go ArrayConnMonitorFc()
+				go ArrayConnMonitorFc(monitor.ArrayConnectivityPollRate)
 			}
 			// monitor all the nodes with no label required
-			go StartNodeMonitorFn(k8sapi.K8sClient.Client, "", "")
+			go StartNodeMonitorFn(K8sAPI, k8sapi.K8sClient.Client, "", "", monitor.MonitorRestartTimeDelay)
 		}
 
 		// monitor the pods with the designated label key/value
-		go StartPodMonitorFn(k8sapi.K8sClient.Client, *args.labelKey, *args.labelValue)
+		go StartPodMonitorFn(K8sAPI, k8sapi.K8sClient.Client, *args.labelKey, *args.labelValue, monitor.MonitorRestartTimeDelay)
 		for {
 			log.Printf("podmon alive...")
 			if stop := PodMonWait(); stop {

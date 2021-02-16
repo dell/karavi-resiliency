@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
@@ -36,7 +37,7 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 		return nil
 	}
 	// Single thread processing of this pod
-	Lock(podKey, pod)
+	Lock(podKey, pod, LockSleepTimeDelay)
 	defer Unlock(podKey)
 	// Check that pod is still present
 	ctx, cancel := K8sAPI.GetContext(MediumTimeout)
@@ -109,7 +110,7 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node) bool 
 	// Lock so that only one thread is processing pod at a time
 	podKey := getPodKey(pod)
 	// Single thread processing of this pod
-	Lock(podKey, pod)
+	Lock(podKey, pod, LockSleepTimeDelay)
 	defer Unlock(podKey)
 
 	log.WithFields(fields).Infof("Cleaning up pod")
@@ -275,7 +276,7 @@ var ArrayConnectivityPollRate = ShortTimeout
 // ArrayConnectivityMonitor -- periodically checks array connectivity to all the nodes using it.
 // If connectivity is lost, will initiate cleanup of the pods.
 // This is a never ending function, intended to be called as Go routine.
-func (cm *PodMonitorType) ArrayConnectivityMonitor() {
+func (cm *PodMonitorType) ArrayConnectivityMonitor(pollRate time.Duration) {
 	// Loop through all the monitored Pods making sure they still have array access
 	for {
 		// Clear the connectivity cache so it will sample again.
@@ -316,8 +317,8 @@ func (cm *PodMonitorType) ArrayConnectivityMonitor() {
 			return true
 		}
 		cm.PodKeyToControllerPodInfo.Range(fnPodKeyToControllerPodInfo)
-		time.Sleep(ArrayConnectivityPollRate)
-		if ArrayConnectivityPollRate < 10*time.Millisecond {
+		time.Sleep(pollRate)
+		if pollRate < 10*time.Millisecond {
 			// unit testing exit
 			return
 		}
@@ -325,7 +326,7 @@ func (cm *PodMonitorType) ArrayConnectivityMonitor() {
 }
 
 type nodeArrayConnectivityCache struct {
-	initialized                    bool            // Will be set after initialization
+	initOnce                       sync.Once       // Will be set after initialization
 	nodeArrayConnectivitySampled   map[string]bool // If true, already sampled, if need to call array to verify connectivity
 	nodeArrayConnectivityLossCount map[string]int  // 0 means connected, > 0 number of connection loss for n samples
 }
@@ -358,11 +359,10 @@ func (nacc *nodeArrayConnectivityCache) CheckConnectivity(cm *PodMonitorType, no
 }
 
 func (nacc *nodeArrayConnectivityCache) ResetSampled() {
-	if !nacc.initialized {
+	nacc.initOnce.Do(func() {
 		nacc.nodeArrayConnectivitySampled = make(map[string]bool)
 		nacc.nodeArrayConnectivityLossCount = make(map[string]int)
-	}
-	nacc.initialized = true
+	})
 	for key := range nacc.nodeArrayConnectivitySampled {
 		nacc.nodeArrayConnectivitySampled[key] = false
 	}

@@ -41,12 +41,12 @@ type K8sMock struct {
 		GetPVNameFromVA                      bool
 		Watch                                bool
 	}
-	Watcher *watch.FakeWatcher
+	Watcher *watch.RaceFreeFakeWatcher
 }
 
 //Initialize initial the mock structure
 func (mock *K8sMock) Initialize() {
-	mock.Watcher = watch.NewFake()
+	mock.Watcher = watch.NewRaceFreeFake()
 }
 
 //AddPod creates unique functions for managing mocked database.

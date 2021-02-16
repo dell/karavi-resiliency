@@ -21,6 +21,7 @@ import (
 	"podmon/internal/k8sapi"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -310,7 +311,7 @@ func (f *feature) iCallControllerModePodHandlerWithEvent(event string) error {
 	// Wait on the go routine to finish
 	time.Sleep(100 * time.Millisecond)
 	podKey := getPodKey(f.pod)
-	Lock(podKey, f.pod)
+	Lock(podKey, f.pod, LockSleepTimeDelay)
 	Unlock(podKey)
 	return nil
 }
@@ -333,7 +334,7 @@ func (f *feature) thePodIsCleaned(boolean string) error {
 func (f *feature) iCallArrayConnectivityMonitor() error {
 	ArrayConnectivityConnectionLossThreshold = 1
 	ArrayConnectivityPollRate = 1 * time.Millisecond
-	f.podmonMonitor.ArrayConnectivityMonitor()
+	f.podmonMonitor.ArrayConnectivityMonitor(ArrayConnectivityPollRate)
 	return nil
 }
 
@@ -512,33 +513,33 @@ func (f *feature) initAPILoopVariables() {
 	APICheckFirstTryTimeout = 5 * time.Millisecond
 
 	loops := 0
-	APIMonitorWait = func() bool {
+	APIMonitorWait = func(interval time.Duration) bool {
 		loops++
 		if loops >= f.maxNodeAPILoopTimes {
 			return true
 		}
-		time.Sleep(APICheckInterval)
+		time.Sleep(interval)
 		return false
 	}
 }
 
 func (f *feature) iCallStartAPIMonitor() error {
 	f.initAPILoopVariables()
-	StartAPIMonitor()
+	StartAPIMonitor(K8sAPI, APICheckFirstTryTimeout, APICheckRetryTimeout, APICheckInterval, APIMonitorWait)
 	time.Sleep(2 * APICheckInterval)
 	return nil
 }
 
 func (f *feature) iCallAPIMonitorLoop(nodeName string) error {
 	f.initAPILoopVariables()
-	f.podmonMonitor.apiMonitorLoop(nodeName)
+	f.podmonMonitor.apiMonitorLoop(K8sAPI, nodeName, APICheckFirstTryTimeout, APICheckRetryTimeout, APICheckInterval, APIMonitorWait)
 	return nil
 }
 
 func (f *feature) iCallStartPodMonitorWithKeyAndValue(key, value string) error {
 	MonitorRestartTimeDelay = 5 * time.Millisecond
 	client := fake.NewSimpleClientset()
-	go StartPodMonitor(client, key, value)
+	go StartPodMonitor(K8sAPI, client, key, value, MonitorRestartTimeDelay)
 	return nil
 }
 
@@ -578,7 +579,7 @@ func (f *feature) podMonitorMode(mode string) error {
 func (f *feature) iCallStartNodeMonitorWithKeyAndValue(key, value string) error {
 	MonitorRestartTimeDelay = 5 * time.Millisecond
 	client := fake.NewSimpleClientset()
-	go StartNodeMonitor(client, key, value)
+	go StartNodeMonitor(K8sAPI, client, key, value, MonitorRestartTimeDelay)
 	return nil
 }
 
@@ -606,6 +607,29 @@ func (f *feature) iSendANodeEventType(eventType string) error {
 	return nil
 }
 
+type safeCount struct {
+	lock  sync.Mutex
+	value int
+}
+
+func (c *safeCount) inc() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.value++
+}
+
+func (c *safeCount) equals(compareTo int) bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return c.value == compareTo
+}
+
+func (c *safeCount) dump() {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	fmt.Printf("value = %d", c.value)
+}
+
 func (f *feature) iCallTestLockAndGetPodKey() error {
 	// Test getPodKey and splitPodKey
 	podkey := getPodKey(f.pod)
@@ -617,18 +641,19 @@ func (f *feature) iCallTestLockAndGetPodKey() error {
 	LockSleepTimeDelay = 100 * time.Millisecond
 	// Test Lock and Unlock
 	const nlocks = 5
-	var counter int
+	var counter safeCount
 	for i := 0; i < nlocks; i++ {
-		go func() {
-			Lock(podkey, f.pod)
-			counter++
-			time.Sleep(LockSleepTimeDelay)
+		go func(duration time.Duration) {
+			Lock(podkey, f.pod, duration)
+			counter.inc()
+			time.Sleep(duration)
 			Unlock(podkey)
-		}()
+		}(LockSleepTimeDelay)
 	}
 	time.Sleep(10 * LockSleepTimeDelay)
 	LockSleepTimeDelay = lockSleepTimeDelay
-	if counter != nlocks {
+	counter.dump()
+	if !counter.equals(nlocks) {
 		return fmt.Errorf("Error in Lock()/Unlock()")
 	}
 	return nil
