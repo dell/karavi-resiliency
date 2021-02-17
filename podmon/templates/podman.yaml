@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: podmon
+  namespace: podmon
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: podmon
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "update", "delete"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["volumeattachments"]
+    verbs: ["get", "list", "watch", "update", "delete"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "watch", "list", "delete", "update", "create"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: podmon
+subjects:
+  - kind: ServiceAccount
+    name: podmon
+    namespace: podmon
+roleRef:
+  kind: ClusterRole
+  name: podmon
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: podmon
+  namespace: podmon
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: podmon
+  template:
+    metadata:
+      labels:
+        app: podmon
+    spec:
+      serviceAccount: podmon
+      containers:
+        - name: podmon
+          imagePullPolicy: Always
+          image: {{ .Values.podmon.image }}
