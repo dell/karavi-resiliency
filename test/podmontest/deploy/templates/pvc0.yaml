@@ -1,0 +1,13 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: pvol0
+  namespace: {{ required "Must set namespace" .Values.podmonTest.namespace }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: 8Gi
+  storageClassName: {{ required "Must set storage class name" .Values.podmonTest.storageClassName }}
