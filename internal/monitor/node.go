@@ -194,14 +194,14 @@ func (pm *PodMonitorType) nodeModePodHandler(pod *v1.Pod, eventType watch.EventT
 	return nil
 }
 
-//MountPathVolumeInfo composes the mount path and volume information
+//MountPathVolumeInfo holds the mount path and volume information
 type MountPathVolumeInfo struct {
 	Path     string
 	VolumeID string
 	PVName   string
 }
 
-//BlockPathVolumeInfo compoes the block path and volume information
+//BlockPathVolumeInfo holds the block path and volume information
 type BlockPathVolumeInfo struct {
 	Path     string
 	VolumeID string
