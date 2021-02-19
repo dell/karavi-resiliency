@@ -16,8 +16,7 @@ You may obtain a copy of the License at
 User applications, especially those deployed with StatefulSets that use PersistentVolumeClaims, can have problems if 
 you want their Pods to be resilient to node failure. Kubernetes does not clean up StatefulSet Pods because it makes 
 guarantees that there will never be two copies the same StatefulSet Pod running at the same time accessing storage. 
-For the complete discussion and rationale, read: 
-https://github.com/kubernetes/community/blob/master/contributors/design-proposals/storage/pod-safety.md.
+For the complete discussion and rationale, go to https://github.com/kubernetes/community and search for the pod-safety.md file (path: contributors/design-proposals/storage/pod-safety.md)
 
 Also, as a background you should read the following page regarding forced deletion of Pods in a StatefulSet. 
 https://kubernetes.io/docs/tasks/run-application/force-delete-stateful-set-pod/#:~:text=In%20normal%20operation%20of%20a,1%20are%20alive%20and%20ready.
