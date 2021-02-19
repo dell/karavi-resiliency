@@ -32,7 +32,8 @@ spec:
             volumeMounts:
               - mountPath: "/data0"
                 name: pvol0
-              - mountPath: "/data1"
+            volumeDevices:
+              - devicePath: "/blockdata1"
                 name: pvol1
         volumes:
           - name: pvol0

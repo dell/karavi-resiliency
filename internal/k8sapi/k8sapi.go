@@ -228,6 +228,9 @@ func (api *Client) Connect(kubeconfig *string) error {
 		if err != nil {
 			return err
 		}
+		// Change parameters to address k8s throttling issues
+		config.QPS = 100
+		config.Burst = 100
 		client, err = kubernetes.NewForConfig(config)
 	} else {
 		log.Infof("Using InClusterConfig()")

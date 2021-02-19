@@ -16,12 +16,14 @@ const TAGSIZE = 16
 
 var rootDir = "/"
 var enableDoExit bool
+var blockFiles map[string]*os.File
 
 func main() {
 	var err error
 	fmt.Printf("hello world\n")
 	flag.BoolVar(&enableDoExit, "doexit", false, "enables exit if I/O error")
 	flag.Parse()
+	blockFiles = make(map[string]*os.File)
 	podTag := make([]byte, TAGSIZE)
 	_, err = rand.Read(podTag)
 	if err != nil {
@@ -42,14 +44,14 @@ func readExistingEntries(rootDir string) {
 	var key string
 	entries, err := ioutil.ReadDir(rootDir)
 	if err != nil {
-		fmt.Printf("Couldn't read %s", rootDir)
+		fmt.Printf("Couldn't read %s\n", rootDir)
 		return
 	}
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), "data") {
 			f, err := os.OpenFile(rootDir+"/"+entry.Name()+"/log", os.O_RDONLY, 0644)
 			if err != nil {
-				fmt.Printf("Couldn't open %s %s", entry.Name(), err.Error())
+				fmt.Printf("Couldn't open %s %s\n", entry.Name(), err.Error())
 				continue
 			}
 			scanner := bufio.NewScanner(f)
@@ -101,7 +103,7 @@ func makeEntry(podTag, rootDir string, index int) {
 	tag := fmt.Sprintf("%x %s\n", podTag, time.Now().Format(time.Stamp))
 	entries, err := ioutil.ReadDir(rootDir)
 	if err != nil {
-		fmt.Printf("Couldn't read %s", rootDir)
+		fmt.Printf("Couldn't read %s\n", rootDir)
 		return
 	}
 	logged := false
@@ -110,7 +112,7 @@ func makeEntry(podTag, rootDir string, index int) {
 		if strings.HasPrefix(entry.Name(), "data") {
 			f, err := os.OpenFile(rootDir+"/"+entry.Name()+"/log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {
-				fmt.Printf("Couldn't open %s %s", entry.Name(), err.Error())
+				fmt.Printf("Couldn't open %s %s\n", entry.Name(), err.Error())
 				doExit = true
 				continue
 			}
@@ -135,9 +137,27 @@ func makeEntry(podTag, rootDir string, index int) {
 				}
 			}
 		}
+		if strings.HasPrefix(entry.Name(), "blockdata") {
+			var f *os.File
+			if index == 0 {
+				f, err = os.OpenFile(rootDir+"/"+entry.Name(), os.O_WRONLY, 0644)
+				if err != nil {
+					fmt.Printf("Couldn't open %s %s\n", entry.Name(), err.Error())
+				}
+				blockFiles[entry.Name()] = f
+			} else {
+				f = blockFiles[entry.Name()]
+			}
+			f.WriteString(tag)
+			err = f.Sync()
+			if err != nil {
+				doExit = true
+				fmt.Printf("Couldn't sync %s %s\n", entry.Name(), err.Error())
+			}
+		}
 	}
 	if enableDoExit && doExit {
-		fmt.Printf("Exiting due to I/O error")
+		fmt.Printf("Exiting due to I/O error\n")
 		os.Exit(2)
 	}
 	counter++

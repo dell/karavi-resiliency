@@ -214,7 +214,9 @@ func (cm *PodMonitorType) callValidateVolumeHostConnectivity(node *v1.Node, volu
 		}
 		log.Debugf("calling ValidateVolumeHostConnectivity with %v", req)
 		// Get the connected status of the Node to the StorageSystem
-		resp, err := CSIApi.ValidateVolumeHostConnectivity(context.Background(), req)
+		ctx, cancel := context.WithTimeout(context.Background(), ShortTimeout)
+		defer cancel()
+		resp, err := CSIApi.ValidateVolumeHostConnectivity(ctx, req)
 		if err != nil {
 			if strings.Contains(err.Error(), "there is no corresponding SDC") {
 				// This error is returned if the array cannot find the SDC, which can happen on connectivity loss

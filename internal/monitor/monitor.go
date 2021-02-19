@@ -67,6 +67,9 @@ var CSIApi csiapi.CSIApi
 //CSIVolumePathFormat is a formatter string used for producing the full path of a volume mount
 var CSIVolumePathFormat = "/var/lib/kubelet/pods/%s/volumes/kubernetes.io~csi"
 
+//CSIDevicePathFormat is a formatter string used for producint the full path of a block volume
+var CSIDevicePathFormat = "/var/lib/kubelet/pods/%s/volumeDevices/kubernetes.io~csi"
+
 func getPodKey(pod *v1.Pod) string {
 	return pod.ObjectMeta.Namespace + "/" + pod.ObjectMeta.Name
 }
@@ -151,6 +154,7 @@ func podMonitorHandler(eventType watch.EventType, object interface{}) error {
 //StartPodMonitor starts the PodMonitor so that it is processing pods which might have problems.
 // The labelKey and labelValue are used for filtering.
 func StartPodMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, labelValue string, restartDelay time.Duration) {
+	Driver = new(VxflexDriver)
 	log.Infof("attempting to start PodMonitor\n")
 	podMonitor := Monitor{Client: client}
 	listOptions := metav1.ListOptions{

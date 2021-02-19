@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -99,7 +100,7 @@ func (f *feature) aPodForNodeWithVolumesCondition(node string, nvolumes int, con
 	return nil
 }
 
-func (f *feature) iHaveAPodsForNodeWithVolumesCondition(nPods int, nodeName string, nvolumes int, condition string) error {
+func (f *feature) iHaveAPodsForNodeWithVolumesDevicesCondition(nPods int, nodeName string, nvolumes, ndevices int, condition string) error {
 	var err error
 	f.podList = make([]*v1.Pod, nPods)
 	mockPaths := make([]string, nPods)
@@ -116,15 +117,29 @@ func (f *feature) iHaveAPodsForNodeWithVolumesCondition(nPods int, nodeName stri
 		dir := os.TempDir()
 		CSIVolumePathFormat = filepath.Join(dir, "node-mode-testPath-%s")
 		mockCSIVolumePath := fmt.Sprintf(CSIVolumePathFormat, pod.UID)
+		mockCSIDevicePath := fmt.Sprintf(CSIDevicePathFormat, pod.UID)
 
 		err = os.Mkdir(mockCSIVolumePath, 0700)
 		if err != nil {
 			return err
 		}
 
+		err = os.MkdirAll(mockCSIDevicePath, 0700)
+		if err != nil {
+			err = fmt.Errorf("Mkdir mockCSIDevicePath failed: %s", err)
+			return err
+		}
+
 		mockPaths = append(mockPaths, mockCSIVolumePath)
 		for _, pvName := range f.pvNames {
 			if err = os.Mkdir(filepath.Join(mockCSIVolumePath, pvName), 0700); err != nil {
+				return err
+			}
+		}
+		mockPaths = append(mockPaths, mockCSIDevicePath)
+		for _, pvName := range f.pvNames {
+			if _, err = syscall.Creat(filepath.Join(mockCSIDevicePath, pvName), 060700); err != nil {
+				err = fmt.Errorf("Create mockCSIDevicePath failed: %s", err)
 				return err
 			}
 		}
@@ -675,7 +690,7 @@ func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^I call nodeModePodHandler for node "([^"]*)" with event "([^"]*)"$`, f.iCallNodeModePodHandlerForNodeWithEvent)
 	context.Step(`^I call nodeModeCleanupPods for node "([^"]*)"$`, f.iCallNodeModeCleanupPodsForNode)
 	context.Step(`^I expect podMonitor to have (\d+) mounts$`, f.iExpectPodMonitorToHaveMounts)
-	context.Step(`^I have a (\d+) pods for node "([^"]*)" with (\d+) volumes condition "([^"]*)"$`, f.iHaveAPodsForNodeWithVolumesCondition)
+	context.Step(`^I have a (\d+) pods for node "([^"]*)" with (\d+) volumes (\d+) devices condition "([^"]*)"$`, f.iHaveAPodsForNodeWithVolumesDevicesCondition)
 	context.Step(`^the controller cleaned up (\d+) pods for node "([^"]*)"$`, f.theControllerCleanedUpPodsForNode)
 	context.Step(`^the unmount returns "([^"]*)"$`, f.theUnmountReturns)
 	context.Step(`^node "([^"]*)" env vars set$`, f.nodeEnvVarsSet)
