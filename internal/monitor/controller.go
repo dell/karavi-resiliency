@@ -424,7 +424,7 @@ func taintNode(nodeName string, removeTaint bool) error {
 	if removeTaint {
 		removeFlag = "-"
 	}
-	taint := fmt.Sprintf(podmonTaint, "NoSchedule", removeFlag)
+	taint := fmt.Sprintf("%s:%s%s", podmonTaintKey, "NoSchedule", removeFlag)
 	return KubectlTaint(operation, nodeName, taint)
 }
 

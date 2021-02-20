@@ -10,6 +10,7 @@ import (
 	"podmon/internal/csiapi"
 	"podmon/internal/k8sapi"
 	"podmon/internal/monitor"
+	"strings"
 	"sync"
 	"time"
 )
@@ -76,6 +77,13 @@ func main() {
 		return
 	}
 	log.Infof("Running in %s mode", monitor.PodMonitor.Mode)
+	if strings.Contains(*args.driverPath, "unity") {
+		log.Infof("Unity driver")
+		monitor.Driver = new(monitor.UnityDriver)
+	} else {
+		log.Infof("VxFlex OS driver")
+		monitor.Driver = new(monitor.VxflexDriver)
+	}
 	monitor.ArrayConnectivityPollRate = time.Duration(*args.arrayConnectivityPollRate) * time.Second
 	monitor.ArrayConnectivityConnectionLossThreshold = *args.arrayConnectivityConnectionLossThreshold
 	err := K8sAPI.Connect(args.kubeconfig)

@@ -17,14 +17,14 @@ import (
 )
 
 const (
-	podmonTaintKey          = "podmon.dellemc.com"
-	podmonTaint             = "podmon.dellemc.com:%s%s" // typically podmon.dellemc.com:NoExecute
 	nodeUnreachableTaint    = "node.kubernetes.io/unreachable"
 	podReadyCondition       = "Ready"
 	podInitializedCondition = "Initialized"
 )
 
 var (
+	// podmonTaintKey is the key for this driver's podmon taint.
+	podmonTaintKey = "driver.podmon.dellemc.com"
 	//ShortTimeout used for initial try
 	ShortTimeout = 10 * time.Second
 	//MediumTimeout is a wait-backoff after the ShortTimeout
@@ -154,8 +154,8 @@ func podMonitorHandler(eventType watch.EventType, object interface{}) error {
 //StartPodMonitor starts the PodMonitor so that it is processing pods which might have problems.
 // The labelKey and labelValue are used for filtering.
 func StartPodMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, labelValue string, restartDelay time.Duration) {
-	Driver = new(VxflexDriver)
 	log.Infof("attempting to start PodMonitor\n")
+	podmonTaintKey = fmt.Sprintf("%s.podmon.storage.dell.com", Driver.GetDriverName())
 	podMonitor := Monitor{Client: client}
 	listOptions := metav1.ListOptions{
 		Watch: true,
