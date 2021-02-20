@@ -5,7 +5,7 @@ Feature: Monitor generic code
 
   @monitor
   Scenario Outline: Test StartPodMonitorHandler
-    Given a controller monitor
+    Given a controller monitor "vxflex"
     And a pod for node <podnode> with <nvol> volumes condition ""
     And pod monitor mode <mode>
     And I induce error <error>
@@ -30,7 +30,7 @@ Feature: Monitor generic code
 
   @monitor
   Scenario Outline: Test StartNodeMonitorHandler
-    Given a controller monitor
+    Given a controller monitor "vxflex"
     And a pod for node <podnode> with <nvol> volumes condition ""
     And I induce error <error>
     When I call StartNodeMonitor with key "podmon" and value "csi-vxflexos"
@@ -51,7 +51,7 @@ Feature: Monitor generic code
 
   @monitor
   Scenario Outline: Test Lock/Unlock and getPodKey
-    Given a controller monitor
+    Given a controller monitor "vxflex"
     And a pod for node <podnode> with <nvol> volumes condition ""
     When I call test lock and getPodKey
    # The previous step will fail if there is an error

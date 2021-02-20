@@ -11,18 +11,16 @@
 #
 
 # This is a basic test that cycles through a set of listed nodes and kills them, making sure all the labeled apps continue to run after time for recovery.
-NODELIST="node1 node2 node3"
-APP_NAMESPACES="pmt1 pmt2 pmt3 pmt4"
-PODMON_LABEL=podmon.dellemc.com/driver=csi-vxflexos
-APP_RECOVERY_TIME=300
-NODE_DELAY_TIME=90
+NODELIST="lglw2213 lglw2215"
+APP_RECOVERY_TIME=540
+NODE_DELAY_TIME=30
 REBOOT=off
 COUNT=0
 
 
 check_running() {
-	kubectl get pods -l podmon.dellemc.com/driver=csi-vxflexos -A -o wide
-	non_running_pods=$(kubectl get pods -l podmon.dellemc.com/driver=csi-vxflexos -A -o wide | grep -v Running | wc -l)
+	kubectl get pods -l podmon.dellemc.com/driver -A -o wide
+	non_running_pods=$(kubectl get pods -l podmon.dellemc.com/driver -A -o wide | grep -v Running | wc -l)
 	# account for header
 	if [ $non_running_pods -gt 1 ]; then
 		echo "some applications not running- terminating test"
