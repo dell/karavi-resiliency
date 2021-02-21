@@ -11,6 +11,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 )
@@ -77,4 +78,15 @@ type K8sAPI interface {
 
 	// SetupNodeWatch setups up a node watch.
 	SetupNodeWatch(ctx context.Context, listOptions metav1.ListOptions) (watch.Interface, error)
+
+	// CreateEvent creates an event on a runtime object.
+	// eventType is the type of this event (Normal, Warning)
+	// reason is why the action was taken. It is human-readable.
+	// messageFmt and args for a human readable description of the status of this operation
+	CreateEvent(object runtime.Object, eventType, reason, messageFmt string, args ...interface{}) error
 }
+
+const (
+	EventTypeNormal  = "Normal"
+	EventTypeWarning = "Warning"
+)

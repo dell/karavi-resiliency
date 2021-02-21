@@ -11,18 +11,23 @@ import (
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/record"
 	"sync"
 	"time"
 )
 
 //Client holds a reference to a Kubernetes client
 type Client struct {
-	Client *kubernetes.Clientset
-	Lock   sync.Mutex
+	Client        *kubernetes.Clientset
+	Lock          sync.Mutex
+	eventRecorder record.EventRecorder
 }
 
 //K8sClient references the k8sapi.Client
@@ -63,7 +68,7 @@ func (api *Client) GetPod(ctx context.Context, namespace, name string) (*v1.Pod,
 	return pod, err
 }
 
-// GetVolumeAttachments retrieves all the volume attachments
+//GetVolumeAttachments retrieves all the volume attachments
 func (api *Client) GetVolumeAttachments(ctx context.Context) (*storagev1.VolumeAttachmentList, error) {
 	volumeAttachments, err := api.Client.StorageV1().VolumeAttachments().List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -284,4 +289,19 @@ func (api *Client) SetupPodWatch(ctx context.Context, namespace string, listOpti
 func (api *Client) SetupNodeWatch(ctx context.Context, listOptions metav1.ListOptions) (watch.Interface, error) {
 	watcher, err := api.Client.CoreV1().Nodes().Watch(ctx, listOptions)
 	return watcher, err
+}
+
+// CreateEvent creates an event on a runtime object.
+// eventType is the type of this event (Normal, Warning)
+// reason is why the action was taken. It is human-readable.
+// messageFmt and args for a human readable description of the status of this operation
+func (api *Client) CreateEvent(object runtime.Object, eventType, reason, messageFmt string, args ...interface{}) error {
+	if api.eventRecorder == nil {
+		broadcaster := record.NewBroadcaster()
+		broadcaster.StartLogging(log.Infof)
+		broadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: api.Client.CoreV1().Events(v1.NamespaceAll)})
+		api.eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("external-provisioner")})
+	}
+	api.eventRecorder.Eventf(object, eventType, reason, messageFmt, args)
+	return nil
 }

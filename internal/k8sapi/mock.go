@@ -8,6 +8,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"time"
@@ -360,4 +361,9 @@ func (mock *K8sMock) SetupNodeWatch(ctx context.Context, listOptions metav1.List
 		return nil, errors.New("included Watch error")
 	}
 	return mock.Watcher, nil
+}
+
+// CreateEvent creates an event for the specified object.
+func (mock *K8sMock) CreateEvent(object runtime.Object, eventType, reason, messageFmt string, args ...interface{}) error {
+	return nil
 }

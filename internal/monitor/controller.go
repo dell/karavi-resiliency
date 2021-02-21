@@ -15,6 +15,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/watch"
+	"podmon/internal/k8sapi"
 )
 
 //ControllerPodInfo has information for tracking health of the system
@@ -93,7 +94,7 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 				pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, pod.Spec.NodeName, initialized, taintnosched, taintnoexec, ready)
 			// TODO: option for taintnosched vs. taintnoexec
 			if (taintnoexec || taintnosched) && !ready {
-				go cm.controllerCleanupPod(pod, node)
+				go cm.controllerCleanupPod(pod, node, "NodeFailure")
 			}
 		}
 
@@ -102,7 +103,7 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 }
 
 // Attempts to cleanup a Pod that is in trouble. Returns true if made it all the way to deleting the pod.
-func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node) bool {
+func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reason string) bool {
 	fields := make(map[string]interface{})
 	fields["namespace"] = pod.ObjectMeta.Namespace
 	fields["pod"] = pod.ObjectMeta.Name
@@ -188,6 +189,7 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node) bool 
 	}
 
 	// Force delete the pod.
+	K8sAPI.CreateEvent(pod, k8sapi.EventTypeWarning, reason, "podmon cleaing pod %s with force delete", podKey, string(pod.ObjectMeta.UID))
 	err = K8sAPI.DeletePod(ctx, pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, true)
 	if err == nil {
 		log.WithFields(fields).Infof("Successfully cleaned up pod")
@@ -309,7 +311,7 @@ func (cm *PodMonitorType) ArrayConnectivityMonitor(pollRate time.Duration) {
 				if err == nil {
 					if string(pod.ObjectMeta.UID) == podUID && pod.Spec.NodeName == node.ObjectMeta.Name {
 						log.Infof("Cleaning up pod %s/%s because of array connectivity loss", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
-						cm.controllerCleanupPod(pod, node)
+						cm.controllerCleanupPod(pod, node, "ArrayConnectionLost")
 					} else {
 						log.Infof("Skipping pod %s/%s podUID %s %s node %s %s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name,
 							string(pod.ObjectMeta.UID), podUID, pod.Spec.NodeName, node.ObjectMeta.Name)

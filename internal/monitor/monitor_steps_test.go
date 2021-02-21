@@ -64,6 +64,7 @@ func (f *feature) aControllerMonitor() error {
 	} else {
 		fmt.Printf("loghook last-entry %+v\n", f.loghook.LastEntry())
 	}
+	Driver = new(VxflexDriver)
 	f.k8sapiMock = new(k8sapi.K8sMock)
 	f.k8sapiMock.Initialize()
 	K8sAPI = f.k8sapiMock
@@ -153,7 +154,7 @@ func (f *feature) iHaveAPodsForNodeWithVolumesDevicesCondition(nPods int, nodeNa
 func (f *feature) iCallControllerCleanupPodForNode(nodeName string) error {
 	node, _ := f.k8sapiMock.GetNode(context.Background(), nodeName)
 	f.node = node
-	f.success = f.podmonMonitor.controllerCleanupPod(f.pod, node)
+	f.success = f.podmonMonitor.controllerCleanupPod(f.pod, node, "Unit Test")
 	return nil
 }
 
@@ -493,7 +494,7 @@ func (f *feature) createPod(node string, nvolumes int, condition string) *v1.Pod
 func (f *feature) theControllerCleanedUpPodsForNode(cleanedUpCount int, nodeName string) error {
 	node, _ := f.k8sapiMock.GetNode(context.Background(), nodeName)
 	for i := 0; i < cleanedUpCount; i++ {
-		if success := f.podmonMonitor.controllerCleanupPod(f.podList[i], node); !success {
+		if success := f.podmonMonitor.controllerCleanupPod(f.podList[i], node, "Unit Test"); !success {
 			return fmt.Errorf("controllerCleanPod was not successful")
 		}
 	}
