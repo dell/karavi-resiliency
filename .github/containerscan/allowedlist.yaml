@@ -1,0 +1,6 @@
+general:
+  vulnerabilities:
+    # We do not use glibc
+    - CVE-2019-25013
+    # We do not use sqlite-libs
+    - CVE-2019-5827
