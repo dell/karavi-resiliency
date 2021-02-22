@@ -1,4 +1,15 @@
 #!/bin/sh
+#
+# Copyright (c) 2021. Dell Inc., or its subsidiaries. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+#
+
 # This is a basic test that cycles through a set of listed nodes and kills them, making sure all the labeled apps continue to run after time for recovery.
 NODELIST="node1 node2 node3"
 APP_NAMESPACES="pmt1 pmt2 pmt3 pmt4"
