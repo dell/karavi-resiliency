@@ -6,8 +6,8 @@ metadata:
 spec:
   accessModes:
   - ReadWriteOnce
-  volumeMode: Filesystem
+  volumeMode: Block
   resources:
     requests:
-      storage: 12Gi
+      storage: 8Gi
   storageClassName: {{ required "Must set storage class name" .Values.podmonTest.storageClassName }}
