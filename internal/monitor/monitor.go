@@ -67,7 +67,7 @@ var CSIApi csiapi.CSIApi
 //CSIVolumePathFormat is a formatter string used for producing the full path of a volume mount
 var CSIVolumePathFormat = "/var/lib/kubelet/pods/%s/volumes/kubernetes.io~csi"
 
-//CSIDevicePathFormat is a formatter string used for producint the full path of a block volume
+//CSIDevicePathFormat is a formatter string used for producing the full path of a block volume
 var CSIDevicePathFormat = "/var/lib/kubelet/pods/%s/volumeDevices/kubernetes.io~csi"
 
 func getPodKey(pod *v1.Pod) string {
