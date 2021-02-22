@@ -189,7 +189,7 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 	}
 
 	// Force delete the pod.
-	K8sAPI.CreateEvent(pod, k8sapi.EventTypeWarning, reason, "podmon cleaing pod %s with force delete", podKey, string(pod.ObjectMeta.UID))
+	K8sAPI.CreateEvent(pod, k8sapi.EventTypeWarning, reason, "podmon cleaning pod %s with force delete", string(pod.ObjectMeta.UID))
 	err = K8sAPI.DeletePod(ctx, pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, true)
 	if err == nil {
 		log.WithFields(fields).Infof("Successfully cleaned up pod")
