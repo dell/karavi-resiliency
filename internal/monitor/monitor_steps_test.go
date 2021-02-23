@@ -58,13 +58,28 @@ type feature struct {
 	badWatchObject      bool
 }
 
-func (f *feature) aControllerMonitor() error {
+func (f *feature) aControllerMonitorUnity() error {
+	return f.aControllerMonitor("unity")
+}
+
+func (f *feature) aControllerMonitorVxflex() error {
+	return f.aControllerMonitor("vxflex")
+}
+
+func (f *feature) aControllerMonitor(driver string) error {
 	if f.loghook == nil {
 		f.loghook = logtest.NewGlobal()
 	} else {
 		fmt.Printf("loghook last-entry %+v\n", f.loghook.LastEntry())
 	}
-	Driver = new(VxflexDriver)
+	switch driver {
+	case "vxflex":
+		Driver = new(VxflexDriver)
+	case "unity":
+		Driver = new(UnityDriver)
+	default:
+		Driver = new(VxflexDriver)
+	}
 	f.k8sapiMock = new(k8sapi.K8sMock)
 	f.k8sapiMock.Initialize()
 	K8sAPI = f.k8sapiMock
@@ -677,7 +692,9 @@ func (f *feature) iCallTestLockAndGetPodKey() error {
 
 func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	f := &feature{}
-	context.Step(`^a controller monitor$`, f.aControllerMonitor)
+	context.Step(`^a controller monitor "([^"]*)"$`, f.aControllerMonitor)
+	context.Step(`^a controller monitor unity$`, f.aControllerMonitorUnity)
+	context.Step(`^a controller monitor vxflex$`, f.aControllerMonitorVxflex)
 	context.Step(`^a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)"$`, f.aPodForNodeWithVolumesCondition)
 	context.Step(`^I call controllerCleanupPod for node "([^"]*)"$`, f.iCallControllerCleanupPodForNode)
 	context.Step(`^I induce error "([^"]*)"$`, f.iInduceError)

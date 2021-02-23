@@ -87,6 +87,8 @@ type K8sAPI interface {
 }
 
 const (
-	EventTypeNormal  = "Normal"
+	// EventTypeNormal will log a "Normal" event.
+	EventTypeNormal = "Normal"
+	// EventTypeWarning will log a "Warning" event.
 	EventTypeWarning = "Warning"
 )

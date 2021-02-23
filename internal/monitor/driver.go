@@ -10,6 +10,8 @@ type drivertype interface {
 	GetDriverName() string
 	GetDriverMountDir(volumeHandle, pvName, podUUID string) string
 	GetDriverBlockDev(volumeHandle, pvName, podUUID string) string
+	GetStagingMountDir(volumeHandle, pvName string) string
+	GetStagingBlockDir(volumeHandle, pvName string) string
 }
 
 //Driver is an instance of the drivertype interface to provide driver specific functions.
@@ -42,6 +44,18 @@ func (d *VxflexDriver) GetDriverBlockDev(volumeHandle, pvName, podUUID string) s
 	return privateBlockDev
 }
 
+// GetStagingMountDir Returns the staging directory used by NodeUnstage for a mount device.
+func (d *VxflexDriver) GetStagingMountDir(volumeHandle, pvName string) string {
+	// Vxflex doesn't use NodeUnstage currently.
+	return ""
+}
+
+// GetStagingBlockDir Returns the staging directory used by NodeUnstage for a block device.
+func (d *VxflexDriver) GetStagingBlockDir(volumeHandle, pvName string) string {
+	// Vxflex doesn't use NodeUnstage currently.
+	return ""
+}
+
 //UnityDriver provides a Driver instance for the Unity architecture.
 type UnityDriver struct {
 }
@@ -63,4 +77,18 @@ func (d *UnityDriver) GetDriverBlockDev(volumeHandle, pvName, podUUID string) st
 	privateBlockDev := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/volumeDevices/publish/%s/%s", pvName, podUUID)
 	log.Infof("privateBlockDev: %s", privateBlockDev)
 	return privateBlockDev
+}
+
+// GetStagingMountDir Returns the staging directory used by NodeUnstage for a mount device.
+func (d *UnityDriver) GetStagingMountDir(volumeHandle, pvName string) string {
+	stagingMountDev := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/pv/%s/globalmount", pvName)
+	log.Infof("stagingMountDev: %s", stagingMountDev)
+	return stagingMountDev
+}
+
+// GetStagingBlockDir Returns the staging directory used by NodeUnstage for a block device.
+func (d *UnityDriver) GetStagingBlockDir(volumeHandle, pvName string) string {
+	stagingBlockDir := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/volumeDevices/staging/%s", pvName)
+	log.Infof("stagingBlockDir: %s", stagingBlockDir)
+	return stagingBlockDir
 }

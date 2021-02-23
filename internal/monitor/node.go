@@ -295,6 +295,15 @@ func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo
 			log.WithFields(fields).Errorf("NodeUnpublishVolume failed: %s %s %s", mntInfo.Path, mntInfo.VolumeID, err)
 			returnErr = err
 		} else {
+			stagingDir := Driver.GetStagingMountDir(mntInfo.VolumeID, mntInfo.PVName)
+			if stagingDir != "" {
+				err = pm.callNodeUnstageVolume(fields, stagingDir, mntInfo.VolumeID)
+				if err != nil {
+					log.WithFields(fields).Errorf("NodeUnstageVolume failed: %s %s %s", mntInfo.Path, mntInfo.VolumeID, err)
+					returnErr = err
+				}
+			}
+
 			privTarget := Driver.GetDriverMountDir(mntInfo.VolumeID, mntInfo.PVName, podUID)
 			err = gofsutil.Unmount(context.Background(), privTarget)
 			if err != nil {
@@ -317,6 +326,15 @@ func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo
 			log.WithFields(fields).Errorf("NodeUnpublishVolume failed: %s %s %s", devInfo.Path, devInfo.VolumeID, err)
 			returnErr = err
 		} else {
+			stagingDir := Driver.GetStagingBlockDir(devInfo.VolumeID, devInfo.PVName)
+			if stagingDir != "" {
+				err = pm.callNodeUnstageVolume(fields, stagingDir, devInfo.VolumeID)
+				if err != nil {
+					log.WithFields(fields).Errorf("NodeUnstageVolume failed: %s %s %s", devInfo.Path, devInfo.VolumeID, err)
+					returnErr = err
+				}
+			}
+
 			privBlockDev := Driver.GetDriverBlockDev(devInfo.VolumeID, devInfo.PVName, podUID)
 			err = syscall.Unmount(privBlockDev, 0)
 			if err != nil {
@@ -354,5 +372,27 @@ func (pm *PodMonitorType) callNodeUnpublishVolume(fields map[string]interface{},
 		time.Sleep(PendingRetryTime)
 	}
 
+	return err
+}
+
+// callNodeUnStageVolume in the driver, log any messages, return error.
+func (pm *PodMonitorType) callNodeUnstageVolume(fields map[string]interface{}, targetPath, volumeID string) error {
+	var err error
+	for i := 0; i < CSIMaxRetries; i++ {
+		log.WithFields(fields).Infof("Calling NodeUnstageVolume path %s volume %s", targetPath, volumeID)
+		req := &csi.NodeUnstageVolumeRequest{
+			StagingTargetPath: targetPath,
+			VolumeId:          volumeID,
+		}
+		_, err = CSIApi.NodeUnstageVolume(context.Background(), req)
+		if err == nil {
+			break
+		}
+		log.WithFields(fields).Infof("Error calling NodeUnstageVolume path %s volume %s: %s", targetPath, volumeID, err.Error())
+		if !strings.HasSuffix(err.Error(), "pending") {
+			break
+		}
+		time.Sleep(PendingRetryTime)
+	}
 	return err
 }
