@@ -16,12 +16,15 @@ package k8sapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -35,6 +38,15 @@ type Client struct {
 	Client *kubernetes.Clientset
 	Lock   sync.Mutex
 }
+
+const (
+	TaintNoUpdateNeeded = "TaintNoUpdateNeeded"
+	TaintAlreadyExists  = "TaintAlreadyExists"
+	TaintDoesNotExist   = "TaintDoesNotExist"
+	TaintAdded          = "TaintAdded"
+	TaintRemoved        = "TaintRemoved"
+	TaintedWithPodmon   = "podmon"
+)
 
 //K8sClient references the k8sapi.Client
 var K8sClient Client
@@ -67,7 +79,7 @@ func (api *Client) DeletePod(ctx context.Context, namespace, name string, force 
 //GetPod returns a Pod object referenced by the namespace and name
 func (api *Client) GetPod(ctx context.Context, namespace, name string) (*v1.Pod, error) {
 	getopt := metav1.GetOptions{}
-	pod, err := api.Client.CoreV1().Pods(namespace).Get(context.Background(), name, getopt)
+	pod, err := api.Client.CoreV1().Pods(namespace).Get(ctx, name, getopt)
 	if err != nil {
 		log.Errorf("Unable to get pod %s/%s: %s", namespace, name, err)
 	}
@@ -233,9 +245,10 @@ func (api *Client) Connect(kubeconfig *string) error {
 	var err error
 	var client *kubernetes.Clientset
 	log.Info("attempting k8sapi connection")
+	var config *rest.Config
 	if kubeconfig != nil && *kubeconfig != "" {
 		log.Infof("Using kubeconfig %s", *kubeconfig)
-		config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+		config, err = clientcmd.BuildConfigFromFlags("", *kubeconfig)
 		if err != nil {
 			return err
 		}
@@ -245,7 +258,7 @@ func (api *Client) Connect(kubeconfig *string) error {
 		client, err = kubernetes.NewForConfig(config)
 	} else {
 		log.Infof("Using InClusterConfig()")
-		config, err := rest.InClusterConfig()
+		config, err = rest.InClusterConfig()
 		if err != nil {
 			return err
 		}
@@ -295,4 +308,115 @@ func (api *Client) SetupPodWatch(ctx context.Context, namespace string, listOpti
 func (api *Client) SetupNodeWatch(ctx context.Context, listOptions metav1.ListOptions) (watch.Interface, error) {
 	watcher, err := api.Client.CoreV1().Nodes().Watch(ctx, listOptions)
 	return watcher, err
+}
+
+//TaintNode applies the specified 'taintKey' string and 'effect' to the node with 'nodeName'
+//The 'remove' flag indicates if the taint should be removed from the node, if it exists.
+func (api *Client) TaintNode(ctx context.Context, nodeName, taintKey string, effect v1.TaintEffect, remove bool) error {
+	node, err := api.GetNode(ctx, nodeName)
+	if err != nil {
+		return err
+	}
+
+	// Capture what the node looks like now
+	oldData, err := json.Marshal(node)
+	if err != nil {
+		return err
+	}
+
+	// Apply the taint request against the node and determine if it should be patched
+	// Note: node.Spec.Taints will have an updated list if 'shouldPath' == true
+	operation, shouldPatch := updateTaint(node, taintKey, effect, remove)
+	if shouldPatch {
+		log.Infof("%s : %s against node %s", operation, taintKey, nodeName)
+
+		// Should be patched, so get latest json data for node containing updated taints
+		newData, err2 := json.Marshal(node)
+		if err2 != nil {
+			return err2
+		}
+
+		// Produce a patch update object
+		patchBytes, err2 := strategicpatch.CreateTwoWayMergePatch(oldData, newData, node)
+		if err2 != nil {
+			return err2
+		}
+
+		// Indicate what's making the taint patch
+		patchOptions := metav1.PatchOptions{FieldManager: TaintedWithPodmon}
+
+		// Request k8s to patch the node with the new taints applied
+		_, err2 = api.Client.CoreV1().Nodes().Patch(ctx, nodeName, types.StrategicMergePatchType, patchBytes, patchOptions)
+		return err2
+	} else {
+		// Did not require a node patch, so just log a message
+		log.Infof("%s : %s on node %s", operation, taintKey, nodeName)
+	}
+
+	return err
+}
+
+//updateTaint adds or removes the specified taint key with the effect against the node
+//Returns a string indicating the operation or message and a boolean value indicating
+//if the taint should be Patched.
+func updateTaint(node *v1.Node, taintKey string, effect v1.TaintEffect, remove bool) (string, bool) {
+	// Init parameters
+	theTaint := v1.Taint{
+		Key:    taintKey,
+		Value:  "",
+		Effect: effect,
+	}
+	taintOperation := TaintNoUpdateNeeded
+	shouldPatchNode := false
+	updatedTaints := make([]v1.Taint, 0)
+	oldTaints := node.Spec.Taints
+
+	if remove {
+		// Request to remove the taint. If it doesn't exist, then return now
+		if !taintExists(node, taintKey, effect) {
+			return TaintDoesNotExist, false
+		}
+
+		// Copy over taints, skipping the one that we want to remove
+		for _, taint := range oldTaints {
+			if !taint.MatchTaint(&theTaint) {
+				updatedTaints = append(updatedTaints, taint)
+			}
+		}
+
+		shouldPatchNode = true
+		taintOperation = TaintRemoved
+	} else {
+		// Request to add taint. If it already exists, then return now
+		if taintExists(node, taintKey, effect) {
+			return TaintAlreadyExists, false
+		}
+
+		timeNow := metav1.Now()
+		theTaint.TimeAdded = &timeNow
+
+		// Add the new taint to the list of existing ones
+		newTaints := append([]v1.Taint{}, theTaint)
+		updatedTaints = append(newTaints, oldTaints...)
+
+		shouldPatchNode = true
+		taintOperation = TaintAdded
+	}
+
+	// Update the node object's taints
+	if shouldPatchNode {
+		node.Spec.Taints = updatedTaints
+	}
+
+	return taintOperation, shouldPatchNode
+}
+
+//taintExists checks if the node contains the taint 'key' with the specified 'effect'
+func taintExists(node *v1.Node, key string, effect v1.TaintEffect) bool {
+	for _, taint := range node.Spec.Taints {
+		if taint.Key == key && taint.Effect == effect {
+			return true
+		}
+	}
+	return false
 }

@@ -90,9 +90,9 @@ func (f *feature) aControllerMonitor() error {
 	return nil
 }
 
-func (f *feature) mockKubectlTaint(operation, name, taint string) error {
+func (f *feature) mockKubectlTaint(operation, name, taint string, effect v1.TaintEffect, remove bool) error {
 	if f.failKubectlTaint {
-		return fmt.Errorf("mock failure: operation %s against %s with taint %s failed", operation, name, taint)
+		return fmt.Errorf("mock failure: operation %s against %s with taint %s:%s remove=%v failed", operation, name, taint, effect, remove)
 	}
 	return nil
 }

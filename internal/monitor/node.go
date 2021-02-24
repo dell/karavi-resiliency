@@ -276,8 +276,11 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) {
 	// Don't remove the taint if we had an error cleaning up a pod, or we skipped a pod because
 	// it was still present. Instead we will do another cleanup cycle.
 	if removeTaint && len(podKeysSkipped) == 0 {
-		taintNode(node.ObjectMeta.Name, true)
-		log.Infof("Cleanup of pods complete: %v", podKeys)
+		if err := taintNode(node.ObjectMeta.Name, true); err != nil {
+			log.Errorf("Failed to remove taint against %s node: %v", node.ObjectMeta.Name, err)
+		} else {
+			log.Infof("Cleanup of pods complete: %v", podKeys)
+		}
 	} else {
 		log.Info("Couldn't completely cleanup node- taint not removed- cleanup will be retried, or a manual reboot is advised advised")
 	}

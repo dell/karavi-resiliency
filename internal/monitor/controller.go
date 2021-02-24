@@ -16,7 +16,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -187,7 +186,10 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node) bool 
 	}
 
 	// Add a taint for the pod on the node.
-	taintNode(node.ObjectMeta.Name, false)
+	if err = taintNode(node.ObjectMeta.Name, false); err != nil {
+		log.WithFields(fields).Errorf("Failed to update taint against %s node: %v", node.ObjectMeta.Name, err)
+		return false
+	}
 
 	// Delete all the volumeattachments attached to our pod
 	for _, vaName := range vaNamesToDelete {
@@ -412,31 +414,26 @@ func getCSINodeIDAnnotation(node *v1.Node, driverPath string) string {
 }
 
 //KubectlTaint is a reference to a function that can update a node taint
-var KubectlTaint = callKubectlTaint
+var KubectlTaint = callK8sAPITaint
 
-func callKubectlTaint(operation, nodeName, taint string) error {
-	cmd := exec.Command("/usr-bin/kubectl", "taint", "node", nodeName, taint)
-	log.Infof("%s: %s", operation, cmd.String())
-	output, err := cmd.Output()
-	log.Infof("taint output: %s", string(output))
-	if err != nil {
-		log.Infof("taint failed: %s", err.Error())
-	}
-	return err
+func callK8sAPITaint(operation, nodeName, taintKey string, effect v1.TaintEffect, remove bool) error {
+	log.Infof("Calling to %s %s with %s %s (remove = %v)", operation, nodeName, taintKey, effect, remove)
+	ctx, cancel := K8sAPI.GetContext(MediumTimeout)
+	defer cancel()
+	return K8sAPI.TaintNode(ctx, nodeName, taintKey, effect, remove)
 }
 
-// taintNodeForPod uses kubectl as a safer way of adding/removing the taint instead of updating or patching the Node object.
+// taintNode uses kubectl as a safer way of adding/removing the taint instead of updating or patching the Node object.
 func taintNode(nodeName string, removeTaint bool) error {
 	operation := "tainting "
 	if removeTaint {
 		operation = "untainting "
 	}
-	removeFlag := ""
+	removeFlag := false
 	if removeTaint {
-		removeFlag = "-"
+		removeFlag = true
 	}
-	taint := fmt.Sprintf(podmonTaint, "NoSchedule", removeFlag)
-	return KubectlTaint(operation, nodeName, taint)
+	return KubectlTaint(operation, nodeName, podmonTaintKey, v1.TaintEffectNoSchedule, removeFlag)
 }
 
 func nodeHasTaint(node *v1.Node, key string, taintEffect v1.TaintEffect) bool {
