@@ -40,12 +40,12 @@ type Client struct {
 }
 
 const (
-	TaintNoUpdateNeeded = "TaintNoUpdateNeeded"
-	TaintAlreadyExists  = "TaintAlreadyExists"
-	TaintDoesNotExist   = "TaintDoesNotExist"
-	TaintAdded          = "TaintAdded"
-	TaintRemoved        = "TaintRemoved"
-	TaintedWithPodmon   = "podmon"
+	taintNoUpdateNeeded = "TaintNoUpdateNeeded"
+	taintAlreadyExists  = "TaintAlreadyExists"
+	taintDoesNotExist   = "TaintDoesNotExist"
+	taintAdded          = "TaintAdded"
+	taintRemoved        = "TaintRemoved"
+	taintedWithPodmon   = "podmon"
 )
 
 //K8sClient references the k8sapi.Client
@@ -343,15 +343,14 @@ func (api *Client) TaintNode(ctx context.Context, nodeName, taintKey string, eff
 		}
 
 		// Indicate what's making the taint patch
-		patchOptions := metav1.PatchOptions{FieldManager: TaintedWithPodmon}
+		patchOptions := metav1.PatchOptions{FieldManager: taintedWithPodmon}
 
 		// Request k8s to patch the node with the new taints applied
 		_, err2 = api.Client.CoreV1().Nodes().Patch(ctx, nodeName, types.StrategicMergePatchType, patchBytes, patchOptions)
 		return err2
-	} else {
-		// Did not require a node patch, so just log a message
-		log.Infof("%s : %s on node %s", operation, taintKey, nodeName)
 	}
+
+	log.Infof("%s : %s on node %s", operation, taintKey, nodeName)
 
 	return err
 }
@@ -366,7 +365,7 @@ func updateTaint(node *v1.Node, taintKey string, effect v1.TaintEffect, remove b
 		Value:  "",
 		Effect: effect,
 	}
-	taintOperation := TaintNoUpdateNeeded
+	taintOperation := taintNoUpdateNeeded
 	shouldPatchNode := false
 	updatedTaints := make([]v1.Taint, 0)
 	oldTaints := node.Spec.Taints
@@ -374,7 +373,7 @@ func updateTaint(node *v1.Node, taintKey string, effect v1.TaintEffect, remove b
 	if remove {
 		// Request to remove the taint. If it doesn't exist, then return now
 		if !taintExists(node, taintKey, effect) {
-			return TaintDoesNotExist, false
+			return taintDoesNotExist, false
 		}
 
 		// Copy over taints, skipping the one that we want to remove
@@ -385,11 +384,11 @@ func updateTaint(node *v1.Node, taintKey string, effect v1.TaintEffect, remove b
 		}
 
 		shouldPatchNode = true
-		taintOperation = TaintRemoved
+		taintOperation = taintRemoved
 	} else {
 		// Request to add taint. If it already exists, then return now
 		if taintExists(node, taintKey, effect) {
-			return TaintAlreadyExists, false
+			return taintAlreadyExists, false
 		}
 
 		timeNow := metav1.Now()
@@ -400,7 +399,7 @@ func updateTaint(node *v1.Node, taintKey string, effect v1.TaintEffect, remove b
 		updatedTaints = append(newTaints, oldTaints...)
 
 		shouldPatchNode = true
-		taintOperation = TaintAdded
+		taintOperation = taintAdded
 	}
 
 	// Update the node object's taints
