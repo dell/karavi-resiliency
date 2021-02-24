@@ -43,8 +43,8 @@ const (
 	taintNoUpdateNeeded = "TaintNoUpdateNeeded"
 	taintAlreadyExists  = "TaintAlreadyExists"
 	taintDoesNotExist   = "TaintDoesNotExist"
-	taintAdded          = "TaintAdded"
-	taintRemoved        = "TaintRemoved"
+	taintAdd            = "TaintAdd"
+	taintRemove         = "TaintRemove"
 	taintedWithPodmon   = "podmon"
 )
 
@@ -328,7 +328,7 @@ func (api *Client) TaintNode(ctx context.Context, nodeName, taintKey string, eff
 	// Note: node.Spec.Taints will have an updated list if 'shouldPath' == true
 	operation, shouldPatch := updateTaint(node, taintKey, effect, remove)
 	if shouldPatch {
-		log.Infof("%s : %s against node %s", operation, taintKey, nodeName)
+		log.Infof("Attempting %s : %s against node %s", operation, taintKey, nodeName)
 
 		// Should be patched, so get latest json data for node containing updated taints
 		newData, err2 := json.Marshal(node)
@@ -384,7 +384,7 @@ func updateTaint(node *v1.Node, taintKey string, effect v1.TaintEffect, remove b
 		}
 
 		shouldPatchNode = true
-		taintOperation = taintRemoved
+		taintOperation = taintRemove
 	} else {
 		// Request to add taint. If it already exists, then return now
 		if taintExists(node, taintKey, effect) {
@@ -399,7 +399,7 @@ func updateTaint(node *v1.Node, taintKey string, effect v1.TaintEffect, remove b
 		updatedTaints = append(newTaints, oldTaints...)
 
 		shouldPatchNode = true
-		taintOperation = taintAdded
+		taintOperation = taintAdd
 	}
 
 	// Update the node object's taints
