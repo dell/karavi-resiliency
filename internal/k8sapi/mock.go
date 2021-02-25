@@ -9,6 +9,7 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"time"
@@ -112,7 +113,7 @@ func (mock *K8sMock) GetContext(duration time.Duration) (context.Context, contex
 }
 
 // DeletePod deletes a pod of the given namespace and name, an optionally uses force deletion.
-func (mock *K8sMock) DeletePod(ctx context.Context, namespace, name string, force bool) error {
+func (mock *K8sMock) DeletePod(ctx context.Context, namespace, name string, podUID types.UID, force bool) error {
 	if mock.InducedErrors.DeletePod {
 		return errors.New("induced DeletePod error")
 	}
@@ -364,6 +365,6 @@ func (mock *K8sMock) SetupNodeWatch(ctx context.Context, listOptions metav1.List
 }
 
 // CreateEvent creates an event for the specified object.
-func (mock *K8sMock) CreateEvent(object runtime.Object, eventType, reason, messageFmt string, args ...interface{}) error {
+func (mock *K8sMock) CreateEvent(sourceComponent string, object runtime.Object, eventType, reason, messageFmt string, args ...interface{}) error {
 	return nil
 }

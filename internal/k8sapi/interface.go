@@ -12,6 +12,7 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 )
@@ -28,7 +29,7 @@ type K8sAPI interface {
 	GetContext(duration time.Duration) (context.Context, context.CancelFunc)
 
 	// DeletePod deletes a pod of the given namespace and name, an optionally uses force deletion.
-	DeletePod(ctx context.Context, namespace, name string, force bool) error
+	DeletePod(ctx context.Context, namespace, name string, podUID types.UID, force bool) error
 
 	// GetPod retrieves a pod of the give namespace and name
 	GetPod(ctx context.Context, namespace, name string) (*v1.Pod, error)
@@ -80,10 +81,11 @@ type K8sAPI interface {
 	SetupNodeWatch(ctx context.Context, listOptions metav1.ListOptions) (watch.Interface, error)
 
 	// CreateEvent creates an event on a runtime object.
+	// sourceComponent is name of component producing event, e.g. "podmon"
 	// eventType is the type of this event (Normal, Warning)
 	// reason is why the action was taken. It is human-readable.
 	// messageFmt and args for a human readable description of the status of this operation
-	CreateEvent(object runtime.Object, eventType, reason, messageFmt string, args ...interface{}) error
+	CreateEvent(sourceComponent string, object runtime.Object, eventType, reason, messageFmt string, args ...interface{}) error
 }
 
 const (

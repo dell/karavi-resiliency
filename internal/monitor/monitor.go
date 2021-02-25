@@ -20,6 +20,7 @@ const (
 	nodeUnreachableTaint    = "node.kubernetes.io/unreachable"
 	podReadyCondition       = "Ready"
 	podInitializedCondition = "Initialized"
+	podmon                  = "podmon"
 )
 
 var (

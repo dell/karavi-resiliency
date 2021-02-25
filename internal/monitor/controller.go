@@ -114,6 +114,16 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 	Lock(podKey, pod, LockSleepTimeDelay)
 	defer Unlock(podKey)
 
+	// If ControllerPodInfo struct has UID mismatch, assume pod deleted already
+	podInfoValue, ok := cm.PodKeyToControllerPodInfo.Load(podKey)
+	if ok {
+		controllerPodInfo := podInfoValue.(*ControllerPodInfo)
+		if controllerPodInfo.PodUID != string(pod.ObjectMeta.UID) {
+			log.Infof("monitored pod UID %s different than pod to clean UID %s - aborting pod cleanup", controllerPodInfo.PodUID, string(pod.ObjectMeta.UID))
+			return false
+		}
+	}
+
 	log.WithFields(fields).Infof("Cleaning up pod")
 	ctx, cancel := K8sAPI.GetContext(LongTimeout)
 	defer cancel()
@@ -189,8 +199,8 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 	}
 
 	// Force delete the pod.
-	K8sAPI.CreateEvent(pod, k8sapi.EventTypeWarning, reason, "podmon cleaning pod %s with force delete", string(pod.ObjectMeta.UID))
-	err = K8sAPI.DeletePod(ctx, pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, true)
+	K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, reason, "podmon cleaning pod %s with force delete", string(pod.ObjectMeta.UID))
+	err = K8sAPI.DeletePod(ctx, pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, pod.ObjectMeta.UID, true)
 	if err == nil {
 		log.WithFields(fields).Infof("Successfully cleaned up pod")
 		// Delete the ControllerPodInfo reference to this pod, we've deleted it.

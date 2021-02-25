@@ -12,6 +12,7 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -44,8 +45,10 @@ func (api *Client) GetContext(duration time.Duration) (context.Context, context.
 }
 
 //DeletePod deletes a Pod referenced by a namespace and name
-func (api *Client) DeletePod(ctx context.Context, namespace, name string, force bool) error {
+func (api *Client) DeletePod(ctx context.Context, namespace, name string, podUID types.UID, force bool) error {
 	deleteOptions := metav1.DeleteOptions{}
+	deleteOptions.Preconditions = &metav1.Preconditions{}
+	deleteOptions.Preconditions.UID = &podUID
 	if force {
 		gracePeriodSec := int64(0)
 		deleteOptions.GracePeriodSeconds = &gracePeriodSec
@@ -295,12 +298,12 @@ func (api *Client) SetupNodeWatch(ctx context.Context, listOptions metav1.ListOp
 // eventType is the type of this event (Normal, Warning)
 // reason is why the action was taken. It is human-readable.
 // messageFmt and args for a human readable description of the status of this operation
-func (api *Client) CreateEvent(object runtime.Object, eventType, reason, messageFmt string, args ...interface{}) error {
+func (api *Client) CreateEvent(sourceComponent string, object runtime.Object, eventType, reason, messageFmt string, args ...interface{}) error {
 	if api.eventRecorder == nil {
 		broadcaster := record.NewBroadcaster()
 		broadcaster.StartLogging(log.Infof)
 		broadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: api.Client.CoreV1().Events(v1.NamespaceAll)})
-		api.eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("external-provisioner")})
+		api.eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf(sourceComponent)})
 	}
 	api.eventRecorder.Eventf(object, eventType, reason, messageFmt, args)
 	return nil

@@ -224,6 +224,7 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) {
 	removeTaint := true
 	podKeys := make([]string, 0)
 	podKeysSkipped := make([]string, 0)
+	podKeysWithError := make([]string, 0)
 	podInfos := make([]*NodePodInfo, 0)
 	fn := func(key, value interface{}) bool {
 		podKey := key.(string)
@@ -255,6 +256,7 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) {
 	for i := 0; i < len(podKeys); i++ {
 		err := pm.nodeModeCleanupPod(podKeys[i], podInfos[i])
 		if err != nil {
+			podKeysWithError = append(podKeysWithError, podKeys[i])
 			// Abort removing the taint since we didn't clean up
 			removeTaint = false
 		} else {
@@ -264,10 +266,12 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) {
 	}
 	// Don't remove the taint if we had an error cleaning up a pod, or we skipped a pod because
 	// it was still present. Instead we will do another cleanup cycle.
-	if removeTaint && len(podKeysSkipped) == 0 {
+	if removeTaint && len(podKeysSkipped) == 0 && len(podKeysWithError) == 0 {
 		taintNode(node.ObjectMeta.Name, true)
 		log.Infof("Cleanup of pods complete: %v", podKeys)
 	} else {
+		log.Infof("pods skipped for cleanup because still present: %v", podKeysSkipped)
+		log.Infof("pods with cleanup errors: %v", podKeysWithError)
 		log.Info("Couldn't completely cleanup node- taint not removed- cleanup will be retried, or a manual reboot is advised advised")
 	}
 }
@@ -347,6 +351,9 @@ func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo
 				returnErr = err
 			}
 		}
+	}
+	if returnErr != nil {
+		log.WithFields(fields).Errorf("Pod cleanup failed, reason: %s", returnErr.Error())
 	}
 
 	return returnErr
