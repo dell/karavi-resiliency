@@ -3,3 +3,7 @@ podmonTest:
   namespace: "podmontest"
   driverLabel: csi-vxflexos
   storageClassName: vxflexos-notopo
+  nvolumes: 2
+  ndevices: 2
+  block:
+    enabled: "true"
