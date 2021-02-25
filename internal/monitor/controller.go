@@ -423,7 +423,7 @@ func callK8sAPITaint(operation, nodeName, taintKey string, effect v1.TaintEffect
 	return K8sAPI.TaintNode(ctx, nodeName, taintKey, effect, remove)
 }
 
-// taintNode uses kubectl as a safer way of adding/removing the taint instead of updating or patching the Node object.
+// taintNode adds or removes the podmon taint against node with 'nodeName'
 func taintNode(nodeName string, removeTaint bool) error {
 	operation := "tainting "
 	if removeTaint {
