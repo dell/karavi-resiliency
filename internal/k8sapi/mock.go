@@ -51,6 +51,7 @@ type K8sMock struct {
 		GetVolumeHandleFromVA                bool
 		GetPVNameFromVA                      bool
 		Watch                                bool
+		TaintNode                            bool
 	}
 	Watcher *watch.RaceFreeFakeWatcher
 }
@@ -371,4 +372,12 @@ func (mock *K8sMock) SetupNodeWatch(ctx context.Context, listOptions metav1.List
 		return nil, errors.New("included Watch error")
 	}
 	return mock.Watcher, nil
+}
+
+//TaintNode mocks tainting a node
+func (mock *K8sMock) TaintNode(ctx context.Context, nodeName, taintKey string, effect v1.TaintEffect, remove bool) error {
+	if mock.InducedErrors.TaintNode {
+		return errors.New("induced taint node error")
+	}
+	return nil
 }
