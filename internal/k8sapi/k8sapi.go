@@ -325,7 +325,7 @@ func (api *Client) TaintNode(ctx context.Context, nodeName, taintKey string, eff
 	}
 
 	// Apply the taint request against the node and determine if it should be patched
-	// Note: node.Spec.Taints will have an updated list if 'shouldPath' == true
+	// Note: node.Spec.Taints will have an updated list if 'shouldPatch' == true
 	operation, shouldPatch := updateTaint(node, taintKey, effect, remove)
 	if shouldPatch {
 		log.Infof("Attempting %s : %s against node %s", operation, taintKey, nodeName)
