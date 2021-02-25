@@ -413,8 +413,8 @@ func getCSINodeIDAnnotation(node *v1.Node, driverPath string) string {
 	return ""
 }
 
-//KubectlTaint is a reference to a function that can update a node taint
-var KubectlTaint = callK8sAPITaint
+//K8sTaint is a reference to a function that can update a node taint
+var K8sTaint = callK8sAPITaint
 
 func callK8sAPITaint(operation, nodeName, taintKey string, effect v1.TaintEffect, remove bool) error {
 	log.Infof("Calling to %s %s with %s %s (remove = %v)", operation, nodeName, taintKey, effect, remove)
@@ -429,7 +429,7 @@ func taintNode(nodeName string, removeTaint bool) error {
 	if removeTaint {
 		operation = "untainting "
 	}
-	return KubectlTaint(operation, nodeName, podmonTaintKey, v1.TaintEffectNoSchedule, removeTaint)
+	return K8sTaint(operation, nodeName, podmonTaintKey, v1.TaintEffectNoSchedule, removeTaint)
 }
 
 func nodeHasTaint(node *v1.Node, key string, taintEffect v1.TaintEffect) bool {

@@ -84,7 +84,7 @@ func (f *feature) aControllerMonitor() error {
 	f.podmonMonitor.CSIExtensionsPresent = true
 	f.podmonMonitor.DriverPathStr = "csi-vxflexos.dellemc.com"
 	gofsutil.UseMockFS()
-	KubectlTaint = f.mockKubectlTaint
+	K8sTaint = f.mockKubectlTaint
 	RemoveDir = f.mockRemoveDir
 	f.badWatchObject = false
 	return nil
@@ -222,7 +222,7 @@ func (f *feature) iInduceError(induced string) error {
 		f.podmonMonitor.CSIExtensionsPresent = false
 	case "CSIVolumePathDirRead":
 		f.failCSIVolumePathDirRead = true
-	case "KubectlTaint":
+	case "K8sTaint":
 		f.failKubectlTaint = true
 	case "RemoveDir":
 		f.failRemoveDir = "Could not delete"

@@ -41,37 +41,37 @@ Feature: Controller Monitor
     And the last log message contains <errorMsg>
 
     Examples:
-      | nodeName | pods | vols | devs | cleaned | unMountErr | rmDirErr    | taintErr       | k8apiErr              | errorMsg                                    |
-      | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "none"                | "none"                                      |
-      | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
-      | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "KubectlTaint" | "none"                | "Failed to remove taint against node1 node" |
-      | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "KubectlTaint" | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
-      | "node1"  | 1    | 1    | 1    | 1       | "none"     | "RemoveDir" | "none"         | "none"                | "Couldn't completely cleanup node"          |
-      | "node1"  | 1    | 1    | 1    | 1       | "none"     | "RemoveDir" | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
-      | "node1"  | 1    | 1    | 1    | 1       | "none"     | "RemoveDir" | "KubectlTaint" | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
-      | "node1"  | 1    | 1    | 1    | 1       | "Unmount"  | "none"      | "none"         | "none"                | "none"                                      |
-      | "node1"  | 1    | 1    | 1    | 1       | "Unmount"  | "none"      | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
-      | "node1"  | 1    | 1    | 1    | 1       | "Unmount"  | "none"      | "KubectlTaint" | "none"                | "Failed to remove taint against node1 node" |
-      | "node1"  | 1    | 1    | 1    | 1       | "Unmount"  | "none"      | "KubectlTaint" | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
-      | "node1"  | 1    | 1    | 1    | 1       | "Unmount"  | "RemoveDir" | "none"         | "none"                | "Couldn't completely cleanup node"          |
-      | "node1"  | 1    | 1    | 1    | 1       | "Unmount"  | "RemoveDir" | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
-      | "node1"  | 1    | 1    | 1    | 1       | "Unmount"  | "RemoveDir" | "KubectlTaint" | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
+      | nodeName | pods | vols | devs | cleaned | unMountErr | rmDirErr    | taintErr   | k8apiErr              | errorMsg                                    |
+      | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"     | "none"                | "none"                                      |
+      | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"     | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
+      | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "K8sTaint" | "none"                | "Failed to remove taint against node1 node" |
+      | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "K8sTaint" | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
+      | "node1"  | 1    | 1    | 1    | 1       | "none"     | "RemoveDir" | "none"     | "none"                | "Couldn't completely cleanup node"          |
+      | "node1"  | 1    | 1    | 1    | 1       | "none"     | "RemoveDir" | "none"     | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
+      | "node1"  | 1    | 1    | 1    | 1       | "none"     | "RemoveDir" | "K8sTaint" | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
+      | "node1"  | 1    | 1    | 1    | 1       | "Unmount"  | "none"      | "none"     | "none"                | "none"                                      |
+      | "node1"  | 1    | 1    | 1    | 1       | "Unmount"  | "none"      | "none"     | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
+      | "node1"  | 1    | 1    | 1    | 1       | "Unmount"  | "none"      | "K8sTaint" | "none"                | "Failed to remove taint against node1 node" |
+      | "node1"  | 1    | 1    | 1    | 1       | "Unmount"  | "none"      | "K8sTaint" | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
+      | "node1"  | 1    | 1    | 1    | 1       | "Unmount"  | "RemoveDir" | "none"     | "none"                | "Couldn't completely cleanup node"          |
+      | "node1"  | 1    | 1    | 1    | 1       | "Unmount"  | "RemoveDir" | "none"     | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
+      | "node1"  | 1    | 1    | 1    | 1       | "Unmount"  | "RemoveDir" | "K8sTaint" | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
       # Multiple pod tests
-      | "node1"  | 3    | 2    | 1    | 3       | "none"     | "none"      | "none"         | "none"                | "none"                                      |
-      | "node1"  | 3    | 2    | 1    | 2       | "none"     | "none"      | "none"         | "none"                | "Couldn't completely cleanup node"          |
-      | "node1"  | 3    | 2    | 1    | 2       | "none"     | "none"      | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
-      | "node1"  | 3    | 2    | 1    | 2       | "none"     | "none"      | "KubectlTaint" | "none"                | "Couldn't completely cleanup node"          |
-      | "node1"  | 3    | 2    | 1    | 2       | "none"     | "none"      | "KubectlTaint" | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
-      | "node1"  | 3    | 2    | 1    | 2       | "none"     | "RemoveDir" | "none"         | "none"                | "Couldn't completely cleanup node"          |
-      | "node1"  | 3    | 2    | 1    | 2       | "none"     | "RemoveDir" | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
-      | "node1"  | 3    | 2    | 1    | 2       | "none"     | "RemoveDir" | "KubectlTaint" | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
-      | "node1"  | 3    | 2    | 1    | 2       | "Unmount"  | "none"      | "none"         | "none"                | "Couldn't completely cleanup node"          |
-      | "node1"  | 3    | 2    | 1    | 2       | "Unmount"  | "none"      | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
-      | "node1"  | 3    | 2    | 1    | 2       | "Unmount"  | "none"      | "KubectlTaint" | "none"                | "Couldn't completely cleanup node"          |
-      | "node1"  | 3    | 2    | 1    | 2       | "Unmount"  | "none"      | "KubectlTaint" | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
-      | "node1"  | 3    | 2    | 1    | 2       | "Unmount"  | "RemoveDir" | "none"         | "none"                | "Couldn't completely cleanup node"          |
-      | "node1"  | 3    | 2    | 1    | 2       | "Unmount"  | "RemoveDir" | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
-      | "node1"  | 3    | 2    | 1    | 2       | "Unmount"  | "RemoveDir" | "KubectlTaint" | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
+      | "node1"  | 3    | 2    | 1    | 3       | "none"     | "none"      | "none"     | "none"                | "none"                                      |
+      | "node1"  | 3    | 2    | 1    | 2       | "none"     | "none"      | "none"     | "none"                | "Couldn't completely cleanup node"          |
+      | "node1"  | 3    | 2    | 1    | 2       | "none"     | "none"      | "none"     | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
+      | "node1"  | 3    | 2    | 1    | 2       | "none"     | "none"      | "K8sTaint" | "none"                | "Couldn't completely cleanup node"          |
+      | "node1"  | 3    | 2    | 1    | 2       | "none"     | "none"      | "K8sTaint" | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
+      | "node1"  | 3    | 2    | 1    | 2       | "none"     | "RemoveDir" | "none"     | "none"                | "Couldn't completely cleanup node"          |
+      | "node1"  | 3    | 2    | 1    | 2       | "none"     | "RemoveDir" | "none"     | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
+      | "node1"  | 3    | 2    | 1    | 2       | "none"     | "RemoveDir" | "K8sTaint" | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
+      | "node1"  | 3    | 2    | 1    | 2       | "Unmount"  | "none"      | "none"     | "none"                | "Couldn't completely cleanup node"          |
+      | "node1"  | 3    | 2    | 1    | 2       | "Unmount"  | "none"      | "none"     | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
+      | "node1"  | 3    | 2    | 1    | 2       | "Unmount"  | "none"      | "K8sTaint" | "none"                | "Couldn't completely cleanup node"          |
+      | "node1"  | 3    | 2    | 1    | 2       | "Unmount"  | "none"      | "K8sTaint" | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
+      | "node1"  | 3    | 2    | 1    | 2       | "Unmount"  | "RemoveDir" | "none"     | "none"                | "Couldn't completely cleanup node"          |
+      | "node1"  | 3    | 2    | 1    | 2       | "Unmount"  | "RemoveDir" | "none"     | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
+      | "node1"  | 3    | 2    | 1    | 2       | "Unmount"  | "RemoveDir" | "K8sTaint" | "NodeUnpublishVolume" | "Couldn't completely cleanup node"          |
 
 
   @node-mode
