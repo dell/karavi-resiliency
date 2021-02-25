@@ -5,5 +5,5 @@ podmonTest:
   storageClassName: unity-notopo
   nvolumes: 1
   ndevices: 1
-  block:
-    enabled: "true"
+  # zone will restrict node placement by matching node label failure-domain.beta.kubernetes.io/zone
+  zone: ""

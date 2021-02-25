@@ -20,6 +20,17 @@ spec:
           app: podmontest
           podmon.dellemc.com/driver: {{ required "Must set driver label" .Values.podmonTest.driverLabel }}
       spec:
+{{- if ne .Values.podmonTest.zone "" }}
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+              - matchExpressions:
+                - key: "failure-domain.beta.kubernetes.io/zone"
+                  operator: In
+                  values: 
+                  - {{.Values.podmonTest.zone}}
+{{end}}
         serviceAccount: podmontest
         containers:
           - name: podmontest

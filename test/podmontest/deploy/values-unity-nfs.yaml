@@ -5,5 +5,5 @@ podmonTest:
   storageClassName: unity-virt21048j9rzz-nfs
   nvolumes: 2
   ndevices: 2
-  block:
-    enabled: false
+  # zone will restrict node placement by matching node label failure-domain.beta.kubernetes.io/zone
+  zone: ""
