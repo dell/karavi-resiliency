@@ -1,8 +1,10 @@
+{{- $root := . -}}
+{{- range $i, $e := untilStep 0 (int .Values.podmonTest.ndevices) 1 }}
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
-  name: pvol1
-  namespace: {{ required "Must set namespace" .Values.podmonTest.namespace }}
+  name: "pdev{{$i}}"
+  namespace: "{{ required "Must set namespace" $root.Values.podmonTest.namespace }}"
 spec:
   accessModes:
   - ReadWriteOnce
@@ -10,4 +12,6 @@ spec:
   resources:
     requests:
       storage: 8Gi
-  storageClassName: {{ required "Must set storage class name" .Values.podmonTest.storageClassName }}
+  storageClassName: "{{ required "Must set storage class name" $root.Values.podmonTest.storageClassName }}"
+---
+{{end}}

@@ -58,11 +58,27 @@ type feature struct {
 	badWatchObject      bool
 }
 
-func (f *feature) aControllerMonitor() error {
+func (f *feature) aControllerMonitorUnity() error {
+	return f.aControllerMonitor("unity")
+}
+
+func (f *feature) aControllerMonitorVxflex() error {
+	return f.aControllerMonitor("vxflex")
+}
+
+func (f *feature) aControllerMonitor(driver string) error {
 	if f.loghook == nil {
 		f.loghook = logtest.NewGlobal()
 	} else {
 		fmt.Printf("loghook last-entry %+v\n", f.loghook.LastEntry())
+	}
+	switch driver {
+	case "vxflex":
+		Driver = new(VxflexDriver)
+	case "unity":
+		Driver = new(UnityDriver)
+	default:
+		Driver = new(VxflexDriver)
 	}
 	f.k8sapiMock = new(k8sapi.K8sMock)
 	f.k8sapiMock.Initialize()
@@ -153,7 +169,7 @@ func (f *feature) iHaveAPodsForNodeWithVolumesDevicesCondition(nPods int, nodeNa
 func (f *feature) iCallControllerCleanupPodForNode(nodeName string) error {
 	node, _ := f.k8sapiMock.GetNode(context.Background(), nodeName)
 	f.node = node
-	f.success = f.podmonMonitor.controllerCleanupPod(f.pod, node)
+	f.success = f.podmonMonitor.controllerCleanupPod(f.pod, node, "Unit Test")
 	return nil
 }
 
@@ -493,7 +509,7 @@ func (f *feature) createPod(node string, nvolumes int, condition string) *v1.Pod
 func (f *feature) theControllerCleanedUpPodsForNode(cleanedUpCount int, nodeName string) error {
 	node, _ := f.k8sapiMock.GetNode(context.Background(), nodeName)
 	for i := 0; i < cleanedUpCount; i++ {
-		if success := f.podmonMonitor.controllerCleanupPod(f.podList[i], node); !success {
+		if success := f.podmonMonitor.controllerCleanupPod(f.podList[i], node, "Unit Test"); !success {
 			return fmt.Errorf("controllerCleanPod was not successful")
 		}
 	}
@@ -676,7 +692,9 @@ func (f *feature) iCallTestLockAndGetPodKey() error {
 
 func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	f := &feature{}
-	context.Step(`^a controller monitor$`, f.aControllerMonitor)
+	context.Step(`^a controller monitor "([^"]*)"$`, f.aControllerMonitor)
+	context.Step(`^a controller monitor unity$`, f.aControllerMonitorUnity)
+	context.Step(`^a controller monitor vxflex$`, f.aControllerMonitorVxflex)
 	context.Step(`^a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)"$`, f.aPodForNodeWithVolumesCondition)
 	context.Step(`^I call controllerCleanupPod for node "([^"]*)"$`, f.iCallControllerCleanupPodForNode)
 	context.Step(`^I induce error "([^"]*)"$`, f.iInduceError)

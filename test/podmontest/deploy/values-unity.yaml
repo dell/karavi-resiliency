@@ -3,3 +3,7 @@ podmonTest:
   namespace: "podmontest"
   driverLabel: csi-unity
   storageClassName: unity-notopo
+  nvolumes: 1
+  ndevices: 1
+  # zone will restrict node placement by matching node label failure-domain.beta.kubernetes.io/zone
+  zone: ""

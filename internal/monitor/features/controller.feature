@@ -5,7 +5,7 @@ Feature: Controller Monitor
 
 @controller-mode
   Scenario Outline: Test controllerCleanupPod
-   Given a controller monitor
+   Given a controller monitor "vxflex"
    And a pod for node <podnode> with <nvol> volumes condition ""
    And I induce error <error>
    When I call controllerCleanupPod for node <node>
@@ -28,7 +28,7 @@ Feature: Controller Monitor
 
 @controller-mode
   Scenario Outline: test controllerModePodHandler
-   Given a controller monitor
+   Given a controller monitor "vxflex"
    And a pod for node <podnode> with <nvol> volumes condition <condition>
    And a node <podnode> with taint <nodetaint>
    And I induce error <error>
@@ -49,7 +49,7 @@ Feature: Controller Monitor
 
 @controller-mode
   Scenario Outline: test ArrayConnectivityMonitor
-   Given a controller monitor
+   Given a controller monitor "vxflex"
    And a pod for node <podnode> with <nvol> volumes condition <condition>
    And I induce error <error>
    When I call controllerModePodHandler with event "Updated"

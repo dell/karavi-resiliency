@@ -1,8 +1,8 @@
 podmonTest:
   image: "registry:port/podmontest:v0.0.54"
   namespace: "podmontest"
-  driverLabel: csi-vxflexos
-  storageClassName: vxflexos-notopo
+  driverLabel: csi-unity
+  storageClassName: unity-virt21048j9rzz-nfs
   nvolumes: 2
   ndevices: 2
   # zone will restrict node placement by matching node label failure-domain.beta.kubernetes.io/zone
