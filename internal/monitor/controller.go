@@ -25,6 +25,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/watch"
+	"podmon/internal/k8sapi"
 )
 
 //ControllerPodInfo has information for tracking health of the system
@@ -103,7 +104,7 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 				pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, pod.Spec.NodeName, initialized, taintnosched, taintnoexec, ready)
 			// TODO: option for taintnosched vs. taintnoexec
 			if (taintnoexec || taintnosched) && !ready {
-				go cm.controllerCleanupPod(pod, node)
+				go cm.controllerCleanupPod(pod, node, "NodeFailure")
 			}
 		}
 
@@ -112,7 +113,7 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 }
 
 // Attempts to cleanup a Pod that is in trouble. Returns true if made it all the way to deleting the pod.
-func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node) bool {
+func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reason string) bool {
 	fields := make(map[string]interface{})
 	fields["namespace"] = pod.ObjectMeta.Namespace
 	fields["pod"] = pod.ObjectMeta.Name
@@ -122,6 +123,16 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node) bool 
 	// Single thread processing of this pod
 	Lock(podKey, pod, LockSleepTimeDelay)
 	defer Unlock(podKey)
+
+	// If ControllerPodInfo struct has UID mismatch, assume pod deleted already
+	podInfoValue, ok := cm.PodKeyToControllerPodInfo.Load(podKey)
+	if ok {
+		controllerPodInfo := podInfoValue.(*ControllerPodInfo)
+		if controllerPodInfo.PodUID != string(pod.ObjectMeta.UID) {
+			log.Infof("monitored pod UID %s different than pod to clean UID %s - aborting pod cleanup", controllerPodInfo.PodUID, string(pod.ObjectMeta.UID))
+			return false
+		}
+	}
 
 	log.WithFields(fields).Infof("Cleaning up pod")
 	ctx, cancel := K8sAPI.GetContext(LongTimeout)
@@ -201,7 +212,8 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node) bool 
 	}
 
 	// Force delete the pod.
-	err = K8sAPI.DeletePod(ctx, pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, true)
+	K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, reason, "podmon cleaning pod %s with force delete", string(pod.ObjectMeta.UID))
+	err = K8sAPI.DeletePod(ctx, pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, pod.ObjectMeta.UID, true)
 	if err == nil {
 		log.WithFields(fields).Infof("Successfully cleaned up pod")
 		// Delete the ControllerPodInfo reference to this pod, we've deleted it.
@@ -322,7 +334,7 @@ func (cm *PodMonitorType) ArrayConnectivityMonitor(pollRate time.Duration) {
 				if err == nil {
 					if string(pod.ObjectMeta.UID) == podUID && pod.Spec.NodeName == node.ObjectMeta.Name {
 						log.Infof("Cleaning up pod %s/%s because of array connectivity loss", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
-						cm.controllerCleanupPod(pod, node)
+						cm.controllerCleanupPod(pod, node, "ArrayConnectionLost")
 					} else {
 						log.Infof("Skipping pod %s/%s podUID %s %s node %s %s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name,
 							string(pod.ObjectMeta.UID), podUID, pod.Spec.NodeName, node.ObjectMeta.Name)

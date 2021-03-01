@@ -235,6 +235,7 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) {
 	removeTaint := true
 	podKeys := make([]string, 0)
 	podKeysSkipped := make([]string, 0)
+	podKeysWithError := make([]string, 0)
 	podInfos := make([]*NodePodInfo, 0)
 	fn := func(key, value interface{}) bool {
 		podKey := key.(string)
@@ -266,6 +267,7 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) {
 	for i := 0; i < len(podKeys); i++ {
 		err := pm.nodeModeCleanupPod(podKeys[i], podInfos[i])
 		if err != nil {
+			podKeysWithError = append(podKeysWithError, podKeys[i])
 			// Abort removing the taint since we didn't clean up
 			removeTaint = false
 		} else {
@@ -275,13 +277,15 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) {
 	}
 	// Don't remove the taint if we had an error cleaning up a pod, or we skipped a pod because
 	// it was still present. Instead we will do another cleanup cycle.
-	if removeTaint && len(podKeysSkipped) == 0 {
+	if removeTaint && len(podKeysSkipped) == 0 && len(podKeysWithError) == 0 {
 		if err := taintNode(node.ObjectMeta.Name, true); err != nil {
 			log.Errorf("Failed to remove taint against %s node: %v", node.ObjectMeta.Name, err)
 		} else {
 			log.Infof("Cleanup of pods complete: %v", podKeys)
 		}
 	} else {
+		log.Infof("pods skipped for cleanup because still present: %v", podKeysSkipped)
+		log.Infof("pods with cleanup errors: %v", podKeysWithError)
 		log.Info("Couldn't completely cleanup node- taint not removed- cleanup will be retried, or a manual reboot is advised advised")
 	}
 }
@@ -309,6 +313,15 @@ func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo
 			log.WithFields(fields).Errorf("NodeUnpublishVolume failed: %s %s %s", mntInfo.Path, mntInfo.VolumeID, err)
 			returnErr = err
 		} else {
+			stagingDir := Driver.GetStagingMountDir(mntInfo.VolumeID, mntInfo.PVName)
+			if stagingDir != "" {
+				err = pm.callNodeUnstageVolume(fields, stagingDir, mntInfo.VolumeID)
+				if err != nil {
+					log.WithFields(fields).Errorf("NodeUnstageVolume failed: %s %s %s", mntInfo.Path, mntInfo.VolumeID, err)
+					returnErr = err
+				}
+			}
+
 			privTarget := Driver.GetDriverMountDir(mntInfo.VolumeID, mntInfo.PVName, podUID)
 			err = gofsutil.Unmount(context.Background(), privTarget)
 			if err != nil {
@@ -331,6 +344,15 @@ func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo
 			log.WithFields(fields).Errorf("NodeUnpublishVolume failed: %s %s %s", devInfo.Path, devInfo.VolumeID, err)
 			returnErr = err
 		} else {
+			stagingDir := Driver.GetStagingBlockDir(devInfo.VolumeID, devInfo.PVName)
+			if stagingDir != "" {
+				err = pm.callNodeUnstageVolume(fields, stagingDir, devInfo.VolumeID)
+				if err != nil {
+					log.WithFields(fields).Errorf("NodeUnstageVolume failed: %s %s %s", devInfo.Path, devInfo.VolumeID, err)
+					returnErr = err
+				}
+			}
+
 			privBlockDev := Driver.GetDriverBlockDev(devInfo.VolumeID, devInfo.PVName, podUID)
 			err = syscall.Unmount(privBlockDev, 0)
 			if err != nil {
@@ -343,6 +365,9 @@ func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo
 				returnErr = err
 			}
 		}
+	}
+	if returnErr != nil {
+		log.WithFields(fields).Errorf("Pod cleanup failed, reason: %s", returnErr.Error())
 	}
 
 	return returnErr
@@ -368,5 +393,27 @@ func (pm *PodMonitorType) callNodeUnpublishVolume(fields map[string]interface{},
 		time.Sleep(PendingRetryTime)
 	}
 
+	return err
+}
+
+// callNodeUnStageVolume in the driver, log any messages, return error.
+func (pm *PodMonitorType) callNodeUnstageVolume(fields map[string]interface{}, targetPath, volumeID string) error {
+	var err error
+	for i := 0; i < CSIMaxRetries; i++ {
+		log.WithFields(fields).Infof("Calling NodeUnstageVolume path %s volume %s", targetPath, volumeID)
+		req := &csi.NodeUnstageVolumeRequest{
+			StagingTargetPath: targetPath,
+			VolumeId:          volumeID,
+		}
+		_, err = CSIApi.NodeUnstageVolume(context.Background(), req)
+		if err == nil {
+			break
+		}
+		log.WithFields(fields).Infof("Error calling NodeUnstageVolume path %s volume %s: %s", targetPath, volumeID, err.Error())
+		if !strings.HasSuffix(err.Error(), "pending") {
+			break
+		}
+		time.Sleep(PendingRetryTime)
+	}
 	return err
 }

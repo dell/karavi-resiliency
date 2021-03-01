@@ -16,8 +16,8 @@ Feature: Podmon Main
       | "localhost"  | "1234"  | "--mode=node --leaderelection=false"                                                           | "podmon alive"          |
       | "localhost"  | "1234"  | "--mode=node --leaderelection=false --csisock='csi.sock' "                                     | "podmon alive"          |
       # Skip array connection check
-      | "localhost"  | "1234"  | "--mode=node --leaderelection=true --csisock='csi.sock' --skiparrayConnectionvalidation=true"  | "leader election: true" |
-      | "localhost"  | "1234"  | "--mode=node --leaderelection=false --csisock='csi.sock' --skiparrayConnectionvalidation=true" | "podmon alive"          |
+      | "localhost"  | "1234"  | "--mode=node --leaderelection=true --csisock='csi.sock' --skipArrayConnectionValidation=true"  | "leader election: true" |
+      | "localhost"  | "1234"  | "--mode=node --leaderelection=false --csisock='csi.sock' --skipArrayConnectionValidation=true" | "podmon alive"          |
 
   Scenario Outline: Test the main routine in controller mode
     Given a podmon instance
@@ -32,8 +32,8 @@ Feature: Podmon Main
       | "localhost"  | "1234"  | "--mode=controller --leaderelection=false"                                                           | "podmon alive"          |
       | "localhost"  | "1234"  | "--mode=controller --leaderelection=false --csisock='csi.sock'"                                      | "podmon alive"          |
       # Skip array connection check
-      | "localhost"  | "1234"  | "--mode=controller --leaderelection=true --csisock='csi.sock' --skiparrayConnectionvalidation=true"  | "leader election: true" |
-      | "localhost"  | "1234"  | "--mode=controller --leaderelection=false --csisock='csi.sock' --skiparrayConnectionvalidation=true" | "podmon alive"          |
+      | "localhost"  | "1234"  | "--mode=controller --leaderelection=true --csisock='csi.sock' --skipArrayConnectionValidation=true"  | "leader election: true" |
+      | "localhost"  | "1234"  | "--mode=controller --leaderelection=false --csisock='csi.sock' --skipArrayConnectionValidation=true" | "podmon alive"          |
 
   Scenario Outline: Test the main routine in standalone mode
     Given a podmon instance
@@ -48,8 +48,8 @@ Feature: Podmon Main
       | "localhost"  | "1234"  | "--mode=standalone --leaderelection=false"                                                           | "podmon alive"          |
       | "localhost"  | "1234"  | "--mode=standalone --leaderelection=false --csisock='csi.sock'"                                      | "podmon alive"          |
       # Skip array connection check
-      | "localhost"  | "1234"  | "--mode=standalone --leaderelection=false --csisock='csi.sock' --skiparrayConnectionvalidation=true" | "podmon alive"          |
-      | "localhost"  | "1234"  | "--mode=standalone --leaderelection=true --csisock='csi.sock' --skiparrayConnectionvalidation=true"  | "leader election: true" |
+      | "localhost"  | "1234"  | "--mode=standalone --leaderelection=false --csisock='csi.sock' --skipArrayConnectionValidation=true" | "podmon alive"          |
+      | "localhost"  | "1234"  | "--mode=standalone --leaderelection=true --csisock='csi.sock' --skipArrayConnectionValidation=true"  | "leader election: true" |
 
   Scenario Outline: Test the main routine with negative test cases
     Given a podmon instance
