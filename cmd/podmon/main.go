@@ -89,10 +89,10 @@ func main() {
 	}
 	log.Infof("Running in %s mode", monitor.PodMonitor.Mode)
 	if strings.Contains(*args.driverPath, "unity") {
-		log.Infof("Unity driver")
+		log.Infof("CSI Driver for Unity")
 		monitor.Driver = new(monitor.UnityDriver)
 	} else {
-		log.Infof("VxFlex OS driver")
+		log.Infof("CSI Driver for VxFlex OS")
 		monitor.Driver = new(monitor.VxflexDriver)
 	}
 	monitor.ArrayConnectivityPollRate = time.Duration(*args.arrayConnectivityPollRate) * time.Second

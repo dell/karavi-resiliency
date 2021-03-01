@@ -11,7 +11,7 @@
 #
 
 # This is a basic test that cycles through a set of listed nodes and kills them, making sure all the labeled apps continue to run after time for recovery.
-NODELIST="lglw2213 lglw2215"
+NODELIST=""
 APP_RECOVERY_TIME=540
 NODE_DELAY_TIME=30
 REBOOT=off
