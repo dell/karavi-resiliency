@@ -20,6 +20,17 @@ spec:
           app: podmontest
           podmon.dellemc.com/driver: {{ required "Must set driver label" .Values.podmonTest.driverLabel }}
       spec:
+{{- if ne .Values.podmonTest.zone "" }}
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+              - matchExpressions:
+                - key: "failure-domain.beta.kubernetes.io/zone"
+                  operator: In
+                  values: 
+                  - {{.Values.podmonTest.zone}}
+{{end}}
         serviceAccount: podmontest
         containers:
           - name: podmontest
@@ -30,15 +41,23 @@ spec:
               - name: ROOT_DIR
                 value: "/"
             volumeMounts:
-              - mountPath: "/data0"
-                name: pvol0
+{{- range $i, $e := untilStep 0 (int .Values.podmonTest.nvolumes) 1 }}
+              - mountPath: /data{{$i}}
+                name: pvol{{$i}}
+{{end}}
             volumeDevices:
-              - devicePath: "/blockdata1"
-                name: pvol1
+{{- range $i, $e := untilStep 0 (int .Values.podmonTest.ndevices) 1 }}
+              - devicePath: /blockdata1{{$i}}
+                name: pdev{{$i}}
+{{end}}
         volumes:
-          - name: pvol0
+{{- range $i, $e := untilStep 0 (int .Values.podmonTest.nvolumes) 1 }}
+          - name: pvol{{$i}}
             persistentVolumeClaim:
-              claimName: pvol0
-          - name: pvol1
+              claimName: pvol{{$i}}
+{{end}}
+{{- range $i, $e := untilStep 0 (int .Values.podmonTest.ndevices) 1 }}
+          - name: pdev{{$i}}
             persistentVolumeClaim:
-              claimName: pvol1
+              claimName: pdev{{$i}}
+{{end}}
