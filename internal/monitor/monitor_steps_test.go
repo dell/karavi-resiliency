@@ -30,10 +30,10 @@ import (
 	"path/filepath"
 	"podmon/internal/csiapi"
 	"podmon/internal/k8sapi"
+	"podmon/internal/utils"
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -165,7 +165,7 @@ func (f *feature) iHaveAPodsForNodeWithVolumesDevicesCondition(nPods int, nodeNa
 		}
 		mockPaths = append(mockPaths, mockCSIDevicePath)
 		for _, pvName := range f.pvNames {
-			if _, err = syscall.Creat(filepath.Join(mockCSIDevicePath, pvName), 060700); err != nil {
+			if _, err = utils.Creat(filepath.Join(mockCSIDevicePath, pvName), 060700); err != nil {
 				err = fmt.Errorf("Create mockCSIDevicePath failed: %s", err)
 				return err
 			}

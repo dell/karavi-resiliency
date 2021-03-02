@@ -10,17 +10,27 @@
 #
 #
 
-instances="1 2"
-ndevices=0
-nvolumes=4
-zone=""
+instances=${instances:-"1 2 3 4"}
+ndevices=${ndevices:-0}
+nvolumes=${nvolumes:-4}
+zone=${zone:-""}
 storageClassName=unity-virt21048j9rzz-nfs
 image="$REGISTRY_HOST:$REGISTRY_PORT/podmontest:v0.0.54"
-port=5000
 
-for i in $instances
-do
+if [ "$DEBUG"x != "x" ]; then
+  DEBUG="--dry-run --debug"
+fi
+
+for i in $instances; do
 	echo $i
 	kubectl create namespace pmtu$i
-        helm install -n "pmtu$i" "pmtu$i" deploy --values deploy/values-unity-nfs.yaml --set podmonTest.namespace="pmtu$i"  --set podmonTest.storageClassName="$storageClassName" --set podmonTest.ndevices=$ndevices --set podmonTest.nvolumes=$nvolumes --set podmonTest.zone="$zone" --set podmonTest.image="$image" 
+  helm install -n "pmtu$i" "pmtu$i" deploy \
+              ${DEBUG} \
+              --values deploy/values-unity-nfs.yaml \
+              --set podmonTest.namespace="pmtu$i"  \
+              --set podmonTest.storageClassName="$storageClassName" \
+              --set podmonTest.ndevices=$ndevices \
+              --set podmonTest.nvolumes=$nvolumes \
+              --set podmonTest.image="$image" \
+              --set podmonTest.zone="$zone"
 done

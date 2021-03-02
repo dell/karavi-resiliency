@@ -23,8 +23,8 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"os"
 	"podmon/internal/k8sapi"
+	"podmon/internal/utils"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -354,7 +354,7 @@ func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo
 			}
 
 			privBlockDev := Driver.GetDriverBlockDev(devInfo.VolumeID, devInfo.PVName, podUID)
-			err = syscall.Unmount(privBlockDev, 0)
+			err = utils.Unmount(privBlockDev, 0)
 			if err != nil {
 				log.WithFields(fields).Errorf("Could not Unmount private block device: %s because: %s", privBlockDev, err.Error())
 			}
