@@ -20,5 +20,5 @@ func Unmount(devName string, flags int) error {
 }
 
 func Creat(filepath string, flags int) (int, error) {
-	return syscall.Creat(filepath, flags)
+	return syscall.Creat(filepath, uint32(flags))
 }

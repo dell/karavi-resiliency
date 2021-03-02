@@ -66,9 +66,9 @@ func (i *integration) allPodsAreRunningWithinSeconds(wait int) error {
 	if allRunning {
 		fmt.Printf("All pods in %s namespaces are in the 'Running' state", namespaces)
 		return nil
-	} else {
-		time.Sleep(time.Duration(wait) * time.Second)
 	}
+
+	time.Sleep(time.Duration(wait) * time.Second)
 
 	allRunning, err = i.checkIfAllPodsRunning(namespaces)
 	if err != nil {
@@ -162,7 +162,7 @@ func (i *integration) thereAreDriverPodsWithThisPrefix(namespace, prefix string)
 
 		// No master label found implies it's a worker node
 		if !hasMasterLabel {
-			nWorkerNodes += 1
+			nWorkerNodes++
 		}
 	}
 
@@ -174,9 +174,9 @@ func (i *integration) thereAreDriverPodsWithThisPrefix(namespace, prefix string)
 	for _, pod := range pods.Items {
 		if pod.Status.Phase == "Running" {
 			if strings.HasPrefix(pod.Name, lookForController) {
-				nRunningControllers += 1
+				nRunningControllers++
 			} else if strings.HasPrefix(pod.Name, lookForNode) {
-				nRunningNode += 1
+				nRunningNode++
 			}
 		}
 	}
@@ -234,7 +234,7 @@ func (i *integration) checkIfAllNodesReady() (bool, error) {
 	for _, node := range list.Items {
 		for _, status := range node.Status.Conditions {
 			if status.Reason == "KubeletReady" {
-				readyCount += 0
+				readyCount++
 				break
 			}
 		}
@@ -252,7 +252,7 @@ func (i *integration) checkIfAllPodsRunning(namespace string) (bool, error) {
 	podRunningCount := 0
 	for _, pod := range pods.Items {
 		if pod.Status.Phase == "Running" {
-			podRunningCount += 1
+			podRunningCount++
 		}
 	}
 
