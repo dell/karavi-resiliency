@@ -187,8 +187,8 @@ func (i *integration) thereAreDriverPodsWithThisPrefix(namespace, prefix string)
 	allNodesRunning := nRunningNode == nWorkerNodes
 
 	return AssertExpectedAndActual(assert.Equal, true, controllersRunning && allNodesRunning,
-		fmt.Sprintf("Expected driver controller and node components to be running. controllersRunning = %v, allNodesRunning = %v",
-			controllersRunning, allNodesRunning))
+		fmt.Sprintf("Expected %s driver controller and node pods to be running in %s namespace. controllersRunning = %v, allNodesRunning = %v",
+			prefix, namespace, controllersRunning, allNodesRunning))
 }
 
 /* -- Helper functions -- */
