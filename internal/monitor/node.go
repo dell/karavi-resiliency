@@ -381,6 +381,9 @@ func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo
 			}
 		}
 	}
+	if returnErr != nil {
+		log.WithFields(fields).Errorf("Pod cleanup failed, reason: %s", returnErr.Error())
+	}
 
 	if returnErr != nil {
 		log.WithFields(fields).Errorf("Pod cleanup failed, reason: %s", returnErr.Error())
