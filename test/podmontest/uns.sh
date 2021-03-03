@@ -10,8 +10,28 @@
 #
 #
 
-instances="1 2 3 4"
-for i in $instances
+instances=${instances:-4}
+prefix="pmt"
+
+for param in $*
 do
-	helm delete -n pmt$i pmt$i
+    case $param in
+       "--instances")
+          shift
+          instances=$1
+          shift
+          ;;
+       "--prefix")
+          shift
+          prefix=$1
+          shift
+          ;;
+    esac
+done
+
+i=1
+while [ $i -le $instances ]; do
+	helm delete -n "${prefix}"$i "${prefix}"$i
+	kubectl delete namespace "${prefix}"$i
+	i=$((i + 1))
 done

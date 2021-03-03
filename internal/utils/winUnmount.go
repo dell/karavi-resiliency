@@ -15,6 +15,9 @@ package utils
 
 import "os"
 
+// !!! This is not meant for production. This implementation is provided in case !!!
+// !!! a developer wishes to run the unit tests from an IDE on Windows           !!!
+
 func Unmount(devName string, flags int) error {
 	return os.Remove(devName)
 }
