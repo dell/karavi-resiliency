@@ -15,6 +15,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/cucumber/godog"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	v12 "k8s.io/api/core/v1"
@@ -116,8 +117,8 @@ func (i *integration) givenKubernetes(configPath string) error {
 	i.k8s = &k8sapi.K8sClient
 	err = i.k8s.Connect(&i.configPath)
 	if err != nil {
-		message := fmt.Sprintf("kubernetes connection error: %s\n", err)
-		fmt.Print(message)
+		message := fmt.Sprintf("kubernetes connection error: %s", err)
+		log.Info(message)
 		return fmt.Errorf(message)
 	}
 
@@ -154,11 +155,11 @@ func (i *integration) allPodsAreRunningWithinSeconds(wait int) error {
 	}
 
 	if allRunning {
-		fmt.Print("All test pods are in the 'Running' state\n")
+		log.Info("All test pods are in the 'Running' state")
 		return nil
 	}
 
-	fmt.Printf("All test pods are not all running. Waiting %d seconds.\n", wait)
+	log.Infof("All test pods are not all running. Waiting %d seconds.", wait)
 	time.Sleep(time.Duration(wait) * time.Second)
 
 	// Check each of the test namespaces for running pods (final check)
@@ -170,7 +171,7 @@ func (i *integration) allPodsAreRunningWithinSeconds(wait int) error {
 			return err
 		}
 		if !running {
-			fmt.Printf("Pods in %s namespace are not all running\n", namespace)
+			log.Infof("Pods in %s namespace are not all running", namespace)
 			allRunning = false
 			break
 		}
@@ -191,7 +192,7 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 		return err
 	}
 
-	fmt.Printf("Test with %2.2f failed workers and %2.2f failed primary nodes\n", workersToFail, primaryToFail)
+	log.Infof("Test with %2.2f failed workers and %2.2f failed primary nodes", workersToFail, primaryToFail)
 
 	failedWorkers, err := i.failWorkerNodes(workersToFail, failure)
 	if err != nil {
@@ -203,10 +204,10 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 		return err
 	}
 
-	fmt.Printf("Requested nodes to fail. Waiting %d seconds before checking if they are failed.\n", wait)
+	log.Infof("Requested nodes to fail. Waiting %d seconds before checking if they are failed.", wait)
 	time.Sleep(time.Duration(wait) * time.Second)
 
-	fmt.Printf("Wait done, checking for failed nodes...\n")
+	log.Infof("Wait done, checking for failed nodes...")
 	requestedWorkersAndFailed := func(node v12.Node) bool {
 		found := false
 		for _, worker := range failedWorkers {
@@ -286,7 +287,7 @@ func (i *integration) podsPerNodeWithVolumesAndDevicesEach(podsPerNode, numVols,
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 
-	fmt.Printf("Attempting to deploy with command: %v\n", command)
+	log.Infof("Attempting to deploy with command: %v", command)
 	err = command.Start()
 	if err != nil {
 		return err
@@ -306,7 +307,7 @@ func (i *integration) podsPerNodeWithVolumesAndDevicesEach(podsPerNode, numVols,
 }
 
 func (i *integration) theTaintsForTheFailedNodesAreRemovedWithinSeconds(wait int) error {
-	fmt.Printf("Checking if nodes have podmon taint\n")
+	log.Infof("Checking if nodes have podmon taint")
 	taintKey := "podmon.dellemc.com"
 	havePodmonTaint, err := i.checkIfNodesHaveTaint(taintKey)
 	if err != nil {
@@ -314,11 +315,11 @@ func (i *integration) theTaintsForTheFailedNodesAreRemovedWithinSeconds(wait int
 	}
 
 	if havePodmonTaint {
-		fmt.Printf("Podmon taint is still on nodes. Waiting %d seconds.\n", wait)
+		log.Infof("Podmon taint is still on nodes. Waiting %d seconds.", wait)
 		time.Sleep(time.Duration(wait) * time.Second)
 	}
 
-	fmt.Printf("Checking again if nodes have podmon taint (final check)\n")
+	log.Infof("Checking again if nodes have podmon taint (final check)")
 	havePodmonTaint, err = i.checkIfNodesHaveTaint(taintKey)
 	if err != nil {
 		return err
@@ -333,7 +334,7 @@ func (i *integration) theseCSIDriverAreConfiguredOnTheSystem(driverName string) 
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Driver %s exists on the cluster\n", driverObj.Name)
+	log.Infof("Driver %s exists on the cluster", driverObj.Name)
 	return AssertExpectedAndActual(assert.Equal, driverName, driverObj.Name,
 		fmt.Sprintf("No CSIDriver named %s found in cluster", driverName))
 }
@@ -391,7 +392,7 @@ func (i *integration) thereAreDriverPodsWithThisPrefix(namespace, prefix string)
 }
 
 func (i *integration) finallyCleanupEverything() error {
-	fmt.Print("Attempting to clean up everything\n")
+	log.Info("Attempting to clean up everything")
 	uninstallScript := "uns.sh"
 	prefix := "pmtv"
 	if i.driverType == "unity" {
@@ -410,7 +411,7 @@ func (i *integration) finallyCleanupEverything() error {
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 
-	fmt.Printf("Going to invoke uninstall script %v\n", command)
+	log.Infof("Going to invoke uninstall script %v", command)
 	err := command.Start()
 	if err != nil {
 		return err
@@ -474,7 +475,7 @@ func (i *integration) canLogonToNodesAndDropTestScripts() error {
 			if addr.Type == "InternalIP" {
 				// Check if we already copied files for this node already
 				if _, ok := nodesWithScripts[addr.Address]; ok {
-					fmt.Printf("Node %s already has scripts.\n", addr.Address)
+					log.Infof("Node %s already has scripts.", addr.Address)
 					break
 				}
 				err = i.copyOverTestScripts(addr.Address)
@@ -495,7 +496,7 @@ func (i *integration) canLogonToNodesAndDropTestScripts() error {
 func (i *integration) dumpNodeInfo() error {
 	list, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), v1.ListOptions{})
 	if err != nil {
-		message := fmt.Sprintf("listing nodes error: %s\n", err)
+		message := fmt.Sprintf("listing nodes error: %s", err)
 		return fmt.Errorf(message)
 	}
 
@@ -514,9 +515,9 @@ func (i *integration) dumpNodeInfo() error {
 				break
 			}
 		}
-		fmt.Printf("Host: %s IP:%s Ready: %v taint: %s \n", node.Name, ipAddr, isReady, node.Spec.Taints)
+		log.Infof("Host: %s IP:%s Ready: %v taint: %s ", node.Name, ipAddr, isReady, node.Spec.Taints)
 		info := node.Status.NodeInfo
-		fmt.Printf("\tOS: %s/%s/%s, k8s_version: %s\n", info.OSImage, info.KernelVersion, info.Architecture, info.KubeletVersion)
+		log.Infof("\tOS: %s/%s/%s, k8s_version: %s", info.OSImage, info.KernelVersion, info.Architecture, info.KubeletVersion)
 	}
 
 	return nil
@@ -525,7 +526,7 @@ func (i *integration) dumpNodeInfo() error {
 func (i *integration) checkIfAllNodesReady() (bool, error) {
 	list, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), v1.ListOptions{})
 	if err != nil {
-		message := fmt.Sprintf("listing nodes error: %s\n", err)
+		message := fmt.Sprintf("listing nodes error: %s", err)
 		return false, fmt.Errorf(message)
 	}
 
@@ -561,7 +562,7 @@ func (i *integration) checkIfAllPodsRunning(namespace string) (bool, error) {
 func (i *integration) checkIfNodesHaveTaint(check string) (bool, error) {
 	list, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), v1.ListOptions{})
 	if err != nil {
-		message := fmt.Sprintf("listing nodes error: %s\n", err)
+		message := fmt.Sprintf("listing nodes error: %s", err)
 		return false, fmt.Errorf(message)
 	}
 
@@ -646,7 +647,7 @@ func (i *integration) failNodes(filter func(node v12.Node) bool, count float64, 
 	for name, ip := range nameToIP {
 		if failed < numberToFail {
 			// Do failure
-			fmt.Printf("Failing %s %s\n", name, ip)
+			log.Infof("Failing %s %s", name, ip)
 			failedNodes = append(failedNodes, name)
 			failed++
 		}
@@ -688,12 +689,12 @@ func (i *integration) copyOverTestScripts(address string) error {
 		Timeout:    4 * time.Second,
 	}
 
-	fmt.Printf("Attempting to scp scripts from %s to %s:%s\n", i.scriptsDir, address, remoteScriptDir)
+	log.Infof("Attempting to scp scripts from %s to %s:%s", i.scriptsDir, address, remoteScriptDir)
 
 	mkDirCmd := fmt.Sprintf("date; rm -rf %s; mkdir %s", remoteScriptDir, remoteScriptDir)
 	if mkDirErr := client.Run(mkDirCmd); mkDirErr == nil {
 		for _, out := range client.GetOutput() {
-			fmt.Printf("%s\n", out)
+			log.Infof("%s", out)
 		}
 	} else {
 		return mkDirErr
@@ -714,13 +715,13 @@ func (i *integration) copyOverTestScripts(address string) error {
 	lsDirCmd := fmt.Sprintf("ls -ltr %s", remoteScriptDir)
 	if lsErr := client.Run(lsDirCmd); lsErr == nil {
 		for _, out := range client.GetOutput() {
-			fmt.Printf("%s\n", out)
+			log.Infof("%s", out)
 		}
 	} else {
 		return lsErr
 	}
 
-	fmt.Printf("Scripts successfully copied to %s:%s\n", address, remoteScriptDir)
+	log.Infof("Scripts successfully copied to %s:%s", address, remoteScriptDir)
 	return nil
 }
 
