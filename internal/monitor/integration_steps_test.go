@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"github.com/cucumber/godog"
 	"github.com/stretchr/testify/assert"
+	"io/ioutil"
 	v12 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -24,8 +25,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"podmon/internal/k8sapi"
+	"podmon/test/ssh"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -37,6 +40,7 @@ type integration struct {
 	devCount            int
 	volCount            int
 	testNamespacePrefix string
+	scriptsDir          string
 }
 
 // wordsToNumberMap used for mapping a number-word strings to a float64 value.
@@ -60,6 +64,14 @@ var wordsToNumberMap = map[string]float64{
 // Workaround for non-inclusive word scan
 var primary = []byte{'m', 'a', 's', 't', 'e', 'r'}
 var primaryLabelKey = fmt.Sprintf("node-role.kubernetes.io/%s", string(primary))
+
+// Directory where test scripts will be dropped
+var remoteScriptDir = "/root/karavi-resiliency-tests"
+
+// These are for tracking to which nodes the tests upload scripts.
+// With multiple scenarios, we want to do this only once.
+var nodesWithScripts map[string]bool
+var nodesWithScriptsInitOnce sync.Once
 
 var isWorkerNode = func(node v12.Node) bool {
 	// Some k8s clusters may not have a worker label against
@@ -113,6 +125,10 @@ func (i *integration) givenKubernetes(configPath string) error {
 	if err != nil {
 		return err
 	}
+
+	nodesWithScriptsInitOnce.Do(func() {
+		nodesWithScripts = make(map[string]bool)
+	})
 	return nil
 }
 
@@ -138,7 +154,7 @@ func (i *integration) allPodsAreRunningWithinSeconds(wait int) error {
 	}
 
 	if allRunning {
-		fmt.Printf("All test pods are in the 'Running' state")
+		fmt.Print("All test pods are in the 'Running' state\n")
 		return nil
 	}
 
@@ -154,7 +170,7 @@ func (i *integration) allPodsAreRunningWithinSeconds(wait int) error {
 			return err
 		}
 		if !running {
-			fmt.Printf("Pods in %s namespace are not all running", namespace)
+			fmt.Printf("Pods in %s namespace are not all running\n", namespace)
 			allRunning = false
 			break
 		}
@@ -317,7 +333,7 @@ func (i *integration) theseCSIDriverAreConfiguredOnTheSystem(driverName string) 
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Driver %s exists on the cluster", driverObj.Name)
+	fmt.Printf("Driver %s exists on the cluster\n", driverObj.Name)
 	return AssertExpectedAndActual(assert.Equal, driverName, driverObj.Name,
 		fmt.Sprintf("No CSIDriver named %s found in cluster", driverName))
 }
@@ -403,6 +419,72 @@ func (i *integration) finallyCleanupEverything() error {
 	err = command.Wait()
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (i *integration) expectedEnvVariablesAreSet() error {
+	nodeUser := os.Getenv("NODE_USER")
+	err := AssertExpectedAndActual(assert.Equal, true, nodeUser != "",
+		fmt.Sprintf("Expected NODE_USER env variable. Try export NODE_USER=nodeUser before running tests."))
+	if err != nil {
+		return err
+	}
+
+	password := os.Getenv("PASSWORD")
+	err = AssertExpectedAndActual(assert.Equal, true, password != "",
+		fmt.Sprintf("Expected PASSWORD env variable. Try export PASSWORD=password before running tests."))
+	if err != nil {
+		return err
+	}
+
+	i.scriptsDir = os.Getenv("SCRIPTS_DIR")
+	err = AssertExpectedAndActual(assert.Equal, true, i.scriptsDir != "",
+		fmt.Sprintf("Expected SCRIPTS_DIR env variable. Try export SCRIPTS_DIR=scriptsDir before running tests."))
+	if err != nil {
+		return err
+	}
+
+	_, dirCheckErr := os.Stat(i.scriptsDir)
+	err = AssertExpectedAndActual(assert.Equal, false, os.IsNotExist(dirCheckErr),
+		fmt.Sprintf("Expected SCRIPTS_DIR env variable to point to existing directory. %s does not exist", i.scriptsDir))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (i *integration) canLogonToNodesAndDropTestScripts() error {
+	nodes, err := i.searchForNodes(func(node v12.Node) bool {
+		for _, status := range node.Status.Conditions {
+			if status.Reason == "KubeletReady" {
+				return true
+			}
+		}
+		return false
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, node := range nodes {
+		for _, addr := range node.Status.Addresses {
+			if addr.Type == "InternalIP" {
+				// Check if we already copied files for this node already
+				if _, ok := nodesWithScripts[addr.Address]; ok {
+					fmt.Printf("Node %s already has scripts.\n", addr.Address)
+					break
+				}
+				err = i.copyOverTestScripts(addr.Address)
+				if err != nil {
+					return err
+				}
+				nodesWithScripts[addr.Address] = true
+				break
+			}
+		}
 	}
 
 	return nil
@@ -590,6 +672,58 @@ func (i *integration) searchForNodes(filter func(node v12.Node) bool) ([]v12.Nod
 	return filteredList, nil
 }
 
+func (i *integration) copyOverTestScripts(address string) error {
+	info := ssh.AccessInfo{
+		Hostname: address,
+		Port:     "22",
+		Username: os.Getenv("NODE_USER"),
+		Password: os.Getenv("PASSWORD"),
+	}
+
+	wrapper := ssh.NewWrapper(&info)
+
+	client := ssh.CommandExecution{
+		AccessInfo: &info,
+		SSHWrapper: wrapper,
+		Timeout:    4 * time.Second,
+	}
+
+	fmt.Printf("Attempting to scp scripts from %s to %s:%s\n", i.scriptsDir, address, remoteScriptDir)
+
+	mkDirCmd := fmt.Sprintf("date; rm -rf %s; mkdir %s", remoteScriptDir, remoteScriptDir)
+	if mkDirErr := client.Run(mkDirCmd); mkDirErr == nil {
+		for _, out := range client.GetOutput() {
+			fmt.Printf("%s\n", out)
+		}
+	} else {
+		return mkDirErr
+	}
+
+	files, err := ioutil.ReadDir(i.scriptsDir)
+	if err != nil {
+		return err
+	}
+
+	for _, f := range files {
+		err = client.Copy(fmt.Sprintf("%s/%s", i.scriptsDir, f.Name()), fmt.Sprintf("%s/%s", remoteScriptDir, f.Name()))
+		if err != nil {
+			return err
+		}
+	}
+
+	lsDirCmd := fmt.Sprintf("ls -ltr %s", remoteScriptDir)
+	if lsErr := client.Run(lsDirCmd); lsErr == nil {
+		for _, out := range client.GetOutput() {
+			fmt.Printf("%s\n", out)
+		}
+	} else {
+		return lsErr
+	}
+
+	fmt.Printf("Scripts successfully copied to %s:%s\n", address, remoteScriptDir)
+	return nil
+}
+
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	i := &integration{}
 	context.Step(`^a kubernetes "([^"]*)"$`, i.givenKubernetes)
@@ -601,4 +735,6 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^there is a "([^"]*)" in the cluster$`, i.thereIsThisNamespaceInTheCluster)
 	context.Step(`^there are driver pods in "([^"]*)" with this "([^"]*)" prefix$`, i.thereAreDriverPodsWithThisPrefix)
 	context.Step(`^finally cleanup everything$`, i.finallyCleanupEverything)
+	context.Step(`^test environmental variables are set$`, i.expectedEnvVariablesAreSet)
+	context.Step(`^can logon to nodes and drop test scripts$`, i.canLogonToNodesAndDropTestScripts)
 }

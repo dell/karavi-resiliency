@@ -1,0 +1,272 @@
+/*
+ * Copyright (c) 2021. Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ */
+
+package ssh
+
+import (
+	"fmt"
+	"github.com/bramvdbogaerde/go-scp"
+	"golang.org/x/crypto/ssh"
+	"os"
+	"strings"
+	"time"
+)
+
+// Client interface for the SSH command execution
+type Client interface {
+	Run(...string) error // Execute the array of commands and save the results
+	HasError() bool      // Returns true if there were any failures in the commands
+	GetErrors() []string // Returns the error messages (if any exists for it)
+	GetOutput() []string // Returns the output of the commands (if any exists for it)
+}
+
+// AccessInfo has information needed to make an SSH connection to a host
+type AccessInfo struct {
+	Hostname string // Hostname or IP to connect to
+	Port     string // Port to use for SSH (default should be 22)
+	Username string // Username cred for host
+	Password string // Password cred for host
+}
+
+// CommandResult holds information about the result of the SSH commands run on the remote host
+type CommandResult struct {
+	commands  []string // commands that are to be run on the host
+	output    []string // output for each command that was run (even in case of error)
+	withError []bool   // Indicates if a command failed
+	wasRun    []bool   // Indicates if a command was run
+	err       error    // Error
+}
+
+// CommandExecution will hold information necessary for making SSH calls
+// and then saving the results.
+// CommandExecution implements the Client interface
+type CommandExecution struct {
+	AccessInfo *AccessInfo
+	SSHWrapper ClientWrapper
+	Timeout    time.Duration
+	results    CommandResult
+}
+
+const (
+	// DefaultTimeout for an operation
+	DefaultTimeout = 1 * time.Hour
+)
+
+// Wrapper around the ssh.ClientConfig which is used for creating the
+// underlying client to make SSH connections to a host
+type Wrapper struct {
+	SSHConfig  *ssh.ClientConfig
+	sshClient  *ssh.Client
+	sshSession *ssh.Session
+}
+
+// SessionWrapper interface for SSH session operations
+//go:generate mockgen -destination=mocks/mock_session_wrapper.go -package=mocks podmon/test/ssh SessionWrapper
+type SessionWrapper interface {
+	CombinedOutput(string) ([]byte, error)
+	Close() error
+}
+
+// ClientWrapper interface for creating an SSH session
+//go:generate mockgen -destination=mocks/mock_client_wrapper.go -package=mocks podmon/test/ssh ClientWrapper
+type ClientWrapper interface {
+	GetSession(string) (SessionWrapper, error)
+	Close() error
+	GetClient() *ssh.Client
+}
+
+// NewWrapper builds an ssh.ClientConfig and returns a Wrapper with it
+func NewWrapper(accessInfo *AccessInfo) *Wrapper {
+	config := &ssh.ClientConfig{
+		User: accessInfo.Username,
+		Auth: []ssh.AuthMethod{
+			ssh.Password(accessInfo.Password),
+		},
+		// Non-production only
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	}
+	wrapper := &Wrapper{SSHConfig: config}
+	return wrapper
+}
+
+// GetSession makes underlying call to crypto ssh library to create an SSH session
+func (w *Wrapper) GetSession(hostAndPort string) (SessionWrapper, error) {
+	client, err := ssh.Dial("tcp", hostAndPort, w.SSHConfig)
+	if err == nil {
+		w.sshClient = client
+		w.sshSession, err = client.NewSession()
+		return w.sshSession, err
+	}
+	return nil, fmt.Errorf("could not create a session")
+}
+
+// Close calls underlying crypto ssh library to clean up resources
+func (w *Wrapper) Close() error {
+	if w.sshClient != nil {
+		if err := w.sshClient.Close(); err != nil {
+			return err
+		}
+	}
+	if w.sshSession != nil {
+		if err := w.sshSession.Close(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (w *Wrapper) GetClient() *ssh.Client {
+	return w.sshClient
+}
+
+// Run will execute the commands using the AccessInfo to access the host.
+// error returned by function is not related to the Run() result. For that
+// result and any errors from the commands, use GetErrors() and GetOutput()
+func (cmd *CommandExecution) Run(commands ...string) error {
+	var err error
+	timeout := time.After(DefaultTimeout)
+	if cmd.Timeout != 0 {
+		timeout = time.After(cmd.Timeout)
+	}
+
+	results := make(chan CommandResult, 1)
+	go func() {
+		r := cmd.execEach(commands)
+		results <- r
+	}()
+
+	for {
+		select {
+		case r := <-results:
+			cmd.results = r
+			return r.err
+		case <-timeout:
+			msg := fmt.Sprintf("command '%s' on host %s timed out", strings.Join(commands, ","), cmd.AccessInfo.Hostname)
+			err = fmt.Errorf(msg)
+			return err
+		}
+	}
+}
+
+// HasError returns true if there were any commands that failed
+func (cmd *CommandExecution) HasError() bool {
+	for _, e := range cmd.results.withError {
+		if e {
+			return true
+		}
+	}
+	return false
+}
+
+// GetErrors returns an array of errors. Each entry
+func (cmd *CommandExecution) GetErrors() []string {
+	list := make([]string, len(cmd.results.commands))
+	if cmd.HasError() {
+		idx := 0
+		for index := range cmd.results.commands {
+			if cmd.results.wasRun[index] && cmd.results.withError[index] {
+				list[idx] = cmd.results.output[idx]
+			}
+		}
+	}
+	return list
+}
+
+// GetOutput returns the command output of each command if it was run
+func (cmd *CommandExecution) GetOutput() []string {
+	list := make([]string, len(cmd.results.commands))
+	idx := 0
+	for index, command := range cmd.results.commands {
+		if cmd.results.wasRun[index] {
+			list[idx] = cmd.results.output[idx]
+		} else {
+			list[idx] = fmt.Sprintf("Command not executed: %s", command)
+		}
+		idx = idx + 1
+	}
+
+	return list
+}
+
+func (cmd *CommandExecution) Copy(srcFile, remoteFilepath string) error {
+	hostAndPort := fmt.Sprintf("%s:%s", cmd.AccessInfo.Hostname, cmd.AccessInfo.Port)
+	_, err := cmd.SSHWrapper.GetSession(hostAndPort)
+	if err != nil {
+		return err
+	}
+
+	bySSH, err := scp.NewClientBySSH(cmd.SSHWrapper.GetClient())
+	if err != nil {
+		return err
+	}
+
+	src, err := os.Open(srcFile)
+	if err != nil {
+		return err
+	}
+
+	err = bySSH.CopyFromFile(*src, remoteFilepath, "0655")
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Private: execEach will run each command against the host an capture the output
+func (cmd *CommandExecution) execEach(commands []string) CommandResult {
+	// Connect to host
+	hostAndPort := fmt.Sprintf("%s:%s", cmd.AccessInfo.Hostname, cmd.AccessInfo.Port)
+
+	// Send the commands, then capture the output of each
+	output := ""
+	results := CommandResult{}
+	results.commands = commands
+	results.output = make([]string, len(commands))
+	results.withError = make([]bool, len(commands))
+	results.wasRun = make([]bool, len(commands))
+	for index, command := range commands {
+		client, err := cmd.SSHWrapper.GetSession(hostAndPort)
+		if err != nil {
+			return CommandResult{
+				err: fmt.Errorf("could not connect to %s: %s", hostAndPort, err),
+			}
+		}
+		output, err = cmd.exec(client, command)
+		if err != nil {
+			results.err = err
+			results.withError[index] = true
+		} else {
+			results.withError[index] = false
+		}
+		results.output[index] = output
+		results.wasRun[index] = true
+		cmd.cleanup()
+	}
+
+	return results
+}
+
+// Private: cleanup will make underlying calls to clean up resources associated with SSH client and session
+func (cmd *CommandExecution) cleanup() {
+	cmd.SSHWrapper.Close()
+}
+
+// Private: exec will run "command" on the host and wrap the []byte as a string
+func (cmd *CommandExecution) exec(sess SessionWrapper, command string) (string, error) {
+	// Execute the command and get output.
+	output, err := sess.CombinedOutput(command)
+	if err != nil {
+		return string(output), err
+	}
+
+	return string(output), nil
+}

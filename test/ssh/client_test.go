@@ -1,0 +1,190 @@
+/*
+ * Copyright (c) 2021. Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ */
+
+package ssh_test
+
+import (
+	"fmt"
+	"github.com/golang/mock/gomock"
+	"podmon/test/ssh"
+	"podmon/test/ssh/mocks"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestCommandExecution_Run(t *testing.T) {
+	info := ssh.AccessInfo{
+		Hostname: "host123",
+		Port:     "22",
+		Username: "user",
+		Password: "passwd",
+	}
+
+	type checkFn func(*testing.T, []string, []string, []string, []string, error, error)
+	check := func(fns ...checkFn) []checkFn { return fns }
+
+	verifyThisOutput := func(t *testing.T,
+		expectedOutput []string, actualOutput []string,
+		expectedErrors []string, actualErrors []string,
+		expectedError error, actualError error) {
+		if len(expectedOutput) > 0 {
+			if len(expectedOutput) != len(actualOutput) {
+				t.Fatalf("expected output '%s', but received '%s'",
+					strings.Join(expectedOutput, ","), strings.Join(actualOutput, ","))
+			}
+
+			for idx, val := range expectedOutput {
+				if actualOutput[idx] != val {
+					t.Fatalf("expected output '%s', but received '%s'",
+						strings.Join(expectedOutput, ","), strings.Join(actualOutput, ","))
+				}
+			}
+		}
+
+		if len(expectedErrors) > 0 {
+			if len(expectedErrors) != len(actualErrors) {
+				t.Fatalf("expected errors '%s', but received '%s'",
+					strings.Join(expectedErrors, ","), strings.Join(actualErrors, ","))
+			}
+
+			for idx, val := range expectedErrors {
+				if actualErrors[idx] != val {
+					t.Fatalf("expected errors '%s', but received '%s'",
+						strings.Join(expectedErrors, ","), strings.Join(actualErrors, ","))
+				}
+			}
+		}
+	}
+
+	verifyReturnedErrorSimilar := func(t *testing.T,
+		expectedOutput []string, actualOutput []string,
+		expectedErrors []string, actualErrors []string,
+		expectedError error, actualError error) {
+		if expectedError != nil && !strings.Contains(actualError.Error(), expectedError.Error()) {
+			t.Fatalf("expected error was '%s', but actual error was '%s'",
+				expectedError.Error(), actualError.Error())
+		}
+	}
+
+	testCases := map[string]func(t *testing.T) (ssh.CommandExecution, string, []checkFn, []string, []string, error){
+		// Basic test case
+		"success": func(*testing.T) (ssh.CommandExecution, string, []checkFn, []string, []string, error) {
+			now := time.Now().String()
+			ctrl := gomock.NewController(t)
+			mockSessionWrapper := mocks.NewMockSessionWrapper(ctrl)
+			mockClientWrapper := mocks.NewMockClientWrapper(ctrl)
+			mockClientWrapper.EXPECT().GetSession(gomock.Any()).Return(mockSessionWrapper, nil)
+			mockClientWrapper.EXPECT().Close().Return(nil)
+			mockSessionWrapper.EXPECT().Close().Return(nil)
+			mockSessionWrapper.EXPECT().CombinedOutput(gomock.Any()).Return([]byte(now), nil)
+			client := ssh.CommandExecution{
+				AccessInfo: &info,
+				SSHWrapper: mockClientWrapper,
+			}
+			return client, "date", check(verifyThisOutput), []string{now}, nil, nil
+		},
+		// Case where command takes too long and timeout expires
+		"timeout": func(*testing.T) (ssh.CommandExecution, string, []checkFn, []string, []string, error) {
+			ctrl := gomock.NewController(t)
+			mockSessionWrapper := mocks.NewMockSessionWrapper(ctrl)
+			mockClientWrapper := mocks.NewMockClientWrapper(ctrl)
+			mockClientWrapper.EXPECT().GetSession(gomock.Any()).Return(mockSessionWrapper, nil)
+			mockClientWrapper.EXPECT().Close().Return(nil)
+			mockSessionWrapper.EXPECT().Close().Return(nil)
+			mockSessionWrapper.EXPECT().CombinedOutput(gomock.Any()).Return(nil, nil).Do(func(s string) {
+				time.Sleep(1 * time.Second)
+			})
+
+			client := ssh.CommandExecution{
+				AccessInfo: &info,
+				SSHWrapper: mockClientWrapper,
+				Timeout:    10 * time.Millisecond,
+			}
+			return client, "date", check(verifyReturnedErrorSimilar), nil, nil, fmt.Errorf("command 'date' on host host123 timed out")
+		},
+		// Case where session create fails
+		"session-create-failure": func(*testing.T) (ssh.CommandExecution, string, []checkFn, []string, []string, error) {
+			ctrl := gomock.NewController(t)
+			mockClientWrapper := mocks.NewMockClientWrapper(ctrl)
+			mockClientWrapper.EXPECT().GetSession(gomock.Any()).Return(nil, fmt.Errorf("could not create a session"))
+
+			client := ssh.CommandExecution{
+				AccessInfo: &info,
+				SSHWrapper: mockClientWrapper,
+				Timeout:    10 * time.Millisecond,
+			}
+			return client, "date", check(verifyReturnedErrorSimilar), nil, nil, fmt.Errorf("could not connect to host123:22: could not create a session")
+		},
+		// Case command takes some time
+		"long-running-command": func(*testing.T) (ssh.CommandExecution, string, []checkFn, []string, []string, error) {
+			now := time.Now().String()
+			ctrl := gomock.NewController(t)
+			mockSessionWrapper := mocks.NewMockSessionWrapper(ctrl)
+			mockClientWrapper := mocks.NewMockClientWrapper(ctrl)
+			mockClientWrapper.EXPECT().GetSession(gomock.Any()).Return(mockSessionWrapper, nil)
+			mockClientWrapper.EXPECT().Close().Return(nil)
+			mockSessionWrapper.EXPECT().Close().Return(nil)
+			mockSessionWrapper.EXPECT().CombinedOutput(gomock.Any()).DoAndReturn(func(string) ([]byte, error) {
+				time.Sleep(2 * time.Second)
+				return []byte(now), nil
+			})
+			client := ssh.CommandExecution{
+				AccessInfo: &info,
+				SSHWrapper: mockClientWrapper,
+			}
+			return client, "date", check(verifyThisOutput), []string{now}, nil, nil
+		},
+		// Case command takes some time
+		"command-fails": func(*testing.T) (ssh.CommandExecution, string, []checkFn, []string, []string, error) {
+			anError := fmt.Errorf("this command failed for some reason")
+			ctrl := gomock.NewController(t)
+			mockSessionWrapper := mocks.NewMockSessionWrapper(ctrl)
+			mockClientWrapper := mocks.NewMockClientWrapper(ctrl)
+			mockClientWrapper.EXPECT().GetSession(gomock.Any()).Return(mockSessionWrapper, nil)
+			mockClientWrapper.EXPECT().Close().Return(nil)
+			mockSessionWrapper.EXPECT().Close().Return(nil)
+			mockSessionWrapper.EXPECT().CombinedOutput(gomock.Any()).Return(nil, anError)
+
+			client := ssh.CommandExecution{
+				AccessInfo: &info,
+				SSHWrapper: mockClientWrapper,
+			}
+			return client, "failing command", check(verifyReturnedErrorSimilar), nil, nil, anError
+		},
+		// Case where we try to use a real SSH connection, should fail to reach the fake host
+		"new-wrapper": func(*testing.T) (ssh.CommandExecution, string, []checkFn, []string, []string, error) {
+			client := ssh.CommandExecution{
+				AccessInfo: &info,
+				SSHWrapper: ssh.NewWrapper(&info),
+			}
+			return client, "date", check(verifyReturnedErrorSimilar), nil, nil, fmt.Errorf("could not connect to host123:22: could not create a session")
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			client, commandString, validators, expectedOutput, expectedErrors, expectedErr := tc(t)
+			if len(validators) == 0 {
+				t.Skipf("Skipping %s because there are no checks in place", name)
+			}
+
+			actualErr := client.Run(commandString)
+			output := client.GetOutput()
+			errors := client.GetErrors()
+			client.HasError()
+
+			for _, validate := range validators {
+				validate(t, expectedOutput, output, expectedErrors, errors, expectedErr, actualErr)
+			}
+		})
+	}
+}

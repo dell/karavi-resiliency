@@ -6,9 +6,11 @@ Feature: Integration Test
   @int-setup-check
   Scenario Outline: Validate that we have a valid k8s configuration for the integration tests
     Given a kubernetes <kubeConfig>
-    Then these CSI driver <driverNames> are configured on the system
+    And test environmental variables are set
+    And these CSI driver <driverNames> are configured on the system
     And there is a <namespace> in the cluster
     And there are driver pods in <namespace> with this <name> prefix
+    And can logon to nodes and drop test scripts
     Examples:
       | kubeConfig | driverNames                | namespace  | name       |
       | ""         | "csi-vxflexos.dellemc.com" | "vxflexos" | "vxflexos" |
