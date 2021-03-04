@@ -5,11 +5,11 @@
 package mocks
 
 import (
-	ssh0 "podmon/test/ssh"
+	os "os"
+	ssh "podmon/test/ssh"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	ssh "golang.org/x/crypto/ssh"
 )
 
 // MockClientWrapper is a mock of ClientWrapper interface.
@@ -49,25 +49,25 @@ func (mr *MockClientWrapperMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockClientWrapper)(nil).Close))
 }
 
-// GetClient mocks base method.
-func (m *MockClientWrapper) GetClient() *ssh.Client {
+// Copy mocks base method.
+func (m *MockClientWrapper) Copy(arg0 os.File, arg1, arg2 string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetClient")
-	ret0, _ := ret[0].(*ssh.Client)
+	ret := m.ctrl.Call(m, "Copy", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// GetClient indicates an expected call of GetClient.
-func (mr *MockClientWrapperMockRecorder) GetClient() *gomock.Call {
+// Copy indicates an expected call of Copy.
+func (mr *MockClientWrapperMockRecorder) Copy(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetClient", reflect.TypeOf((*MockClientWrapper)(nil).GetClient))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Copy", reflect.TypeOf((*MockClientWrapper)(nil).Copy), arg0, arg1, arg2)
 }
 
 // GetSession mocks base method.
-func (m *MockClientWrapper) GetSession(arg0 string) (ssh0.SessionWrapper, error) {
+func (m *MockClientWrapper) GetSession(arg0 string) (ssh.SessionWrapper, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetSession", arg0)
-	ret0, _ := ret[0].(ssh0.SessionWrapper)
+	ret0, _ := ret[0].(ssh.SessionWrapper)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

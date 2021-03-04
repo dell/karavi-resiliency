@@ -22,11 +22,12 @@ import (
 
 // Client interface for the SSH command execution
 type Client interface {
-	Run(...string) error              // Execute the array of commands and save the results
-	HasError() bool                   // Returns true if there were any failures in the commands
-	GetErrors() []string              // Returns the error messages (if any exists for it)
-	GetOutput() []string              // Returns the output of the commands (if any exists for it)
-	SendRequest(command string) error // Sends command to the remote host, but does not wait for a reply
+	Run(...string) error                       // Execute the array of commands and save the results
+	HasError() bool                            // Returns true if there were any failures in the commands
+	GetErrors() []string                       // Returns the error messages (if any exists for it)
+	GetOutput() []string                       // Returns the output of the commands (if any exists for it)
+	SendRequest(command string) error          // Sends command to the remote host, but does not wait for a reply
+	Copy(srcFile, remoteFilepath string) error // Copy a local file to the remote file thru the SSH session
 }
 
 // AccessInfo has information needed to make an SSH connection to a host
@@ -67,6 +68,7 @@ type Wrapper struct {
 	SSHConfig  *ssh.ClientConfig
 	sshClient  *ssh.Client
 	sshSession *ssh.Session
+	scpClient  scp.Client
 }
 
 // SessionWrapper interface for SSH session operations
@@ -82,8 +84,8 @@ type SessionWrapper interface {
 type ClientWrapper interface {
 	GetSession(string) (SessionWrapper, error)
 	Close() error
-	GetClient() *ssh.Client
 	SendRequest(name string, wantReply bool, payload []byte) (bool, error)
+	Copy(srcFile os.File, remoteFilepath, permission string) error
 }
 
 // NewWrapper builds an ssh.ClientConfig and returns a Wrapper with it
@@ -106,6 +108,10 @@ func (w *Wrapper) GetSession(hostAndPort string) (SessionWrapper, error) {
 	if err == nil {
 		w.sshClient = client
 		w.sshSession, err = client.NewSession()
+		if err != nil {
+			return nil, err
+		}
+		w.scpClient, err = scp.NewClientBySSH(w.sshClient)
 		return w.sshSession, err
 	}
 	return nil, fmt.Errorf("could not create a session")
@@ -123,6 +129,7 @@ func (w *Wrapper) Close() error {
 			return err
 		}
 	}
+	w.scpClient.Close()
 	return nil
 }
 
@@ -134,6 +141,11 @@ func (w *Wrapper) GetClient() *ssh.Client {
 // SendRequest is a wrapper around the Session.SendRequest
 func (w *Wrapper) SendRequest(name string, wantReply bool, payload []byte) (bool, error) {
 	return w.sshSession.SendRequest(name, wantReply, payload)
+}
+
+// Copy is wrapper for the scpClient.CopyFromFile
+func (w *Wrapper) Copy(srcFile os.File, remoteFilepath, permission string) error {
+	return w.scpClient.CopyFromFile(srcFile, remoteFilepath, permission)
 }
 
 // Run will execute the commands using the AccessInfo to access the host.
@@ -213,17 +225,12 @@ func (cmd *CommandExecution) Copy(srcFile, remoteFilepath string) error {
 		return err
 	}
 
-	bySSH, err := scp.NewClientBySSH(cmd.SSHWrapper.GetClient())
-	if err != nil {
-		return err
-	}
-
 	src, err := os.Open(srcFile)
 	if err != nil {
 		return err
 	}
 
-	err = bySSH.CopyFromFile(*src, remoteFilepath, "0655")
+	err = cmd.SSHWrapper.Copy(*src, remoteFilepath, "0655")
 	if err != nil {
 		return err
 	}
