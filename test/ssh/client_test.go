@@ -83,8 +83,8 @@ func TestCommandExecution_Run(t *testing.T) {
 			mockSessionWrapper := mocks.NewMockSessionWrapper(ctrl)
 			mockClientWrapper := mocks.NewMockClientWrapper(ctrl)
 			mockClientWrapper.EXPECT().GetSession(gomock.Any()).Return(mockSessionWrapper, nil)
-			mockClientWrapper.EXPECT().Close().Return(nil)
-			mockSessionWrapper.EXPECT().Close().Return(nil)
+			mockClientWrapper.EXPECT().Close().AnyTimes()
+			mockSessionWrapper.EXPECT().Close().AnyTimes()
 			mockSessionWrapper.EXPECT().CombinedOutput(gomock.Any()).Return([]byte(now), nil)
 			client := ssh.CommandExecution{
 				AccessInfo: &info,
@@ -98,8 +98,8 @@ func TestCommandExecution_Run(t *testing.T) {
 			mockSessionWrapper := mocks.NewMockSessionWrapper(ctrl)
 			mockClientWrapper := mocks.NewMockClientWrapper(ctrl)
 			mockClientWrapper.EXPECT().GetSession(gomock.Any()).Return(mockSessionWrapper, nil)
-			mockClientWrapper.EXPECT().Close().Return(nil)
-			mockSessionWrapper.EXPECT().Close().Return(nil)
+			mockClientWrapper.EXPECT().Close().AnyTimes()
+			mockSessionWrapper.EXPECT().Close().AnyTimes()
 			mockSessionWrapper.EXPECT().CombinedOutput(gomock.Any()).Return(nil, nil).Do(func(s string) {
 				time.Sleep(1 * time.Second)
 			})
@@ -131,8 +131,8 @@ func TestCommandExecution_Run(t *testing.T) {
 			mockSessionWrapper := mocks.NewMockSessionWrapper(ctrl)
 			mockClientWrapper := mocks.NewMockClientWrapper(ctrl)
 			mockClientWrapper.EXPECT().GetSession(gomock.Any()).Return(mockSessionWrapper, nil)
-			mockClientWrapper.EXPECT().Close().Return(nil)
-			mockSessionWrapper.EXPECT().Close().Return(nil)
+			mockClientWrapper.EXPECT().Close().AnyTimes()
+			mockSessionWrapper.EXPECT().Close().AnyTimes()
 			mockSessionWrapper.EXPECT().CombinedOutput(gomock.Any()).DoAndReturn(func(string) ([]byte, error) {
 				time.Sleep(2 * time.Second)
 				return []byte(now), nil
@@ -150,8 +150,8 @@ func TestCommandExecution_Run(t *testing.T) {
 			mockSessionWrapper := mocks.NewMockSessionWrapper(ctrl)
 			mockClientWrapper := mocks.NewMockClientWrapper(ctrl)
 			mockClientWrapper.EXPECT().GetSession(gomock.Any()).Return(mockSessionWrapper, nil)
-			mockClientWrapper.EXPECT().Close().Return(nil)
-			mockSessionWrapper.EXPECT().Close().Return(nil)
+			mockClientWrapper.EXPECT().Close().AnyTimes()
+			mockSessionWrapper.EXPECT().Close().AnyTimes()
 			mockSessionWrapper.EXPECT().CombinedOutput(gomock.Any()).Return(nil, anError)
 
 			client := ssh.CommandExecution{

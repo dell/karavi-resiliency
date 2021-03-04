@@ -15,10 +15,12 @@ package utils
 
 import "syscall"
 
+// Unmount is a wrapper around syscall.Unmount
 func Unmount(devName string, flags int) error {
 	return syscall.Unmount(devName, flags)
 }
 
+// Creat is a wrapper around syscall.Creat
 func Creat(filepath string, flags int) (int, error) {
 	return syscall.Creat(filepath, uint32(flags))
 }
