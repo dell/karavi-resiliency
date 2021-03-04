@@ -28,6 +28,24 @@ Feature: Controller Monitor
       | "node1"  | 1    | "node1" | "ERROR"    | 0       | "none"                 | "none"                | "none"   |
 
   @node-mode
+  Scenario Outline: Testing monitor.nodeModePodHandler multiple calls
+    Given a controller monitor "vxflex"
+    And node <nodeName> env vars set
+    And a pod for node <nodeName> with <vols> volumes condition ""
+    When I call nodeModePodHandler for node <node> with event <eventType>
+    And I induce error <induceError>
+    When I call nodeModePodHandler for node <node> with event <eventType>
+    Then I expect podMonitor to have <nMounts> mounts
+    And the last log message contains <errorMsg>
+
+    Examples:
+      | nodeName | vols | node    | eventType  | nMounts | induceError           | errorMsg                    |
+      | "node1"  | 1    | "node1" | "none"     | 0       | "none"                | "none"                      |
+      | "node1"  | 1    | "node1" | "ADDED"    | 1       | "CSIVolumePathDirRead"| "Skipped Storing podInfo"   |
+      | "node1"  | 1    | "node1" | "MODIFIED" | 1       | "CSIVolumePathDirRead"| "Skipped Storing podInfo"   |
+      | "node1"  | 1    | "node1" | "DELETED"  | 0       | "none"                | "none"                      |
+
+  @node-mode
   Scenario Outline: Testing monitor.nodeModeCleanupPods
     Given a controller monitor <driver>
     And node <nodeName> env vars set
