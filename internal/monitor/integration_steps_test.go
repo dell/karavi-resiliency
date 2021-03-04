@@ -62,12 +62,22 @@ var wordsToNumberMap = map[string]float64{
 	"2/3":        0.66,
 }
 
+// failureToScriptMap maps the failType in the Gerkin file to a script to invoke that failure
+var failureToScriptMap = map[string]string{
+	"interfacedown": "bounce.ip",
+	"reboot":        "reboot.node",
+}
+
+const (
+	// Timeout for the SSH client
+	sshTimeout = 10 * time.Second
+	// Directory where test scripts will be dropped
+	remoteScriptDir = "/root/karavi-resiliency-tests"
+)
+
 // Workaround for non-inclusive word scan
 var primary = []byte{'m', 'a', 's', 't', 'e', 'r'}
 var primaryLabelKey = fmt.Sprintf("node-role.kubernetes.io/%s", string(primary))
-
-// Directory where test scripts will be dropped
-var remoteScriptDir = "/root/karavi-resiliency-tests"
 
 // These are for tracking to which nodes the tests upload scripts.
 // With multiple scenarios, we want to do this only once.
@@ -135,21 +145,7 @@ func (i *integration) givenKubernetes(configPath string) error {
 
 func (i *integration) allPodsAreRunningWithinSeconds(wait int) error {
 	// Check each of the test namespaces for running pods
-	allRunning := true
-	for podIdx := 1; podIdx <= i.podCount; podIdx++ {
-		namespace := fmt.Sprintf("%s%d", i.testNamespacePrefix, podIdx)
-		running, err := i.checkIfAllPodsRunning(namespace)
-		if err != nil {
-			return err
-		}
-		if !running {
-			allRunning = false
-			break
-		}
-	}
-
-	namespaces := ""
-	allRunning, err := i.checkIfAllPodsRunning(namespaces)
+	allRunning, err := i.allPodsInTestNamespacesAreRunning()
 	if err != nil {
 		return err
 	}
@@ -159,22 +155,13 @@ func (i *integration) allPodsAreRunningWithinSeconds(wait int) error {
 		return nil
 	}
 
-	log.Infof("All test pods are not all running. Waiting %d seconds.", wait)
+	log.Infof("Test pods are not all running. Waiting %d seconds.", wait)
 	time.Sleep(time.Duration(wait) * time.Second)
 
 	// Check each of the test namespaces for running pods (final check)
-	allRunning = true
-	for podIdx := 1; podIdx <= i.podCount; podIdx++ {
-		namespace := fmt.Sprintf("%s%d", i.testNamespacePrefix, podIdx)
-		running, err := i.checkIfAllPodsRunning(namespace)
-		if err != nil {
-			return err
-		}
-		if !running {
-			log.Infof("Pods in %s namespace are not all running", namespace)
-			allRunning = false
-			break
-		}
+	allRunning, err = i.allPodsInTestNamespacesAreRunning()
+	if err != nil {
+		return err
 	}
 
 	return AssertExpectedAndActual(assert.Equal, true, allRunning,
@@ -194,12 +181,12 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 
 	log.Infof("Test with %2.2f failed workers and %2.2f failed primary nodes", workersToFail, primaryToFail)
 
-	failedWorkers, err := i.failWorkerNodes(workersToFail, failure)
+	failedWorkers, err := i.failWorkerNodes(workersToFail, failure, wait)
 	if err != nil {
 		return err
 	}
 
-	failedPrimary, err := i.failPrimaryNodes(primaryToFail, failure)
+	failedPrimary, err := i.failPrimaryNodes(primaryToFail, failure, wait)
 	if err != nil {
 		return err
 	}
@@ -211,7 +198,7 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 	requestedWorkersAndFailed := func(node v12.Node) bool {
 		found := false
 		for _, worker := range failedWorkers {
-			if node.Name == worker && node.Status.Phase == "NotReady" {
+			if node.Name == worker && !nodeHasCondition(node, "Ready") {
 				found = true
 				break
 			}
@@ -223,7 +210,7 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 	requestedPrimaryAndFailed := func(node v12.Node) bool {
 		found := false
 		for _, primaryNode := range failedPrimary {
-			if node.Name == primaryNode && node.Status.Phase == "NotReady" {
+			if node.Name == primaryNode && !nodeHasCondition(node, "Ready") {
 				found = true
 				break
 			}
@@ -249,7 +236,7 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 	return nil
 }
 
-func (i *integration) podsPerNodeWithVolumesAndDevicesEach(podsPerNode, numVols, numDevs, driverType string) error {
+func (i *integration) deployPods(podsPerNode, numVols, numDevs, driverType, storageClass string, wait int) error {
 	podCount, err := i.selectFromRange(podsPerNode)
 	if err != nil {
 		return err
@@ -281,6 +268,7 @@ func (i *integration) podsPerNodeWithVolumesAndDevicesEach(podsPerNode, numVols,
 		"--ndevices", strconv.Itoa(volCount),
 		"--nvolumes", strconv.Itoa(devCount),
 		"--prefix", i.testNamespacePrefix,
+		"--storage-class", storageClass,
 	}
 
 	command := exec.Command(script, args...)
@@ -302,6 +290,18 @@ func (i *integration) podsPerNodeWithVolumesAndDevicesEach(podsPerNode, numVols,
 	i.podCount = podCount
 	i.devCount = devCount
 	i.volCount = volCount
+
+	log.Infof("Waiting %d seconds for pods to deploy", wait)
+	time.Sleep(time.Duration(wait) * time.Second)
+
+	// For the test pods number of namespaces = podCount
+	for n := 1; n <= podCount; n++ {
+		ns := fmt.Sprintf("%s%d", i.testNamespacePrefix, n)
+		nsErr := i.thereIsThisNamespaceInTheCluster(ns)
+		if nsErr != nil {
+			return nsErr
+		}
+	}
 
 	return nil
 }
@@ -491,6 +491,33 @@ func (i *integration) canLogonToNodesAndDropTestScripts() error {
 	return nil
 }
 
+func (i *integration) theseStorageClassesExistInTheCluster(storageClassList string) error {
+	list, err := i.k8s.GetClient().StorageV1().StorageClasses().List(context.Background(), v1.ListOptions{})
+	if err != nil {
+		message := fmt.Sprintf("listing StorageClasses error: %s", err)
+		return fmt.Errorf(message)
+	}
+
+	// storageClassList is a comma delimited list of storageClasses to check for in the cluster
+	for _, expected := range strings.Split(storageClassList, ",") {
+		expected = strings.TrimSpace(expected)
+		foundIt := false
+		for _, sc := range list.Items {
+			if expected == sc.Name {
+				foundIt = true
+				break
+			}
+		}
+		err = AssertExpectedAndActual(assert.Equal, true, foundIt,
+			fmt.Sprintf("Expected '%s' StorageClass in the cluster, but was not found", expected))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 /* -- Helper functions -- */
 
 func (i *integration) dumpNodeInfo() error {
@@ -609,15 +636,15 @@ func (i *integration) parseRatioOrCount(count string) (float64, error) {
 	return 0.0, fmt.Errorf("invalid count value %s", count)
 }
 
-func (i *integration) failWorkerNodes(count float64, failureType string) ([]string, error) {
-	return i.failNodes(isWorkerNode, count, failureType)
+func (i *integration) failWorkerNodes(count float64, failureType string, wait int) ([]string, error) {
+	return i.failNodes(isWorkerNode, count, failureType, wait)
 }
 
-func (i *integration) failPrimaryNodes(count float64, failureType string) ([]string, error) {
-	return i.failNodes(isPrimaryNode, count, failureType)
+func (i *integration) failPrimaryNodes(count float64, failureType string, wait int) ([]string, error) {
+	return i.failNodes(isPrimaryNode, count, failureType, wait)
 }
 
-func (i *integration) failNodes(filter func(node v12.Node) bool, count float64, failureType string) ([]string, error) {
+func (i *integration) failNodes(filter func(node v12.Node) bool, count float64, failureType string, wait int) ([]string, error) {
 	failedNodes := make([]string, 0)
 
 	nodes, err := i.searchForNodes(filter)
@@ -646,7 +673,9 @@ func (i *integration) failNodes(filter func(node v12.Node) bool, count float64, 
 	failed := 0
 	for name, ip := range nameToIP {
 		if failed < numberToFail {
-			// Do failure
+			if err = i.induceFailureOn(name, ip, failureType, wait); err != nil {
+				return failedNodes, err
+			}
 			log.Infof("Failing %s %s", name, ip)
 			failedNodes = append(failedNodes, name)
 			failed++
@@ -686,7 +715,7 @@ func (i *integration) copyOverTestScripts(address string) error {
 	client := ssh.CommandExecution{
 		AccessInfo: &info,
 		SSHWrapper: wrapper,
-		Timeout:    4 * time.Second,
+		Timeout:    sshTimeout,
 	}
 
 	log.Infof("Attempting to scp scripts from %s to %s:%s", i.scriptsDir, address, remoteScriptDir)
@@ -712,7 +741,8 @@ func (i *integration) copyOverTestScripts(address string) error {
 		}
 	}
 
-	lsDirCmd := fmt.Sprintf("ls -ltr %s", remoteScriptDir)
+	// After copying the files, add execute permissions and list the directory
+	lsDirCmd := fmt.Sprintf("chmod +x %s/* ; ls -ltr %s", remoteScriptDir, remoteScriptDir)
 	if lsErr := client.Run(lsDirCmd); lsErr == nil {
 		for _, out := range client.GetOutput() {
 			log.Infof("%s", out)
@@ -725,12 +755,77 @@ func (i *integration) copyOverTestScripts(address string) error {
 	return nil
 }
 
+func (i *integration) allPodsInTestNamespacesAreRunning() (bool, error) {
+	allRunning := true
+	for podIdx := 1; podIdx <= i.podCount; podIdx++ {
+		namespace := fmt.Sprintf("%s%d", i.testNamespacePrefix, podIdx)
+		running, err := i.checkIfAllPodsRunning(namespace)
+		if err != nil {
+			return false, err
+		}
+		if !running {
+			log.Infof("Pods in %s namespace are not all running", namespace)
+			allRunning = false
+			// Don't break, we want to check all the namespaces so that we display which ones aren't running
+		}
+	}
+	return allRunning, nil
+}
+
+func (i *integration) induceFailureOn(name string, ip, failureType string, wait int) error {
+	info := ssh.AccessInfo{
+		Hostname: ip,
+		Port:     "22",
+		Username: os.Getenv("NODE_USER"),
+		Password: os.Getenv("PASSWORD"),
+	}
+
+	wrapper := ssh.NewWrapper(&info)
+
+	client := ssh.CommandExecution{
+		AccessInfo: &info,
+		SSHWrapper: wrapper,
+		Timeout:    sshTimeout,
+	}
+
+	log.Infof("Attempting to induce the %s failure on %s/%s and waiting %d seconds", failureType, name, ip, wait)
+	scriptToUse, ok := failureToScriptMap[failureType]
+	if !ok {
+		return fmt.Errorf("no mapping for failureType %s", failureType)
+	}
+
+	// Invoke script allows us to programmatically invoke the failure script and not fail the SSH session
+	invokerScript := fmt.Sprintf("%s/invoke.sh", remoteScriptDir)
+	failureScript := fmt.Sprintf("%s/%s", remoteScriptDir, scriptToUse)
+	invokeFailCmd := fmt.Sprintf("%s %s --seconds %d", invokerScript, failureScript, wait)
+	log.Infof("Command to invoke: %s", invokeFailCmd)
+	if invokeErr := client.SendRequest(invokeFailCmd); invokeErr == nil {
+		for _, out := range client.GetOutput() {
+			log.Infof("%s", out)
+		}
+	} else {
+		return invokeErr
+	}
+
+	return nil
+}
+
+func nodeHasCondition(node v12.Node, conditionType v12.NodeConditionType) bool {
+	for _, condition := range node.Status.Conditions {
+		log.Infof("Node %s condition: %v", node.Name, condition)
+		if conditionType == condition.Type && condition.Status == "True" {
+			return true
+		}
+	}
+	return false
+}
+
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	i := &integration{}
 	context.Step(`^a kubernetes "([^"]*)"$`, i.givenKubernetes)
 	context.Step(`^validate that all pods are running within (\d+) seconds$`, i.allPodsAreRunningWithinSeconds)
 	context.Step(`^I fail "([^"]*)" worker nodes and "([^"]*)" primary nodes with "([^"]*)" failure for (\d+) seconds$`, i.failWorkerAndPrimaryNodes)
-	context.Step(`^"([^"]*)" pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)"$`, i.podsPerNodeWithVolumesAndDevicesEach)
+	context.Step(`^"([^"]*)" pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployPods)
 	context.Step(`^the taints for the failed nodes are removed within (\d+) seconds$`, i.theTaintsForTheFailedNodesAreRemovedWithinSeconds)
 	context.Step(`^these CSI driver "([^"]*)" are configured on the system$`, i.theseCSIDriverAreConfiguredOnTheSystem)
 	context.Step(`^there is a "([^"]*)" in the cluster$`, i.thereIsThisNamespaceInTheCluster)
@@ -738,4 +833,5 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^finally cleanup everything$`, i.finallyCleanupEverything)
 	context.Step(`^test environmental variables are set$`, i.expectedEnvVariablesAreSet)
 	context.Step(`^can logon to nodes and drop test scripts$`, i.canLogonToNodesAndDropTestScripts)
+	context.Step(`^these storageClasses "([^"]*)" exist in the cluster$`, i.theseStorageClassesExistInTheCluster)
 }

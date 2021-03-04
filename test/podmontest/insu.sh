@@ -15,7 +15,7 @@ instances=${instances:-4}
 ndevices=${ndevices:-0}
 nvolumes=${nvolumes:-4}
 zone=${zone:-""}
-storageClassName=unity-virt21048j9rzz-nfs
+storageClassName=${storageClassName:-unity-virt21048j9rzz-nfs}
 image="$REGISTRY_HOST:$REGISTRY_PORT/podmontest:v0.0.54"
 prefix="pmtu"
 
@@ -44,6 +44,11 @@ do
        "--prefix")
           shift
           prefix=$1
+          shift
+          ;;
+       "--storage-class")
+          shift
+          storageClassName=$1
           shift
           ;;
     esac

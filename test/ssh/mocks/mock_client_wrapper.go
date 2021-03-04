@@ -77,3 +77,18 @@ func (mr *MockClientWrapperMockRecorder) GetSession(arg0 interface{}) *gomock.Ca
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSession", reflect.TypeOf((*MockClientWrapper)(nil).GetSession), arg0)
 }
+
+// SendRequest mocks base method.
+func (m *MockClientWrapper) SendRequest(arg0 string, arg1 bool, arg2 []byte) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SendRequest", arg0, arg1, arg2)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SendRequest indicates an expected call of SendRequest.
+func (mr *MockClientWrapperMockRecorder) SendRequest(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendRequest", reflect.TypeOf((*MockClientWrapper)(nil).SendRequest), arg0, arg1, arg2)
+}

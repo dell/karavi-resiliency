@@ -22,10 +22,11 @@ import (
 
 // Client interface for the SSH command execution
 type Client interface {
-	Run(...string) error // Execute the array of commands and save the results
-	HasError() bool      // Returns true if there were any failures in the commands
-	GetErrors() []string // Returns the error messages (if any exists for it)
-	GetOutput() []string // Returns the output of the commands (if any exists for it)
+	Run(...string) error              // Execute the array of commands and save the results
+	HasError() bool                   // Returns true if there were any failures in the commands
+	GetErrors() []string              // Returns the error messages (if any exists for it)
+	GetOutput() []string              // Returns the output of the commands (if any exists for it)
+	SendRequest(command string) error // Sends command to the remote host, but does not wait for a reply
 }
 
 // AccessInfo has information needed to make an SSH connection to a host
@@ -73,6 +74,7 @@ type Wrapper struct {
 type SessionWrapper interface {
 	CombinedOutput(string) ([]byte, error)
 	Close() error
+	SendRequest(name string, wantReply bool, payload []byte) (bool, error)
 }
 
 // ClientWrapper interface for creating an SSH session
@@ -81,6 +83,7 @@ type ClientWrapper interface {
 	GetSession(string) (SessionWrapper, error)
 	Close() error
 	GetClient() *ssh.Client
+	SendRequest(name string, wantReply bool, payload []byte) (bool, error)
 }
 
 // NewWrapper builds an ssh.ClientConfig and returns a Wrapper with it
@@ -123,8 +126,14 @@ func (w *Wrapper) Close() error {
 	return nil
 }
 
+// GetClient returns the internal ssh.Client
 func (w *Wrapper) GetClient() *ssh.Client {
 	return w.sshClient
+}
+
+// SendRequest is a wrapper around the Session.SendRequest
+func (w *Wrapper) SendRequest(name string, wantReply bool, payload []byte) (bool, error) {
+	return w.sshSession.SendRequest(name, wantReply, payload)
 }
 
 // Run will execute the commands using the AccessInfo to access the host.
@@ -196,6 +205,7 @@ func (cmd *CommandExecution) GetOutput() []string {
 	return list
 }
 
+// Copy will copy the file given by the 'srcFile' path to the remote host to the 'remoteFilePath' destination
 func (cmd *CommandExecution) Copy(srcFile, remoteFilepath string) error {
 	hostAndPort := fmt.Sprintf("%s:%s", cmd.AccessInfo.Hostname, cmd.AccessInfo.Port)
 	_, err := cmd.SSHWrapper.GetSession(hostAndPort)
@@ -219,6 +229,26 @@ func (cmd *CommandExecution) Copy(srcFile, remoteFilepath string) error {
 	}
 
 	return nil
+}
+
+// SendRequest will send 'command' to the remote host without waiting for a reply
+func (cmd *CommandExecution) SendRequest(command string) error {
+	hostAndPort := fmt.Sprintf("%s:%s", cmd.AccessInfo.Hostname, cmd.AccessInfo.Port)
+	client, err := cmd.SSHWrapper.GetSession(hostAndPort)
+	if err != nil {
+		return err
+	}
+
+	type execMsg struct {
+		Command string
+	}
+
+	req := execMsg{
+		Command: command,
+	}
+
+	_, err = client.SendRequest("exec", false, ssh.Marshal(req))
+	return err
 }
 
 // Private: execEach will run each command against the host an capture the output

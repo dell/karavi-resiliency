@@ -61,3 +61,18 @@ func (mr *MockSessionWrapperMockRecorder) CombinedOutput(arg0 interface{}) *gomo
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CombinedOutput", reflect.TypeOf((*MockSessionWrapper)(nil).CombinedOutput), arg0)
 }
+
+// SendRequest mocks base method.
+func (m *MockSessionWrapper) SendRequest(arg0 string, arg1 bool, arg2 []byte) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SendRequest", arg0, arg1, arg2)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SendRequest indicates an expected call of SendRequest.
+func (mr *MockSessionWrapperMockRecorder) SendRequest(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendRequest", reflect.TypeOf((*MockSessionWrapper)(nil).SendRequest), arg0, arg1, arg2)
+}
