@@ -14,11 +14,9 @@ package ssh_test
 import (
 	"fmt"
 	"github.com/golang/mock/gomock"
-	"os"
 	"podmon/test/ssh"
 	"podmon/test/ssh/mocks"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 )
@@ -212,9 +210,15 @@ func TestCommandExecution_ScpRun(t *testing.T) {
 		}
 	}
 
+	justVerifyTheresAnError := func(t *testing.T, expectedError error, actualError error) {
+		if expectedError != nil && actualError == nil {
+			t.Fatal("Expect an error but did not get it")
+		}
+	}
+
 	testCases := map[string]func(t *testing.T) (ssh.CommandExecution, string, string, []checkFn, error){
 		// Basic test case
-		"sucess": func(*testing.T) (ssh.CommandExecution, string, string, []checkFn, error) {
+		"success": func(*testing.T) (ssh.CommandExecution, string, string, []checkFn, error) {
 			ctrl := gomock.NewController(t)
 			mockSessionWrapper := mocks.NewMockSessionWrapper(ctrl)
 			mockClientWrapper := mocks.NewMockClientWrapper(ctrl)
@@ -240,11 +244,7 @@ func TestCommandExecution_ScpRun(t *testing.T) {
 				AccessInfo: &info,
 				SSHWrapper: mockClientWrapper,
 			}
-			return client, "bogus", "/file2", check(verifyThisOutput), &os.PathError{
-				Op:   "open",
-				Path: "bogus",
-				Err:  syscall.ERROR_FILE_NOT_FOUND,
-			}
+			return client, "bogus", "/file2", check(justVerifyTheresAnError), fmt.Errorf("file not found")
 		},
 		// Copy fails
 		"copy-fails": func(*testing.T) (ssh.CommandExecution, string, string, []checkFn, error) {
