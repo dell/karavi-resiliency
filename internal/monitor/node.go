@@ -133,6 +133,16 @@ func (pm *PodMonitorType) nodeModePodHandler(pod *v1.Pod, eventType watch.EventT
 			log.WithFields(fields).Infof("podMonitorHandler-node:  message %s reason %s event %v",
 				pod.Status.Message, pod.Status.Reason, eventType)
 
+			// See if there is already an entry, and if so, make sure we don't save result if fewer devices
+			var existingVolumeCount int
+			var existingDeviceCount int
+			existingEntry, ok := pm.PodKeyMap.Load(podKey)
+			if ok {
+				nodePodInfo := existingEntry.(*NodePodInfo)
+				existingVolumeCount = len(nodePodInfo.Mounts)
+				existingDeviceCount = len(nodePodInfo.Devices)
+			}
+
 			// Scan for mounts
 			csiVolumesPath := fmt.Sprintf(CSIVolumePathFormat, string(pod.ObjectMeta.UID))
 			log.Debugf("csiVolumesPath: %s", csiVolumesPath)
@@ -189,8 +199,13 @@ func (pm *PodMonitorType) nodeModePodHandler(pod *v1.Pod, eventType watch.EventT
 			}
 
 			// Save the podname key to NodePodInfo object. These are used to eventually cleanup.
-			log.WithFields(fields).Infof("Storing podInfo %d mounts %d devices", len(podInfo.Mounts), len(podInfo.Devices))
-			pm.PodKeyMap.Store(podKey, podInfo)
+			// Don't save an entry if the volume or device counts are lower than what we already have
+			if len(podInfo.Mounts) >= existingVolumeCount && len(podInfo.Devices) >= existingDeviceCount {
+				log.WithFields(fields).Infof("Storing podInfo %d mounts %d devices", len(podInfo.Mounts), len(podInfo.Devices))
+				pm.PodKeyMap.Store(podKey, podInfo)
+			} else {
+				log.WithFields(fields).Infof("Skipped Storing podInfo %d mounts %d devices", len(podInfo.Mounts), len(podInfo.Devices))
+			}
 		}
 		if eventType == watch.Deleted {
 			// Do not delete a NodePodInfo structure (which is used to cleanup pods)
@@ -368,6 +383,12 @@ func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo
 	}
 	if returnErr != nil {
 		log.WithFields(fields).Errorf("Pod cleanup failed, reason: %s", returnErr.Error())
+	}
+
+	if returnErr != nil {
+		log.WithFields(fields).Errorf("Pod cleanup failed, reason: %s", returnErr.Error())
+	} else {
+		log.WithFields(fields).Infof("Pod cleanup complete")
 	}
 
 	return returnErr
