@@ -234,7 +234,7 @@ func (cmd *CommandExecution) Copy(srcFile, remoteFilepath string) error {
 	if err != nil {
 		return err
 	}
-
+	cmd.cleanup()
 	return nil
 }
 
@@ -255,6 +255,7 @@ func (cmd *CommandExecution) SendRequest(command string) error {
 	}
 
 	_, err = client.SendRequest("exec", false, ssh.Marshal(req))
+	cmd.cleanup()
 	return err
 }
 
