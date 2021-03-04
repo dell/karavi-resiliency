@@ -14,9 +14,11 @@ package ssh_test
 import (
 	"fmt"
 	"github.com/golang/mock/gomock"
+	"os"
 	"podmon/test/ssh"
 	"podmon/test/ssh/mocks"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -238,8 +240,11 @@ func TestCommandExecution_ScpRun(t *testing.T) {
 				AccessInfo: &info,
 				SSHWrapper: mockClientWrapper,
 			}
-			return client, "bogus", "/file2", check(verifyThisOutput),
-				fmt.Errorf("open bogus: The system cannot find the file specified.")
+			return client, "bogus", "/file2", check(verifyThisOutput), &os.PathError{
+				Op:   "open",
+				Path: "bogus",
+				Err:  syscall.ERROR_FILE_NOT_FOUND,
+			}
 		},
 		// Copy fails
 		"copy-fails": func(*testing.T) (ssh.CommandExecution, string, string, []checkFn, error) {
