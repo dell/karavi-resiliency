@@ -187,7 +187,8 @@ func (cmd *CommandExecution) HasError() bool {
 	return false
 }
 
-// GetErrors returns an array of errors. Each entry
+// GetErrors returns an array of errors. Each entry in the
+// array will contain the error of a command that failed.
 func (cmd *CommandExecution) GetErrors() []string {
 	list := make([]string, len(cmd.results.commands))
 	if cmd.HasError() {

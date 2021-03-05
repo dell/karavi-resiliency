@@ -1,6 +1,6 @@
 Feature: Integration Test
-  As a podmon developer
-  I want test podmon in a kubernetes environment
+  As a karavi-resiliency developer
+  I want to test karavi-resiliency in a kubernetes environment
   So that it is known to work on various pod clean up cases and give consistent results
 
   @int-setup-check
@@ -18,7 +18,7 @@ Feature: Integration Test
 
 
   @integration
-  Scenario Outline: Basic node failover testing using podmontest
+  Scenario Outline: Basic node failover testing using test StatefulSet pods
     Given a kubernetes <kubeConfig>
     And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
     Then validate that all pods are running within <deploySecs> seconds

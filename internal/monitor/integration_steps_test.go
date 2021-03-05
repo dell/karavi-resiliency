@@ -18,8 +18,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
-	v12 "k8s.io/api/core/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"math"
 	"os"
@@ -84,7 +84,8 @@ var primaryLabelKey = fmt.Sprintf("node-role.kubernetes.io/%s", string(primary))
 var nodesWithScripts map[string]bool
 var nodesWithScriptsInitOnce sync.Once
 
-var isWorkerNode = func(node v12.Node) bool {
+// isWorkerNode is a filter function for searching for nodes that look to be worker nodes
+var isWorkerNode = func(node corev1.Node) bool {
 	// Some k8s clusters may not have a worker label against
 	// nodes, so check for the primary label. If it doesn't
 	// exist against the node, then it's consider a worker.
@@ -101,7 +102,8 @@ var isWorkerNode = func(node v12.Node) bool {
 	return !hasPrimaryLabel
 }
 
-var isPrimaryNode = func(node v12.Node) bool {
+// isPrimaryNode is a filter function for searching for nodes that look to be primary nodes
+var isPrimaryNode = func(node corev1.Node) bool {
 	hasPrimaryLabel := false
 	for label := range node.Labels {
 		if label == primaryLabelKey {
@@ -195,7 +197,7 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 	time.Sleep(time.Duration(wait) * time.Second)
 
 	log.Infof("Wait done, checking for failed nodes...")
-	requestedWorkersAndFailed := func(node v12.Node) bool {
+	requestedWorkersAndFailed := func(node corev1.Node) bool {
 		found := false
 		for _, worker := range failedWorkers {
 			if node.Name == worker && !nodeHasCondition(node, "Ready") {
@@ -207,7 +209,7 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 		return found
 	}
 
-	requestedPrimaryAndFailed := func(node v12.Node) bool {
+	requestedPrimaryAndFailed := func(node corev1.Node) bool {
 		found := false
 		for _, primaryNode := range failedPrimary {
 			if node.Name == primaryNode && !nodeHasCondition(node, "Ready") {
@@ -308,7 +310,7 @@ func (i *integration) deployPods(podsPerNode, numVols, numDevs, driverType, stor
 
 func (i *integration) theTaintsForTheFailedNodesAreRemovedWithinSeconds(wait int) error {
 	log.Infof("Checking if nodes have podmon taint")
-	taintKey := "podmon.dellemc.com"
+	taintKey := fmt.Sprintf("%s.podmon.dellemc.com", i.driverType)
 	havePodmonTaint, err := i.checkIfNodesHaveTaint(taintKey)
 	if err != nil {
 		return err
@@ -330,7 +332,7 @@ func (i *integration) theTaintsForTheFailedNodesAreRemovedWithinSeconds(wait int
 }
 
 func (i *integration) theseCSIDriverAreConfiguredOnTheSystem(driverName string) error {
-	driverObj, err := i.k8s.GetClient().StorageV1().CSIDrivers().Get(context.Background(), driverName, v1.GetOptions{})
+	driverObj, err := i.k8s.GetClient().StorageV1().CSIDrivers().Get(context.Background(), driverName, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -341,7 +343,7 @@ func (i *integration) theseCSIDriverAreConfiguredOnTheSystem(driverName string) 
 
 func (i *integration) thereIsThisNamespaceInTheCluster(namespace string) error {
 	foundNamespace := false
-	namespaces, err := i.k8s.GetClient().CoreV1().Namespaces().List(context.Background(), v1.ListOptions{})
+	namespaces, err := i.k8s.GetClient().CoreV1().Namespaces().List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -358,7 +360,7 @@ func (i *integration) thereIsThisNamespaceInTheCluster(namespace string) error {
 }
 
 func (i *integration) thereAreDriverPodsWithThisPrefix(namespace, prefix string) error {
-	pods, err := i.k8s.GetClient().CoreV1().Pods(namespace).List(context.Background(), v1.ListOptions{})
+	pods, err := i.k8s.GetClient().CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -458,7 +460,7 @@ func (i *integration) expectedEnvVariablesAreSet() error {
 }
 
 func (i *integration) canLogonToNodesAndDropTestScripts() error {
-	nodes, err := i.searchForNodes(func(node v12.Node) bool {
+	nodes, err := i.searchForNodes(func(node corev1.Node) bool {
 		for _, status := range node.Status.Conditions {
 			if status.Reason == "KubeletReady" {
 				return true
@@ -492,7 +494,7 @@ func (i *integration) canLogonToNodesAndDropTestScripts() error {
 }
 
 func (i *integration) theseStorageClassesExistInTheCluster(storageClassList string) error {
-	list, err := i.k8s.GetClient().StorageV1().StorageClasses().List(context.Background(), v1.ListOptions{})
+	list, err := i.k8s.GetClient().StorageV1().StorageClasses().List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		message := fmt.Sprintf("listing StorageClasses error: %s", err)
 		return fmt.Errorf(message)
@@ -521,7 +523,7 @@ func (i *integration) theseStorageClassesExistInTheCluster(storageClassList stri
 /* -- Helper functions -- */
 
 func (i *integration) dumpNodeInfo() error {
-	list, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), v1.ListOptions{})
+	list, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		message := fmt.Sprintf("listing nodes error: %s", err)
 		return fmt.Errorf(message)
@@ -551,7 +553,7 @@ func (i *integration) dumpNodeInfo() error {
 }
 
 func (i *integration) checkIfAllNodesReady() (bool, error) {
-	list, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), v1.ListOptions{})
+	list, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		message := fmt.Sprintf("listing nodes error: %s", err)
 		return false, fmt.Errorf(message)
@@ -571,7 +573,7 @@ func (i *integration) checkIfAllNodesReady() (bool, error) {
 }
 
 func (i *integration) checkIfAllPodsRunning(namespace string) (bool, error) {
-	pods, err := i.k8s.GetClient().CoreV1().Pods(namespace).List(context.Background(), v1.ListOptions{})
+	pods, err := i.k8s.GetClient().CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		return false, err
 	}
@@ -587,7 +589,7 @@ func (i *integration) checkIfAllPodsRunning(namespace string) (bool, error) {
 }
 
 func (i *integration) checkIfNodesHaveTaint(check string) (bool, error) {
-	list, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), v1.ListOptions{})
+	list, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		message := fmt.Sprintf("listing nodes error: %s", err)
 		return false, fmt.Errorf(message)
@@ -604,6 +606,7 @@ func (i *integration) checkIfNodesHaveTaint(check string) (bool, error) {
 	return false, nil
 }
 
+// selectFromRange takes the 'rangeValue' and returns a random value within that range (inclusive of min and max of the range).
 func (i *integration) selectFromRange(rangeValue string) (int, error) {
 	components := strings.Split(rangeValue, "-")
 	if len(components) > 2 {
@@ -656,7 +659,15 @@ func (i *integration) failPrimaryNodes(count float64, failureType string, wait i
 	return i.failNodes(isPrimaryNode, count, failureType, wait)
 }
 
-func (i *integration) failNodes(filter func(node v12.Node) bool, count float64, failureType string, wait int) ([]string, error) {
+// failNodes applies the node filter and count to determine which nodes should
+// be failed with the 'failureType'. The count is a float value based on the
+// test spec that allows for a number or a ratio (e.g., "one-third"). When the
+// count is a ratio, the total number of nodes to fail would be based on that
+// ratio applied against the number of filtered nodes.
+//
+// Once this number is determined, a random list of the filtered nodes will be
+// failed based on the 'failureType'.
+func (i *integration) failNodes(filter func(node corev1.Node) bool, count float64, failureType string, wait int) ([]string, error) {
 	failedNodes := make([]string, 0)
 
 	nodes, err := i.searchForNodes(filter)
@@ -699,10 +710,11 @@ func (i *integration) failNodes(filter func(node v12.Node) bool, count float64, 
 	return failedNodes, nil
 }
 
-func (i *integration) searchForNodes(filter func(node v12.Node) bool) ([]v12.Node, error) {
-	filteredList := make([]v12.Node, 0)
+// searchForNodes returns an array of nodes from the k8s system that match the 'filter'
+func (i *integration) searchForNodes(filter func(node corev1.Node) bool) ([]corev1.Node, error) {
+	filteredList := make([]corev1.Node, 0)
 
-	nodes, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), v1.ListOptions{})
+	nodes, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		return filteredList, err
 	}
@@ -716,6 +728,7 @@ func (i *integration) searchForNodes(filter func(node v12.Node) bool) ([]v12.Nod
 	return filteredList, nil
 }
 
+// copyOverTestScripts will SCP the scripts for inducing failures to the remote system 'address'
 func (i *integration) copyOverTestScripts(address string) error {
 	info := ssh.AccessInfo{
 		Hostname: address,
@@ -786,6 +799,10 @@ func (i *integration) allPodsInTestNamespacesAreRunning() (bool, error) {
 	return allRunning, nil
 }
 
+// induceFailureOn will initiate a failure of the 'failureType' against the host at 'ip'.
+// The 'wait' will be passed as parameter to the invocation script. If it is applicable,
+// that 'wait' value indicates how long the failure should be active before it should
+// go back into a non-failure state.
 func (i *integration) induceFailureOn(name string, ip, failureType string, wait int) error {
 	info := ssh.AccessInfo{
 		Hostname: ip,
@@ -824,7 +841,7 @@ func (i *integration) induceFailureOn(name string, ip, failureType string, wait 
 	return nil
 }
 
-func nodeHasCondition(node v12.Node, conditionType v12.NodeConditionType) bool {
+func nodeHasCondition(node corev1.Node, conditionType corev1.NodeConditionType) bool {
 	for _, condition := range node.Status.Conditions {
 		log.Infof("Node %s condition: %v", node.Name, condition)
 		if conditionType == condition.Type && condition.Status == "True" {
