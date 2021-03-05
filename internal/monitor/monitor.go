@@ -32,11 +32,12 @@ const (
 	podReadyCondition       = "Ready"
 	podInitializedCondition = "Initialized"
 	podmon                  = "podmon"
+	PodmonTaintKeySuffix    = "podmon.storage.dell.com"
 )
 
 var (
 	// podmonTaintKey is the key for this driver's podmon taint.
-	podmonTaintKey = "driver.podmon.dellemc.com"
+	podmonTaintKey = fmt.Sprintf("driver.%s", PodmonTaintKeySuffix)
 	//ShortTimeout used for initial try
 	ShortTimeout = 10 * time.Second
 	//MediumTimeout is a wait-backoff after the ShortTimeout
@@ -167,7 +168,7 @@ func podMonitorHandler(eventType watch.EventType, object interface{}) error {
 // The labelKey and labelValue are used for filtering.
 func StartPodMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, labelValue string, restartDelay time.Duration) {
 	log.Infof("attempting to start PodMonitor\n")
-	podmonTaintKey = fmt.Sprintf("%s.podmon.storage.dell.com", Driver.GetDriverName())
+	podmonTaintKey = fmt.Sprintf("%s.%s", Driver.GetDriverName(), PodmonTaintKeySuffix)
 	podMonitor := Monitor{Client: client}
 	listOptions := metav1.ListOptions{
 		Watch: true,
