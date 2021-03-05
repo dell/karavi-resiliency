@@ -620,6 +620,18 @@ func (i *integration) selectFromRange(rangeValue string) (int, error) {
 		return 0, err
 	}
 
+	if min < -1 {
+		return -1, fmt.Errorf("invalid range. Minimum is less than 1 (%d)", min)
+	}
+
+	if max < 1 {
+		return -1, fmt.Errorf("invalid range. Maximum is less than 1 (%d)", max)
+	}
+
+	if min > max {
+		return -1, fmt.Errorf("invalid range. Minimum value specified is greater than max (%d > %d)", min, max)
+	}
+
 	// rand.IntnRange selects from min to max, inclusive of min and exclusive of
 	// max, so use max+1 in order for max value to be a possible value.
 	selected := rand.IntnRange(min, max+1)

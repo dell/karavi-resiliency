@@ -29,4 +29,4 @@ Feature: Integration Test
 
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-2"       | "1-2" | "1-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 60       | 60         | 60      | 60            |
+      | ""         | "2-4"       | "1-2" | "1-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 120      | 60         | 120     | 120           |
