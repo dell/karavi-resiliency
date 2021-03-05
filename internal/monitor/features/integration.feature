@@ -21,7 +21,7 @@ Feature: Integration Test
   Scenario Outline: Basic node failover testing using podmontest
     Given a kubernetes <kubeConfig>
     And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
-    Then validate that all pods are running within <runSecs> seconds
+    Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
     Then validate that all pods are running within <runSecs> seconds
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
