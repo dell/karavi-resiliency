@@ -658,6 +658,8 @@ func (i *integration) failNodes(filter func(node v12.Node) bool, count float64, 
 	} else if count < 1.0 {
 		temp := float64(len(nodes))
 		numberToFail = int(math.Ceil(temp * count))
+	} else { // count >= 1.0, so use the value
+		numberToFail = int(count)
 	}
 
 	nameToIP := make(map[string]string)
