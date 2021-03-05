@@ -10,19 +10,64 @@
 #
 #
 
-instances="1 2 3 4"
-ndevices=0
-nvolumes=4
-zone=""
-storageClassName=vxflexos-retain
+SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+instances=${instances:-4}
+ndevices=${ndevices:-0}
+nvolumes=${nvolumes:-4}
+zone=${zone:-""}
+storageClassName=${storageClassName:-vxflexos-retain}
 image="$REGISTRY_HOST:$REGISTRY_PORT/podmontest:v0.0.54"
-port=5000
+prefix="pmtv"
 
-for i in $instances
+if [ "$DEBUG"x != "x" ]; then
+  DEBUG="--dry-run --debug"
+fi
+
+for param in $*
 do
-	echo $i
-	kubectl create namespace pmtv$k
-	# following line for debug
-        #helm install --dry-run --debug -n "pmtv$i" "pmtv$i" deploy --values deploy/values-vxflex.yaml --set podmonTest.namespace="pmtv$i"  --set podmonTest.storageClassName="$storageClassName" --set podmonTest.image="$image" --set podmonTest.zone="$zone"
-        helm install -n "pmtv$i" "pmtv$i" deploy --values deploy/values-vxflex.yaml --set podmonTest.namespace="pmtv$i"  --set podmonTest.storageClassName="$storageClassName" --set podmonTest.ndevices=$ndevices --set podmonTest.nvolumes=$nvolumes --set podmonTest.image="$image" --set podmonTest.zone="$zone"
+    case $param in
+       "--instances")
+          shift
+          instances=$1
+          shift
+          ;;
+       "--ndevices")
+          shift
+          ndevices=$1
+          shift
+          ;;
+       "--nvolumes")
+          shift
+          nvolumes=$1
+          shift
+          ;;
+       "--prefix")
+          shift
+          prefix=$1
+          shift
+          ;;
+       "--storage-class")
+          shift
+          storageClassName=$1
+          shift
+          ;;
+    esac
+done
+
+cd "$SCRIPTDIR"
+
+i=1
+while [ $i -le $instances ]; do
+  echo $i
+  kubectl create namespace ${prefix}$i
+  helm install -n "${prefix}$i" "${prefix}$i" deploy \
+              ${DEBUG} \
+              --values deploy/values-vxflex.yaml \
+              --set podmonTest.namespace="${prefix}$i" \
+              --set podmonTest.storageClassName="$storageClassName" \
+              --set podmonTest.ndevices=$ndevices \
+              --set podmonTest.nvolumes=$nvolumes \
+              --set podmonTest.image="$image" \
+              --set podmonTest.zone="$zone"
+  i=$((i + 1))
 done

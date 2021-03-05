@@ -10,3 +10,6 @@ godog:
 
 gocover:
 	go tool cover -html=c.out
+
+integration-test:
+	go test -test.v -test.run "^\QTestFirstCheck\E|\QTestIntegration\E"

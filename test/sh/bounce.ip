@@ -12,20 +12,36 @@
 
 interfaces="ens192 ens224 ens256"
 seconds=240
-for iface in $interfaces
-do
-	ifconfig $iface down
-	date >>/root/bounce.ip.out
-	ifconfig $iface | grep $iface >>/root/bounce.ip.out
+
+for param in $*; do
+  case $param in
+  "--seconds")
+    shift
+    seconds=$1
+    shift
+    ;;
+  "--interfaces")
+    shift
+    interfaces=$1
+    shift
+    ;;
+  esac
+done
+
+for iface in $interfaces; do
+  ifconfig $iface down
+  date >>/root/bounce.ip.out
+  ifconfig $iface | grep $iface >>/root/bounce.ip.out
 done
 # ip route flush cache
 
+echo "$(date +"%Y-%m-%d %H:%M:%S")" -- waiting $seconds before reenabling interfaces >>/root/bounce.ip.out
 sleep $seconds
+echo "$(date +"%Y-%m-%d %H:%M:%S")" -- done, going to renable interfaces >>/root/bounce.ip.out
 
-for iface in $interfaces
-do
-	ifconfig $iface up
-	date >>/root/bounce.ip.out
-	ifconfig $iface | grep $iface >>/root/bounce.ip.out
+for iface in $interfaces; do
+  ifconfig $iface up
+  date >>/root/bounce.ip.out
+  ifconfig $iface | grep $iface >>/root/bounce.ip.out
 done
 ip route flush cache
