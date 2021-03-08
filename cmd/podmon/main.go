@@ -14,6 +14,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	csiext "github.com/dell/dell-csi-extensions/podmon"
 	"github.com/kubernetes-csi/csi-lib-utils/leaderelection"
 	log "github.com/sirupsen/logrus"
@@ -95,6 +96,7 @@ func main() {
 		log.Infof("CSI Driver for VxFlex OS")
 		monitor.Driver = new(monitor.VxflexDriver)
 	}
+	monitor.PodmonTaintKey = fmt.Sprintf("%s.%s", monitor.Driver.GetDriverName(), monitor.PodmonTaintKeySuffix)
 	monitor.ArrayConnectivityPollRate = time.Duration(*args.arrayConnectivityPollRate) * time.Second
 	monitor.ArrayConnectivityConnectionLossThreshold = *args.arrayConnectivityConnectionLossThreshold
 	err := K8sAPI.Connect(args.kubeconfig)

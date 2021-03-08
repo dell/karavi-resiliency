@@ -315,7 +315,7 @@ func (f *feature) aNodeWithTaint(nodeName, taint string) error {
 		node.Spec.Taints = append(node.Spec.Taints, taint)
 	case "podmon-noexec":
 		taint := v1.Taint{
-			Key:    podmonTaintKey,
+			Key:    PodmonTaintKey,
 			Effect: v1.TaintEffectNoExecute,
 		}
 		node.Spec.Taints = append(node.Spec.Taints, taint)
@@ -327,7 +327,7 @@ func (f *feature) aNodeWithTaint(nodeName, taint string) error {
 		node.Spec.Taints = append(node.Spec.Taints, taint)
 	case "podmon-nosched":
 		taint := v1.Taint{
-			Key:    podmonTaintKey,
+			Key:    PodmonTaintKey,
 			Effect: v1.TaintEffectNoSchedule,
 		}
 		node.Spec.Taints = append(node.Spec.Taints, taint)

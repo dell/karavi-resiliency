@@ -441,7 +441,7 @@ func taintNode(nodeName string, removeTaint bool) error {
 	if removeTaint {
 		operation = "untainting "
 	}
-	return K8sTaint(operation, nodeName, podmonTaintKey, v1.TaintEffectNoSchedule, removeTaint)
+	return K8sTaint(operation, nodeName, PodmonTaintKey, v1.TaintEffectNoSchedule, removeTaint)
 }
 
 func nodeHasTaint(node *v1.Node, key string, taintEffect v1.TaintEffect) bool {

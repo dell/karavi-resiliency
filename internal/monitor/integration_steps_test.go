@@ -310,7 +310,7 @@ func (i *integration) deployPods(podsPerNode, numVols, numDevs, driverType, stor
 
 func (i *integration) theTaintsForTheFailedNodesAreRemovedWithinSeconds(wait int) error {
 	log.Infof("Checking if nodes have podmon taint")
-	taintKey := fmt.Sprintf("%s.podmon.dellemc.com", i.driverType)
+	taintKey := fmt.Sprintf("%s.%s", i.driverType, PodmonTaintKeySuffix)
 	havePodmonTaint, err := i.checkIfNodesHaveTaint(taintKey)
 	if err != nil {
 		return err
