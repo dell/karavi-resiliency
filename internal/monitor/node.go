@@ -91,7 +91,7 @@ func (pm *PodMonitorType) apiMonitorLoop(api k8sapi.K8sAPI, nodeName string, fir
 
 			}
 			// If our node is tainted, we need to clean it up
-			if nodeHasTaint(node, podmonTaintKey, v1.TaintEffectNoSchedule) {
+			if nodeHasTaint(node, PodmonTaintKey, v1.TaintEffectNoSchedule) {
 				pm.nodeModeCleanupPods(node)
 			}
 		}
@@ -212,7 +212,7 @@ func (pm *PodMonitorType) nodeModePodHandler(pod *v1.Pod, eventType watch.EventT
 			// if our node is currently tainted. We could be in a situation where
 			// the pod force delete finished and the event propogated while we were cleaning up.
 			node, err := K8sAPI.GetNodeWithTimeout(MediumTimeout, nodeName)
-			if err == nil && !nodeHasTaint(node, podmonTaintKey, v1.TaintEffectNoSchedule) {
+			if err == nil && !nodeHasTaint(node, PodmonTaintKey, v1.TaintEffectNoSchedule) {
 				pm.PodKeyMap.Delete(podKey)
 			}
 		}
