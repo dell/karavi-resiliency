@@ -12,4 +12,4 @@ gocover:
 	go tool cover -html=c.out
 
 integration-test:
-	go test -test.v -test.run "^\QTestFirstCheck\E|\QTestIntegration\E"
+	go test -timeout 2h -test.v -test.run "^\QTestFirstCheck\E|\QTestIntegration\E"
