@@ -12,7 +12,7 @@ You may obtain a copy of the License at
 
 This section covers Karavi Resiliency's design in sufficient detail that you should be able to understand what Karavi Resiliency is designed to do in various situations and how it works. Karavi Resiliency is deployed as a sidecar named _podmon_ with a CSI driver in both the controller pods and node pods. These are referred to as controller-podmon and node-podmon respectively.
 
-Generally controller-podmon and the driver controller pods are deployed using a Deployment. The Depoyments support one or multiple replicas for High Availability, and use a standard K8S leader election protocol so that only one controller is active at a time (as does the driver and all the controller sidecars.) The controller deployment also supports a Node Selector that allows the controllers to be placed on K8S Master nodes.
+Generally controller-podmon and the driver controller pods are deployed using a Deployment. The Depoyments support one or multiple replicas for High Availability, and use a standard K8S leader election protocol so that only one controller is active at a time (as does the driver and all the controller sidecars.) The controller deployment also supports a Node Selector that allows the controllers to be placed on K8S Manager (non Worker) nodes.
 
 Node-podmon and the driver node pods are deployed in a DaemonSet, with a Pod deployed on every K8S Worker Node.
 
