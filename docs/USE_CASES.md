@@ -1,0 +1,42 @@
+<!--
+Copyright (c) 2021 Dell Inc., or its subsidiaries. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+-->
+
+# Use Cases
+
+Podmon is primarily designed to detect pod failures due some kind of node failure or node communication failure. The diagram below shows illustrates the hardware enviornment that is assumed in the design
+
+![Podmon Hardware Model](podmon_model.jpg)
+
+A Kubernetes Control Plane is assumed to exist that provides the K8S API service which is used by podmon. There are an arbitrary number of worker nodes (two are shown in the diagram)
+are connected to the Control Plane through a K8S Control Plane IP Network.
+
+The worker nodes (e.g. Node1 and Node2) can run a mix of podmon monitored Application Pods as well as unmonitored Application Pods.  Monitored Pods are designated by a specific label that is applied to each monitored pod. The label key and value are configurable for each driver type when podmon is installed, and _must_ be unique for each driver instance.
+
+The Worker Nodes are assumed to also have a connection to a Storage System Array (such as PowerFlex.) It is often preferred that a separate network be used for storage access from the network used by the K8S control plane, and podmon takes advantage of the separate networks when available.
+
+## Anti Use-Cases
+
+Podmon does not generally try to handle any of the following errors:
+
+* Failure of the Kubernetes control plane, the _etcd_ database used by kubernetes, or the like. Kubernetes is generally designed to provide a highly availble container orchestration system and it is assumed clients follow standard and/or best practices in configuring their Kubernetes deployments.
+
+* Podmon is generally not designed to take action upon a failure solely of the Application Pod(s). Applications are still responsible for detecting and providing recovery mechanisms should their appplication fail. There are some specific recommendations for applications to be monitored by Podmon that are described later.
+
+# Failure Model
+
+Podmon's design is focused on detecting the following types of hardware failures, and when they occur, moving protected pods to hardware that is functioning correctly:
+
+1. Node failure. Node failure is defined to be something like Power Failure to the node which causes it to cease operation. This is differentiated from Node Communication Failures which require different treatments. Node failures are generally discovered by receipt of a Node event with a NoSchedule or NoExecute taint, or detection of such a taint when retrieving the Node via the K8S API. 
+
+    Generally, it is difficult to distinguish from the outside if a node is truely down (not executing) versus it has lost connectivity on all its interfaces. (We might add capabiilties in the future to query BIOS interfaces such as iDRAC, or perhaps periodically writing to file systems mounted in node-podmon to detect I/O failures, in order to get additional insight as to node status.) However if the node has simply lost all outside communication paths, the protected pods are possibly still running. We refer to these pods as "zombie pods". Podmon is designed to deal with zombie pods in a way that prevents them interfering with replacement pods it may have made by fencing the failed nodes and when communication is restablished to the node, going through a cleaning procedure to remove the zombie pod artifacts before allowing the node to go back into service.
+
+2. K8S Control Plane Failure Network Failure. Control Plane Network Failure often has the same K8S failure signature (the node is tainted with NoSchedule or NoExecute), however if there is a separate Array I/O interface, podmon can often detect that the Array I/O Network may be active even though the Control Plane Network is down. 
+
+3. Array I/O Network failure is detected by polling the array to determine if the array has a healthy connection to the node. The capabilities to do this vary greatly by array and communication protocol type (Fibre Channel, iSCSI, NFS, NVMe, or Power Flex SDC IP protocol). By monitoring the Array I/O Network seperately from the Control Plane Network, podmon has two different indicators of whether the node is healthy or not.
