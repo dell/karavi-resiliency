@@ -171,7 +171,7 @@ func (f *feature) iHaveAPodsForNodeWithVolumesDevicesCondition(nPods int, nodeNa
 func (f *feature) iCallControllerCleanupPodForNode(nodeName string) error {
 	node, _ := f.k8sapiMock.GetNode(context.Background(), nodeName)
 	f.node = node
-	f.success = f.podmonMonitor.controllerCleanupPod(f.pod, node, "Unit Test")
+	f.success = f.podmonMonitor.controllerCleanupPod(f.pod, node, "Unit Test", false)
 	return nil
 }
 
@@ -464,6 +464,26 @@ func (f *feature) createPod(node string, nvolumes int, condition string) *v1.Pod
 			Message: condition,
 		}
 		pod.Status.Conditions = append(pod.Status.Conditions, condition)
+	case "CrashLoop":
+		waiting := &v1.ContainerStateWaiting{
+			Reason:  crashLoopBackOffReason,
+			Message: "unit test condition",
+		}
+		state := v1.ContainerState{
+			Waiting: waiting,
+		}
+		containerStatus := v1.ContainerStatus{
+			State: state,
+		}
+		pod.Status.ContainerStatuses = append(pod.Status.ContainerStatuses, containerStatus)
+		// PodCondition is Ready=false
+		condition := v1.PodCondition{
+			Type:    "Ready",
+			Status:  "False",
+			Reason:  condition,
+			Message: condition,
+		}
+		pod.Status.Conditions = append(pod.Status.Conditions, condition)
 	}
 	// add a number of volumes to the pod
 	for i := 0; i < nvolumes; i++ {
@@ -511,7 +531,7 @@ func (f *feature) createPod(node string, nvolumes int, condition string) *v1.Pod
 func (f *feature) theControllerCleanedUpPodsForNode(cleanedUpCount int, nodeName string) error {
 	node, _ := f.k8sapiMock.GetNode(context.Background(), nodeName)
 	for i := 0; i < cleanedUpCount; i++ {
-		if success := f.podmonMonitor.controllerCleanupPod(f.podList[i], node, "Unit Test"); !success {
+		if success := f.podmonMonitor.controllerCleanupPod(f.podList[i], node, "Unit Test", false); !success {
 			return fmt.Errorf("controllerCleanPod was not successful")
 		}
 	}
