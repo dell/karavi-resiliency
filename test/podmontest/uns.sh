@@ -31,7 +31,14 @@ done
 
 i=1
 while [ $i -le $instances ]; do
-	helm delete -n "${prefix}"$i "${prefix}"$i
-	kubectl delete namespace "${prefix}"$i
-	i=$((i + 1))
+  helm delete -n "${prefix}"$i "${prefix}"$i &
+  i=$((i + 1))
 done
+wait
+
+i=1
+while [ $i -le $instances ]; do
+  kubectl delete namespace "${prefix}"$i &
+  i=$((i + 1))
+done
+wait

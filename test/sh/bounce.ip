@@ -45,3 +45,4 @@ for iface in $interfaces; do
   ifconfig $iface | grep $iface >>/root/bounce.ip.out
 done
 ip route flush cache
+systemctl restart network
