@@ -10,4 +10,34 @@
 #
 #
 
+OUTPUT_FILE="/root/reboot.out"
+interfaces="ens192 ens224 ens256"
+seconds=0
+
+for param in $*; do
+  case $param in
+  "--seconds")
+    shift
+    seconds=$1
+    shift
+    ;;
+  esac
+done
+
+# If seconds was specified, then we want to bring down the interfaces,
+# wait that number of seconds, then reboot. This is to simulate a long
+# reboot time or a long recovery from a reboot.
+if [ $seconds -gt 0 ]; then
+  echo "$(date +"%Y-%m-%d %H:%M:%S")" -- Bringing down interfaces >>"$OUTPUT_FILE"
+  for iface in $interfaces; do
+    ifconfig "$iface" down
+    date >>"$OUTPUT_FILE"
+    ifconfig "$iface" | grep "$iface" >>"$OUTPUT_FILE"
+  done
+
+  echo "$(date +"%Y-%m-%d %H:%M:%S")" -- Sleeping "$seconds" before rebooting >>"$OUTPUT_FILE"
+  sleep "$seconds"
+fi
+
+echo "$(date +"%Y-%m-%d %H:%M:%S")" -- Rebooting node >>"$OUTPUT_FILE"
 reboot --reboot
