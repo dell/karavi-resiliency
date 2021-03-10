@@ -10,7 +10,7 @@ You may obtain a copy of the License at
 
 # Limitaions and Exclusions
 
-This file contains information on Limitations and Exclusions that users should be aware of. Additionally there are driver specific limitations and exclusions that may be called out in the "Deploying Podmon" page.
+This file contains information on Limitations and Exclusions that users should be aware of. Additionally there are driver specific limitations and exclusions that may be called out in the "Deploying Karavi Resiliency" page.
 
 ## Supported and Tested Operating Modes
 

@@ -10,7 +10,7 @@ You may obtain a copy of the License at
 
 # Reporting Problems
 
-If you experience a problem with podmon it is important you provide us as much information as possible so that we can diagnose the issue and improve podmon. If possible, please submit all the folloing data (listed in decreasing order of importance):
+If you experience a problem with Karavi Resiliency it is important you provide us as much information as possible so that we can diagnose the issue and improve Karavi Resiliency. If possible, please submit all the following data (listed in decreasing order of importance):
 
 * The controller-podmon logs. If there are multiple controllers deployed, submit the podmon logs for the controller that has been elected leader, or submit the logs for all the podmon controllers.
 * The node-podmon log for any involved nodes (nodes containing pods that have not been able to achieve the Ready state).

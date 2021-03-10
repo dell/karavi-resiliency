@@ -10,7 +10,7 @@ You may obtain a copy of the License at
 
 # Testing Methlodolog and Results
 
-A three tier testing methodology is used for podmon:
+A three tier testing methodology is used for Karavi Resiliency:
 
 1. Unit testing with high coverage (>90% statement) tests the program logic and is especially used to test the error paths by injecting faults.
 2. An integration test describes test scenarios in Gherkin that sets up specific testing scenarios executed against a Kubernetes test cluster. The tests use ranges for many of the parameters to add an element of "chaos testing".

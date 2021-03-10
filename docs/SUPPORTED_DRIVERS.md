@@ -8,7 +8,7 @@ You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-# Supported Drivers
+# Supported CSI Drivers
 
 Dell currently develops and maintains the following CSI Drivers:
 
@@ -19,11 +19,11 @@ Dell currently develops and maintains the following CSI Drivers:
 * [Unity CSI Driver](https://github.com/dell/csi-unity)
 * [Bare Metal CSI Driver](https://github.com/dell/csi-baremetal)
 
-Currently in the initial Tech. Preview Podmon only provides complete support for Power Flex and limited support for Unity. Additional array support in Podmon is planned for the near future.
+Currently in the initial Tech. Preview Karavil Resiliency only provides complete support for Power Flex and limited support for Unity. Additional array support in Karavil Resiliency is planned for the near future.
 
 ## PowerFlex Support
 
-PowerFlex is a highly scalable array that is very well suited to Kubernetes deployments. The Podmon support for PowerFlex leverages the following PowerFlex features:
+PowerFlex is a highly scalable array that is very well suited to Kubernetes deployments. The Karavil Resiliency support for PowerFlex leverages the following PowerFlex features:
 
 * Very quick detection of Array I/O Network Connectivity status changes (generally takes 1-2 seconds for the array to detect changes)
 * A roboust mechanism if Nodes are doing I/O to volumes (sampled over a 5 second period).
@@ -32,7 +32,7 @@ PowerFlex is a highly scalable array that is very well suited to Kubernetes depl
 
 ## Unity Support
 
-The Unity support in Podmon has only begun recently as is not completed. Never-the-less, it is possible to test on a limited basis in the Tech. Preview:
+The Unity support in Karavil Resiliency has only begun recently as is not completed. Nevertheless, it is possible to test on a limited basis in the Tech. Preview:
 
 * Initially supports NFS and iSCSI protocols. (Fibrechannel is not supported yet.)
 * Array connectivity detection is implemented for iSCSI only. However detection times are slow (on the order of a minute or more.)
