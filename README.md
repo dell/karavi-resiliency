@@ -13,19 +13,17 @@ You may obtain a copy of the License at
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Releases](https://img.shields.io/badge/Releases-green.svg)](https://github.com/dell/karavi-resiliency/releases)
 
-User applications, especially those deployed with StatefulSets that use PersistentVolumeClaims, can have problems if 
-you want their Pods to be resilient to node failure. Kubernetes does not clean up StatefulSet Pods because it makes 
-guarantees that there will never be two copies the same StatefulSet Pod running at the same time accessing storage. 
+User applications can have problems if you want their Pods to be resilient to node failure. This is especially true of those deployed with StatefulSets that use PersistentVolumeClaims. Kubernetes guarantees that there will never be two copies of the same StatefulSet Pod running at the same time and accessing storage. Therefore, it does not clean up StatefulSet Pods. 
+ 
 For the complete discussion and rationale, go to https://github.com/kubernetes/community and search for the pod-safety.md file (path: contributors/design-proposals/storage/pod-safety.md)
 
-Also, as a background you should read the following page regarding forced deletion of Pods in a StatefulSet. 
+For more background on forced deletion of Pods in a StatefulSet, refer to: 
 https://kubernetes.io/docs/tasks/run-application/force-delete-stateful-set-pod/#:~:text=In%20normal%20operation%20of%20a,1%20are%20alive%20and%20ready.
 
-Nevertheless, customers are asking for a solution to this problem, so that Pods created as part of StatefulSets 
-that use PersistentVolumes can be "restarted" on a different node within a reasonable time (a few minutes) if 
-the node they are executing on fails. In reality as a Pod is never migrated from one node to another, what has 
-to happen is the old Pod has to be terminated, and a replacement pod- using the same volumes- has to then be 
-scheduled on a functioning node.
+Nevertheless, customers are asking that Pods created as part of StatefulSets using PersistentVolumes can be "restarted" on a different node. 
+This would have to be accomplished within a reasonable time (a few minutes) if the node they are executing on fails. Since a Pod is never migrated from one node to another, 
+the solution is for the old Pod to be terminated, and a replacement pod using the same volumes, to be scheduled on a functioning node.
+
 
 ## Table of Content
 - [Code of Conduct](./docs/CODE_OF_CONDUCT.md)
