@@ -44,6 +44,6 @@ Open an issue if you found a bug on [Github Issues](https://github.com/dell/kara
 
 ## About
 
-Karavi Resiliency is 100% open source and community-driven. All components are available
+This project is 100% open source and community-driven. All components are available
 under [Apache 2 License](https://www.apache.org/licenses/LICENSE-2.0.html) on
 GitHub.
