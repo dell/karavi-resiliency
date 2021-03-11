@@ -20,9 +20,9 @@ Node-podmon and the driver node pods are deployed in a DaemonSet, with a Pod dep
 
 Controller-podmon is responsible for:
 
-* Setting up a Watch for karavi resiliency labeled pods, and if a Pod is Initialized but Not Ready and resident on a Node with a NoSchedule or NoExecute taint, calling _controllerCleanupPod_ to clean up the pod so that a replacement pod can be scheduled.
+* Setting up a Watch for Karavi Resiliency labeled pods, and if a Pod is Initialized but Not Ready and resident on a Node with a NoSchedule or NoExecute taint, calling _controllerCleanupPod_ to clean up the pod so that a replacement pod can be scheduled.
 
-* Periodically polling the arrays to see if it has connectivity to the nodes that are hosting karavi resiliency labeled pods (if enabled.) If an array has lost connectivity to a node hosting karavi resiliency labeled pods using that array, _controllerCleanupPod_ is invoked to clean up the pods that have lost I/O connectivity.
+* Periodically polling the arrays to see if it has connectivity to the nodes that are hosting Karavi Resiliency labeled pods (if enabled.) If an array has lost connectivity to a node hosting Karavi Resiliency labeled pods using that array, _controllerCleanupPod_ is invoked to clean up the pods that have lost I/O connectivity.
 
 * Tainting nodes that have failed so that a) no further pods will get scheduled to them until they are returned to service, and b) podmon-node upon seeing the taint will invoke the cleanup operations to make sure any zombie pods (pods that have been replaced) cannot write to the volumes they were using.
 
