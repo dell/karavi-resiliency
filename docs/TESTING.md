@@ -8,7 +8,7 @@ You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-# Testing Methlodolog and Results
+# Testing Methodology and Results
 
 A three tier testing methodology is used for Karavi Resiliency:
 

@@ -12,18 +12,18 @@ You may obtain a copy of the License at
 
 Dell currently develops and maintains the following CSI Drivers:
 
-* [PowerFlex CSI Driver](https://github.com/dell/csi-vxflexos)
+* [PowerFlex CSI Driver](https://github.com/dell/csi-powerflex)
 * [PowerScale CSI Driver](https://github.com/dell/csi-powerscale)
 * [PowerStore CSI Driver](https://github.com/dell/csi-powerstore)
 * [PowerMax CSI Driver](https://github.com/dell/csi-powermax)
 * [Unity CSI Driver](https://github.com/dell/csi-unity)
 * [Bare Metal CSI Driver](https://github.com/dell/csi-baremetal)
 
-Currently in the initial Tech. Preview Karavil Resiliency only provides complete support for Power Flex and limited support for Unity. Additional array support in Karavil Resiliency is planned for the near future.
+Currently in the initial Tech. Preview Karavi Resiliency only provides complete support for PowerFlex and limited support for Unity. Additional array support in Karavi Resiliency is planned for the near future.
 
 ## PowerFlex Support
 
-PowerFlex is a highly scalable array that is very well suited to Kubernetes deployments. The Karavil Resiliency support for PowerFlex leverages the following PowerFlex features:
+PowerFlex is a highly scalable array that is very well suited to Kubernetes deployments. The Karavi Resiliency support for PowerFlex leverages the following PowerFlex features:
 
 * Very quick detection of Array I/O Network Connectivity status changes (generally takes 1-2 seconds for the array to detect changes)
 * A roboust mechanism if Nodes are doing I/O to volumes (sampled over a 5 second period).
@@ -32,7 +32,7 @@ PowerFlex is a highly scalable array that is very well suited to Kubernetes depl
 
 ## Unity Support
 
-The Unity support in Karavil Resiliency has only begun recently as is not completed. Nevertheless, it is possible to test on a limited basis in the Tech. Preview:
+The Unity support in Karavi Resiliency has only begun recently as is not completed. Nevertheless, it is possible to test on a limited basis in the Tech. Preview:
 
 * Initially supports NFS and iSCSI protocols. (Fibrechannel is not supported yet.)
 * Array connectivity detection is implemented for iSCSI only. However detection times are slow (on the order of a minute or more.)

@@ -12,7 +12,10 @@ You may obtain a copy of the License at
 
 This section covers Karavi Resiliency's design in sufficient detail that you should be able to understand what Karavi Resiliency is designed to do in various situations and how it works. Karavi Resiliency is deployed as a sidecar named _podmon_ with a CSI driver in both the controller pods and node pods. These are referred to as controller-podmon and node-podmon respectively.
 
-Generally controller-podmon and the driver controller pods are deployed using a Deployment. The Depoyments support one or multiple replicas for High Availability, and use a standard K8S leader election protocol so that only one controller is active at a time (as does the driver and all the controller sidecars.) The controller deployment also supports a Node Selector that allows the controllers to be placed on K8S Manager (non Worker) nodes.
+Generally controller-podmon and the driver controller pods are deployed using a Deployment. 
+The Deployments support one or multiple replicas for High Availability, and use a standard K8S leader election protocol so that only one controller
+is active at a time (as does the driver and all the controller sidecars.)
+The controller deployment also supports a Node Selector that allows the controllers to be placed on K8S Manager (non Worker) nodes.
 
 Node-podmon and the driver node pods are deployed in a DaemonSet, with a Pod deployed on every K8S Worker Node.
 
@@ -24,7 +27,8 @@ Controller-podmon is responsible for:
 
 * Periodically polling the arrays to see if it has connectivity to the nodes that are hosting Karavi Resiliency labeled pods (if enabled.) If an array has lost connectivity to a node hosting Karavi Resiliency labeled pods using that array, _controllerCleanupPod_ is invoked to clean up the pods that have lost I/O connectivity.
 
-* Tainting nodes that have failed so that a) no further pods will get scheduled to them until they are returned to service, and b) podmon-node upon seeing the taint will invoke the cleanup operations to make sure any zombie pods (pods that have been replaced) cannot write to the volumes they were using.
+* Tainting nodes that have failed so that a) no further pods will get scheduled to them until they are returned to service, and b) podmon-node upon seeing the taint will invoke 
+the clean up operations to make sure any zombie pods (pods that have been replaced) cannot write to the volumes they were using.
 
 _ControllerCleanupPod_ cleans up the pod by taking the following actions:
 1. The VolumeAttachments (VAs) are loaded, and all VAs belonging to the pod being cleaned up are identified. The PVs for each VolumeAttachment are identified and used to get the Volume Handle (array identifier for the volume.)
