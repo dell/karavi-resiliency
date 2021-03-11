@@ -73,6 +73,8 @@ const (
 	sshTimeout = 10 * time.Second
 	// Directory where test scripts will be dropped
 	remoteScriptDir = "/root/karavi-resiliency-tests"
+	// An int value representing number of seconds to periodically check status
+	checkTickerInterval = 10
 )
 
 // Workaround for non-inclusive word scan
@@ -157,14 +159,39 @@ func (i *integration) allPodsAreRunningWithinSeconds(wait int) error {
 		return nil
 	}
 
-	log.Infof("Test pods are not all running. Waiting %d seconds.", wait)
-	time.Sleep(time.Duration(wait) * time.Second)
+	log.Infof("Test pods are not all running. Waiting up to %d seconds.", wait)
+	timeout := time.NewTimer(time.Duration(wait) * time.Second)
+	ticker := time.NewTicker(checkTickerInterval * time.Second)
+	done := make(chan bool)
+	start := time.Now()
 
-	// Check each of the test namespaces for running pods (final check)
-	allRunning, err = i.allPodsInTestNamespacesAreRunning()
+	go func() {
+		for {
+			select {
+			case <-timeout.C:
+				log.Info("Timed out, but doing a last check to see if all test pods are running")
+				// Check each of the test namespaces for running pods (final check)
+				allRunning, err = i.allPodsInTestNamespacesAreRunning()
+				done <- true
+			case <-ticker.C:
+				log.Info("Checking if all test pods are running")
+				// Check each of the test namespaces for running pods (final check)
+				allRunning, err = i.allPodsInTestNamespacesAreRunning()
+				if allRunning {
+					done <- true
+				}
+			}
+		}
+	}()
+
+	<-done
+	timeout.Stop()
+	ticker.Stop()
+
 	if err != nil {
 		return err
 	}
+	log.Infof("Completed pod running check after %v (allRunning=%v)", time.Since(start), allRunning)
 
 	return AssertExpectedAndActual(assert.Equal, true, allRunning,
 		fmt.Sprintf("Expected all pods to be in running state after %d seconds", wait))
@@ -193,8 +220,11 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 		return err
 	}
 
-	log.Infof("Requested nodes to fail. Waiting %d seconds before checking if they are failed.", wait)
-	time.Sleep(time.Duration(wait) * time.Second)
+	log.Infof("Requested nodes to fail. Waiting up to %d seconds to see if they show up as failed.", wait)
+	timeout := time.NewTimer(time.Duration(wait) * time.Second)
+	ticker := time.NewTicker(checkTickerInterval * time.Second)
+	done := make(chan bool)
+	start := time.Now()
 
 	log.Infof("Wait done, checking for failed nodes...")
 	requestedWorkersAndFailed := func(node corev1.Node) bool {
@@ -222,6 +252,31 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 
 	foundFailedWorkers, err := i.searchForNodes(requestedWorkersAndFailed)
 	foundFailedPrimary, err := i.searchForNodes(requestedPrimaryAndFailed)
+
+	go func() {
+		for {
+			select {
+			case <-timeout.C:
+				log.Info("Timed out, but doing last check if requested nodes show up as failed")
+				foundFailedWorkers, err = i.searchForNodes(requestedWorkersAndFailed)
+				foundFailedPrimary, err = i.searchForNodes(requestedPrimaryAndFailed)
+				done <- true
+			case <-ticker.C:
+				log.Info("Checking if requested nodes show up as failed")
+				foundFailedWorkers, err = i.searchForNodes(requestedWorkersAndFailed)
+				foundFailedPrimary, err = i.searchForNodes(requestedPrimaryAndFailed)
+				if len(foundFailedPrimary) == len(failedPrimary) && len(foundFailedWorkers) == len(failedWorkers) {
+					done <- true
+				}
+			}
+		}
+	}()
+
+	<-done
+	timeout.Stop()
+	ticker.Stop()
+
+	log.Infof("Completed checks for failed nodes after %v", time.Since(start))
 
 	err = AssertExpectedAndActual(assert.Equal, true, len(foundFailedPrimary) == len(failedPrimary),
 		fmt.Sprintf("Expected %d primary nodes to be failed, but was %d. %v", len(failedPrimary), len(foundFailedPrimary), foundFailedPrimary))
@@ -317,15 +372,36 @@ func (i *integration) theTaintsForTheFailedNodesAreRemovedWithinSeconds(wait int
 	}
 
 	if havePodmonTaint {
-		log.Infof("Podmon taint is still on nodes. Waiting %d seconds.", wait)
-		time.Sleep(time.Duration(wait) * time.Second)
+		log.Infof("Podmon taint is still on nodes. Waiting up to %d seconds until the taint is removed.", wait)
 	}
 
-	log.Infof("Checking again if nodes have podmon taint (final check)")
-	havePodmonTaint, err = i.checkIfNodesHaveTaint(taintKey)
-	if err != nil {
-		return err
-	}
+	timeout := time.NewTimer(time.Duration(wait) * time.Second)
+	ticker := time.NewTicker(checkTickerInterval * time.Second)
+	done := make(chan bool)
+	start := time.Now()
+
+	go func() {
+		for {
+			select {
+			case <-timeout.C:
+				log.Infof("Timed out, but checking again if nodes have podmon taint")
+				havePodmonTaint, err = i.checkIfNodesHaveTaint(taintKey)
+				done <- true
+			case <-ticker.C:
+				log.Infof("Checking if podmon taints have been removed")
+				havePodmonTaint, err = i.checkIfNodesHaveTaint(taintKey)
+				if !havePodmonTaint {
+					done <- true
+				}
+			}
+		}
+	}()
+
+	<-done
+	timeout.Stop()
+	ticker.Stop()
+
+	log.Infof("Done checking if taint removed after %v", time.Since(start))
 
 	return AssertExpectedAndActual(assert.Equal, false, havePodmonTaint,
 		fmt.Sprintf("Expected %s taint to be removed after %d seconds, but still exist", taintKey, wait))
@@ -843,9 +919,11 @@ func (i *integration) induceFailureOn(name string, ip, failureType string, wait 
 
 func nodeHasCondition(node corev1.Node, conditionType corev1.NodeConditionType) bool {
 	for _, condition := range node.Status.Conditions {
-		log.Infof("Node %s condition: %v", node.Name, condition)
-		if conditionType == condition.Type && condition.Status == "True" {
-			return true
+		if conditionType == condition.Type {
+			log.Infof("Node %s checking condition type %s. Current status=%s last-heartbeat=%s", node.Name, condition.Type, condition.Status, condition.LastHeartbeatTime)
+			if condition.Status == "True" {
+				return true
+			}
 		}
 	}
 	return false
