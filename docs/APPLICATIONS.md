@@ -8,7 +8,7 @@ You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-# Deploying and Managing Applications Protected By Karavi Resiliency
+# Deploying and managing applications protected By Karavi Resiliency
 
  The first thing to remember about _Karavi Resiliency_ is that it only takes action on pods configured with the designated label. Both the key and the value have to match what is in the podmon helm configuration. Karavi Resiliency emits a log message at startup with the label key and value it is using to monitor pods:
 
@@ -32,7 +32,7 @@ pmtu3       podmontest-0   1/1     Running   0          3m6s
 ...
  ```
 
- Karavi Resiliency may also generate events if it is unable to cleanup a pod for some reason, for example because the pod is still doing I/O to the array.
+ Karavi Resiliency may also generate events if it is unable to cleanup a pod for some reason. For example, it may not clean up a pod because the pod is still doing I/O to the array.
 
  ### Important
  Before putting an application into production that relies on Karavi Resiliency monitoring, it is important to do a few test failovers first. To do this take the node that is running the pod offline for at least 2-3 minutes. Verify that there is an event message similar to the one above is logged, and that the pod recovers and restarts normally with no loss of data. (Note that if the node is running many Karavi Resiliency protected pods, the node may need to be down longer for Karavi Resiliency to have time to evacuate all the protected pods.)
