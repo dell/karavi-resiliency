@@ -449,24 +449,46 @@ func (i *integration) thereAreDriverPodsWithThisPrefix(namespace, prefix string)
 	lookForNode := fmt.Sprintf("%s-node", prefix)
 	nRunningControllers := 0
 	nRunningNode := 0
+	nRunningControllerPodmons := 0
+	nRunningNodePodmons := 0
 	for _, pod := range pods.Items {
 		if pod.Status.Phase == "Running" {
 			if strings.HasPrefix(pod.Name, lookForController) {
+				if i.podmonContainerRunning(pod) {
+					nRunningControllerPodmons++
+				}
 				nRunningControllers++
 			} else if strings.HasPrefix(pod.Name, lookForNode) {
+				if i.podmonContainerRunning(pod) {
+					nRunningNodePodmons++
+				}
 				nRunningNode++
 			}
 		}
 	}
 
-	// Success condition is if there is at least one controller running
-	// and all worker nodes have a running node driver pod
+	// Success condition is:
+	//  - At least one controller running
+	//  - All worker nodes have a running node driver pod
+	//  - There is a controller podmon container running
+	//  - There are node podmon containers running
 	controllersRunning := nRunningControllers != 0
 	allNodesRunning := nRunningNode == nWorkerNodes
 
-	return AssertExpectedAndActual(assert.Equal, true, controllersRunning && allNodesRunning,
+	// First, check if we have the expected pods running
+	err = AssertExpectedAndActual(assert.Equal, true, controllersRunning && allNodesRunning,
 		fmt.Sprintf("Expected %s driver controller and node pods to be running in %s namespace. controllersRunning = %v, allNodesRunning = %v",
 			prefix, namespace, controllersRunning, allNodesRunning))
+	if err != nil {
+		return err
+	}
+
+	// Second, check if we have running podmon containers that we expect
+	controllerPodmonsGood := (nRunningControllerPodmons > 0) && nRunningControllerPodmons == nRunningControllers
+	nodePodmonsGood := (nRunningNodePodmons > 0) && nRunningNodePodmons == nRunningNode
+	return AssertExpectedAndActual(assert.Equal, true, controllerPodmonsGood && nodePodmonsGood,
+		fmt.Sprintf("Expected podmon container to be running in %s controller and node pods. Number of controller podmon is %d. Number of node podmon is %d",
+			prefix, nRunningControllerPodmons, nRunningNodePodmons))
 }
 
 func (i *integration) finallyCleanupEverything() error {
@@ -475,6 +497,11 @@ func (i *integration) finallyCleanupEverything() error {
 	prefix := "pmtv"
 	if i.driverType == "unity" {
 		prefix = "pmtu"
+	}
+
+	if i.podCount == 0 {
+		// Nothing to clean up
+		return nil
 	}
 
 	deployScriptPath := filepath.Join("..", "..", "test", "podmontest", uninstallScript)
@@ -500,6 +527,8 @@ func (i *integration) finallyCleanupEverything() error {
 		return err
 	}
 
+	// Cleaned up, so zero the podCount
+	i.podCount = 0
 	return nil
 }
 
@@ -917,6 +946,19 @@ func (i *integration) induceFailureOn(name string, ip, failureType string, wait 
 	return nil
 }
 
+func (i *integration) podmonContainerRunning(pod corev1.Pod) bool {
+	for index, container := range pod.Spec.Containers {
+		if container.Name == "podmon" {
+			podmonIsReady := pod.Status.ContainerStatuses[index].Ready
+			log.Infof("podmon %s on %s/%s is Ready=%v", container.Image, pod.Name, pod.Spec.NodeName, podmonIsReady)
+			if podmonIsReady {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func nodeHasCondition(node corev1.Node, conditionType corev1.NodeConditionType) bool {
 	for _, condition := range node.Status.Conditions {
 		if conditionType == condition.Type {
@@ -940,6 +982,7 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^there is a "([^"]*)" in the cluster$`, i.thereIsThisNamespaceInTheCluster)
 	context.Step(`^there are driver pods in "([^"]*)" with this "([^"]*)" prefix$`, i.thereAreDriverPodsWithThisPrefix)
 	context.Step(`^finally cleanup everything$`, i.finallyCleanupEverything)
+	context.Step(`^cluster is clean of test pods$`, i.finallyCleanupEverything)
 	context.Step(`^test environmental variables are set$`, i.expectedEnvVariablesAreSet)
 	context.Step(`^can logon to nodes and drop test scripts$`, i.canLogonToNodesAndDropTestScripts)
 	context.Step(`^these storageClasses "([^"]*)" exist in the cluster$`, i.theseStorageClassesExistInTheCluster)
