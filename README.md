@@ -15,7 +15,7 @@ You may obtain a copy of the License at
 
 User applications can have problems if you want their Pods to be resilient to node failure. This is especially true of those deployed with StatefulSets that use PersistentVolumeClaims. Kubernetes guarantees that there will never be two copies of the same StatefulSet Pod running at the same time and accessing storage. Therefore, it does not clean up StatefulSet Pods. 
  
-For the complete discussion and rationale, please visit [Pod Safety, Consistency Guarantees, and Storage Implications](https://github.com/kubernetes/community/blob/master/contributors/design-proposals/storage/pod-safety.md).
+For the complete discussion and rationale, go to https://github.com/kubernetes/community and search for the pod-safety.md file (path: contributors/design-proposals/storage/pod-safety.md).
 
 For more background on forced deletion of Pods in a StatefulSet, please visit [Force Delete StatefulSet Pods](https://kubernetes.io/docs/tasks/run-application/force-delete-stateful-set-pod/#:~:text=In%20normal%20operation%20of%20a,1%20are%20alive%20and%20ready).
 
