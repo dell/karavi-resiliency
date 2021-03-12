@@ -44,6 +44,10 @@ type integration struct {
 	scriptsDir          string
 }
 
+// Used for keeping of track of the last test that was
+// run, so that we can clean up in case of failure
+var lastTestDriverType string
+
 // wordsToNumberMap used for mapping a number-word strings to a float64 value.
 var wordsToNumberMap = map[string]float64{
 	"zero":       0.0,
@@ -347,7 +351,7 @@ func (i *integration) deployPods(podsPerNode, numVols, numDevs, driverType, stor
 		return err
 	}
 
-	i.driverType = driverType
+	i.setDriverType(driverType)
 	i.podCount = podCount
 	i.devCount = devCount
 	i.volCount = volCount
@@ -379,7 +383,7 @@ func (i *integration) deployPods(podsPerNode, numVols, numDevs, driverType, stor
 	timeout.Stop()
 	ticker.Stop()
 
-	log.Infof("Test pods were found ready after %v", time.Since(start))
+	log.Infof("Test pods running check finished after %v", time.Since(start))
 	err = AssertExpectedAndActual(assert.Equal, i.podCount, runningCount,
 		fmt.Sprintf("Expected %d test pods to be running after %d seconds", i.podCount, wait))
 	if err != nil {
@@ -527,25 +531,26 @@ func (i *integration) thereAreDriverPodsWithThisPrefix(namespace, prefix string)
 }
 
 func (i *integration) finallyCleanupEverything() error {
-	log.Info("Attempting to clean up everything")
 	uninstallScript := "uns.sh"
 	prefix := "pmtv"
-	if i.driverType == "unity" {
+	if lastTestDriverType == "unity" {
 		prefix = "pmtu"
 	}
 
-	if i.podCount == 0 {
+	if lastTestDriverType == "" {
 		// Nothing to clean up
 		return nil
 	}
+
+	log.Infof("Attempting to clean up everything for driverType '%s'", lastTestDriverType)
 
 	deployScriptPath := filepath.Join("..", "..", "test", "podmontest", uninstallScript)
 	script := "bash"
 
 	args := []string{
 		deployScriptPath,
-		"--instances", strconv.Itoa(i.podCount),
 		"--prefix", prefix,
+		"--all", lastTestDriverType,
 	}
 	command := exec.Command(script, args...)
 	command.Stdout = os.Stdout
@@ -1056,6 +1061,11 @@ func (i *integration) startK8sPoller() {
 			i.k8sPoll()
 		}
 	}
+}
+
+func (i *integration) setDriverType(driver string) {
+	i.driverType = driver
+	lastTestDriverType = driver
 }
 
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
