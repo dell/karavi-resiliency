@@ -86,6 +86,10 @@ var primaryLabelKey = fmt.Sprintf("node-role.kubernetes.io/%s", string(primary))
 var nodesWithScripts map[string]bool
 var nodesWithScriptsInitOnce sync.Once
 
+// Parameters for use with the background poller
+var k8sPollInterval = 2 * time.Second
+var pollTick *time.Ticker
+
 // isWorkerNode is a filter function for searching for nodes that look to be worker nodes
 var isWorkerNode = func(node corev1.Node) bool {
 	// Some k8s clusters may not have a worker label against
@@ -348,8 +352,39 @@ func (i *integration) deployPods(podsPerNode, numVols, numDevs, driverType, stor
 	i.devCount = devCount
 	i.volCount = volCount
 
-	log.Infof("Waiting %d seconds for pods to deploy", wait)
-	time.Sleep(time.Duration(wait) * time.Second)
+	log.Infof("Waiting up to %d seconds for pods to deploy", wait)
+	runningCount := 0
+	timeout := time.NewTimer(time.Duration(wait) * time.Second)
+	ticker := time.NewTicker(checkTickerInterval * time.Second)
+	done := make(chan bool)
+	start := time.Now()
+
+	go func() {
+		for {
+			select {
+			case <-timeout.C:
+				log.Info("Timed out, but doing last check if test pods are running")
+				runningCount = i.getNumberOfRunningTestPods()
+				done <- true
+			case <-ticker.C:
+				runningCount = i.getNumberOfRunningTestPods()
+				if runningCount == i.podCount {
+					done <- true
+				}
+			}
+		}
+	}()
+
+	<-done
+	timeout.Stop()
+	ticker.Stop()
+
+	log.Infof("Test pods were found ready after %v", time.Since(start))
+	err = AssertExpectedAndActual(assert.Equal, i.podCount, runningCount,
+		fmt.Sprintf("Expected %d test pods to be running after %d seconds", i.podCount, wait))
+	if err != nil {
+		return err
+	}
 
 	// For the test pods number of namespaces = podCount
 	for n := 1; n <= podCount; n++ {
@@ -986,10 +1021,7 @@ func (i *integration) k8sPoll() {
 	}
 
 	if i.driverType != "" {
-		pods, getPodsErr := i.k8s.GetClient().CoreV1().Pods("").List(context.Background(),
-			metav1.ListOptions{
-				LabelSelector: fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", i.driverType),
-			})
+		pods, getPodsErr := i.listPodsByLabel(fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", i.driverType))
 		if getPodsErr == nil {
 			for _, pod := range pods.Items {
 				log.Infof("k8sPoll: %s %s/%s %s", pod.Spec.NodeName, pod.Namespace, pod.Name, pod.Status.Phase)
@@ -1000,8 +1032,22 @@ func (i *integration) k8sPoll() {
 	}
 }
 
-var k8sPollInterval = 2 * time.Second
-var pollTick *time.Ticker
+func (i *integration) getNumberOfRunningTestPods() int {
+	if pods, getPodsErr := i.listPodsByLabel(fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", i.driverType)); getPodsErr == nil {
+		nRunning := 0
+		for _, pod := range pods.Items {
+			if pod.Status.Phase == "Running" {
+				nRunning++
+			}
+		}
+		return nRunning
+	}
+	return 0
+}
+
+func (i *integration) listPodsByLabel(label string) (*corev1.PodList, error) {
+	return i.k8s.GetClient().CoreV1().Pods("").List(context.Background(), metav1.ListOptions{LabelSelector: label})
+}
 
 func (i *integration) startK8sPoller() {
 	for {
