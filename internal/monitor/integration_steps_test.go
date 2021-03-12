@@ -962,7 +962,6 @@ func (i *integration) podmonContainerRunning(pod corev1.Pod) bool {
 func nodeHasCondition(node corev1.Node, conditionType corev1.NodeConditionType) bool {
 	for _, condition := range node.Status.Conditions {
 		if conditionType == condition.Type {
-			log.Infof("Node %s checking condition type %s. Current status=%s last-heartbeat=%s", node.Name, condition.Type, condition.Status, condition.LastHeartbeatTime)
 			if condition.Status == "True" {
 				return true
 			}
@@ -971,8 +970,65 @@ func nodeHasCondition(node corev1.Node, conditionType corev1.NodeConditionType) 
 	return false
 }
 
+func (i *integration) k8sPoll() {
+	list, getNodesErr := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
+	if getNodesErr == nil {
+		for _, node := range list.Items {
+			nodeReady := nodeHasCondition(node, "Ready")
+			taintKeys := make([]string, 0)
+			for _, taint := range node.Spec.Taints {
+				taintKeys = append(taintKeys, taint.Key)
+			}
+			log.Infof("k8sPoll: Node: %s Ready:%v Taints: %s", node.Name, nodeReady, strings.Join(taintKeys, ","))
+		}
+	} else {
+		log.Infof("k8sPoll: listing nodes error: %s", getNodesErr)
+	}
+
+	if i.driverType != "" {
+		pods, getPodsErr := i.k8s.GetClient().CoreV1().Pods("").List(context.Background(),
+			metav1.ListOptions{
+				LabelSelector: fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", i.driverType),
+			})
+		if getPodsErr == nil {
+			for _, pod := range pods.Items {
+				log.Infof("k8sPoll: %s %s/%s %s", pod.Spec.NodeName, pod.Namespace, pod.Name, pod.Status.Phase)
+			}
+		} else {
+			log.Infof("k8sPoll: get pods failed: %s", getPodsErr)
+		}
+	}
+}
+
+var k8sPollInterval = 2 * time.Second
+var pollTick *time.Ticker
+
+func (i *integration) startK8sPoller() {
+	for {
+		select {
+		case <-pollTick.C:
+			i.k8sPoll()
+		}
+	}
+}
+
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	i := &integration{}
+	pollK8sEnabled := false
+	if pollK8sStr := os.Getenv("POLL_K8S"); strings.ToLower(pollK8sStr) == "true" {
+		pollK8sEnabled = true
+	}
+	context.BeforeScenario(func(sc *godog.Scenario) {
+		if pollK8sEnabled {
+			pollTick = time.NewTicker(k8sPollInterval)
+			go i.startK8sPoller()
+		}
+	})
+	context.AfterScenario(func(sc *godog.Scenario, err error) {
+		if pollK8sEnabled {
+			pollTick.Stop()
+		}
+	})
 	context.Step(`^a kubernetes "([^"]*)"$`, i.givenKubernetes)
 	context.Step(`^validate that all pods are running within (\d+) seconds$`, i.allPodsAreRunningWithinSeconds)
 	context.Step(`^I fail "([^"]*)" worker nodes and "([^"]*)" primary nodes with "([^"]*)" failure for (\d+) seconds$`, i.failWorkerAndPrimaryNodes)
