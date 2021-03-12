@@ -168,7 +168,8 @@ func (i *integration) allPodsAreRunningWithinSeconds(wait int) error {
 	}
 
 	log.Infof("Test pods are not all running. Waiting up to %d seconds.", wait)
-	timeout := time.NewTimer(time.Duration(wait) * time.Second)
+	timeoutDuration := time.Duration(wait) * time.Second
+	timeout := time.NewTimer(timeoutDuration)
 	ticker := time.NewTicker(checkTickerInterval * time.Second)
 	done := make(chan bool)
 	start := time.Now()
@@ -182,7 +183,7 @@ func (i *integration) allPodsAreRunningWithinSeconds(wait int) error {
 				allRunning, err = i.allPodsInTestNamespacesAreRunning()
 				done <- true
 			case <-ticker.C:
-				log.Info("Checking if all test pods are running")
+				log.Infof("Checking if all test pods are running (time left %v)", timeoutDuration-time.Since(start))
 				// Check each of the test namespaces for running pods (final check)
 				allRunning, err = i.allPodsInTestNamespacesAreRunning()
 				if allRunning {
@@ -229,7 +230,8 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 	}
 
 	log.Infof("Requested nodes to fail. Waiting up to %d seconds to see if they show up as failed.", wait)
-	timeout := time.NewTimer(time.Duration(wait) * time.Second)
+	timeoutDuration := time.Duration(wait) * time.Second
+	timeout := time.NewTimer(timeoutDuration)
 	ticker := time.NewTicker(checkTickerInterval * time.Second)
 	done := make(chan bool)
 	start := time.Now()
@@ -270,7 +272,7 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 				foundFailedPrimary, err = i.searchForNodes(requestedPrimaryAndFailed)
 				done <- true
 			case <-ticker.C:
-				log.Info("Checking if requested nodes show up as failed")
+				log.Infof("Checking if requested nodes show up as failed (time left %v)", timeoutDuration-time.Since(start))
 				foundFailedWorkers, err = i.searchForNodes(requestedWorkersAndFailed)
 				foundFailedPrimary, err = i.searchForNodes(requestedPrimaryAndFailed)
 				if len(foundFailedPrimary) == len(failedPrimary) && len(foundFailedWorkers) == len(failedWorkers) {
@@ -358,7 +360,8 @@ func (i *integration) deployPods(podsPerNode, numVols, numDevs, driverType, stor
 
 	log.Infof("Waiting up to %d seconds for pods to deploy", wait)
 	runningCount := 0
-	timeout := time.NewTimer(time.Duration(wait) * time.Second)
+	timeoutDuration := time.Duration(wait) * time.Second
+	timeout := time.NewTimer(timeoutDuration)
 	ticker := time.NewTicker(checkTickerInterval * time.Second)
 	done := make(chan bool)
 	start := time.Now()
@@ -371,6 +374,7 @@ func (i *integration) deployPods(podsPerNode, numVols, numDevs, driverType, stor
 				runningCount = i.getNumberOfRunningTestPods()
 				done <- true
 			case <-ticker.C:
+				log.Infof("Check if test pods are running (time left %v)", timeoutDuration-time.Since(start))
 				runningCount = i.getNumberOfRunningTestPods()
 				if runningCount == i.podCount {
 					done <- true
@@ -414,7 +418,8 @@ func (i *integration) theTaintsForTheFailedNodesAreRemovedWithinSeconds(wait int
 		log.Infof("Podmon taint is still on nodes. Waiting up to %d seconds until the taint is removed.", wait)
 	}
 
-	timeout := time.NewTimer(time.Duration(wait) * time.Second)
+	timeoutDuration := time.Duration(wait) * time.Second
+	timeout := time.NewTimer(timeoutDuration)
 	ticker := time.NewTicker(checkTickerInterval * time.Second)
 	done := make(chan bool)
 	start := time.Now()
@@ -427,7 +432,7 @@ func (i *integration) theTaintsForTheFailedNodesAreRemovedWithinSeconds(wait int
 				havePodmonTaint, err = i.checkIfNodesHaveTaint(taintKey)
 				done <- true
 			case <-ticker.C:
-				log.Infof("Checking if podmon taints have been removed")
+				log.Infof("Checking if podmon taints have been removed (time left %v)", timeoutDuration-time.Since(start))
 				havePodmonTaint, err = i.checkIfNodesHaveTaint(taintKey)
 				if !havePodmonTaint {
 					done <- true
