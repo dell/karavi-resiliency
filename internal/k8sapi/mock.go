@@ -382,6 +382,26 @@ func (mock *K8sMock) TaintNode(ctx context.Context, nodeName, taintKey string, e
 	if mock.InducedErrors.TaintNode {
 		return errors.New("induced taint node error")
 	}
+	if node, err := mock.GetNode(ctx, nodeName); err == nil {
+		currentTaints := node.Spec.Taints
+		updatedTaints := make([]v1.Taint, 0)
+		for _, taint := range currentTaints {
+			if taint.Key != taintKey {
+				updatedTaints = append(updatedTaints, taint)
+			}
+		}
+		if !remove {
+			updatedTaints = append(updatedTaints, v1.Taint{
+				Key:    taintKey,
+				Value:  "",
+				Effect: effect,
+			})
+		}
+		node.Spec.Taints = updatedTaints
+	} else {
+		return err
+	}
+
 	return nil
 }
 

@@ -60,7 +60,6 @@ type feature struct {
 	pvNames                  []string    // For multi-volume tests
 	podCount                 int
 	failCSIVolumePathDirRead bool
-	failK8sTaint             bool
 	failRemoveDir            string
 	maxNodeAPILoopTimes      int
 	// If true and the test case has expected loghook.LastEntry set to
@@ -100,16 +99,8 @@ func (f *feature) aControllerMonitor(driver string) error {
 	f.podmonMonitor.CSIExtensionsPresent = true
 	f.podmonMonitor.DriverPathStr = "csi-vxflexos.dellemc.com"
 	gofsutil.UseMockFS()
-	K8sTaint = f.mockK8sTaint
 	RemoveDir = f.mockRemoveDir
 	f.badWatchObject = false
-	return nil
-}
-
-func (f *feature) mockK8sTaint(operation, name, taint string, effect v1.TaintEffect, remove bool) error {
-	if f.failK8sTaint {
-		return fmt.Errorf("mock failure: operation %s against %s with taint %s:%s remove=%v failed", operation, name, taint, effect, remove)
-	}
 	return nil
 }
 
@@ -239,7 +230,7 @@ func (f *feature) iInduceError(induced string) error {
 	case "CSIVolumePathDirRead":
 		f.failCSIVolumePathDirRead = true
 	case "K8sTaint":
-		f.failK8sTaint = true
+		f.k8sapiMock.InducedErrors.TaintNode = true
 	case "RemoveDir":
 		f.failRemoveDir = "Could not delete"
 	case "BadWatchObject":
