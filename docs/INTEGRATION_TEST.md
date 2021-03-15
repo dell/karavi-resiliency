@@ -1,11 +1,11 @@
-# Integration Test
-The Karavi Resiliency integration uses a [Gherkin](https://cucumber.io/docs/gherkin) feature file to define the integration test cases in BDD format. It uses [Godog](https://github.com/cucumber/godog) to run the defined tests. The integration tests, unlike the unit tests, are expected to work with a real kubernetes cluster. The prerequisites are listed below. 
+# Integration test
+The Karavi Resiliency integration uses a [Gherkin](https://cucumber.io/docs/gherkin) feature file to define the integration test cases in BDD format. It uses [Godog](https://github.com/cucumber/godog) to run the defined tests. The integration tests, unlike the unit tests, are expected to work with a real Kubernetes cluster. The prerequisites are listed below. 
 
-The tests will deploy [test pods](../test/podmontest) on the system and run the failure scenarios. These failure scenarios require that systems are accessible using username/password credentials. Also note, that the tests will bring down network interfaces and/or reboot any of the kubernetes cluster's nodes.
+The tests will deploy [test pods](../test/podmontest) on the system and run the failure scenarios. These failure scenarios require that systems are accessible using username/password credentials. Also note, that the tests will bring down network interfaces and/or reboot any of the Kubernetes cluster's nodes.
 
 # Prerequisites
 
-You will need to have the following deployed in your kubernetes cluster:
+You will need to have the following deployed in your Kubernetes cluster:
 * A Karavi Resiliency supported CSI Driver (see the appropriate documentation for the driver).
 * CSI Driver should have the podmon sidecar enabled (see [Getting Started Guide](./GETTING_STARTED_GUIDE.md)).
 * Storage classes created using the supported CSI Driver. Specific driver names are called out in the test scenarios.
@@ -18,7 +18,7 @@ These environmental variables need to be set:
 
 | Variable | Required | Description | Set to |
 |----------|----------|-------------|--------|
-| RESILIENCY_INT_TEST | Yes |  This is a flag for running the test. Since the go test will run any _test.go file, we need way for the integration test to be run only when specifically needed. This variable achieves this requirement. | "true" |
+| RESILIENCY_INT_TEST | Yes |  This is a flag for running the test. Since the go test will run any _test.go file, we need a way for the integration test to be run only when specifically needed. This variable achieves this requirement. | "true" |
 | NODE_USER | Yes | The username to use for scp'ing failure test scripts and ssh'ing to invoke the failure scripts. _It is assumed all hosts can be accessible with the same username_ | _Appropriate value for your test hosts_ |
 | PASSWORD | Yes | The password to use for scp'ing failure test scripts and ssh'ing to invoke the failure scripts. _It is assumed all hosts can be accessible with the same password_ | _Appropriate value for your test hosts_ |
 | SCRIPTS_DIR | Yes | The full path to the Karavi Resiliency test scripts from the machine that you are invoking the integration test. | For example if you've cloned the karavi-resiliency repo to /workspace/karavi-resiliency, then this value should be _/workspace/karavi-resiliency/test/sh_ | 
@@ -74,22 +74,22 @@ Let's take the setup test and deconstruct it in plain language:
       | ""         | "csi-vxflexos.dellemc.com" | "vxflexos" | "vxflexos" | "vxflexos,vxflexos-xfs" |
 ```
 
-The `@int-setup-check` is an annotation used in our test runner to have this run as a special test. The other scenarios will have `@integration` as the annotation to indicate that they will run scenarios on the cluster. In this specific case, as the `Scenario Outline` describes we want to validate the kubernetes cluster is good and ready to use.
+The `@int-setup-check` is an annotation used in our test runner to have this run as a special test. The other scenarios will have `@integration` as the annotation to indicate that they will run scenarios on the cluster. In this specific case, as the `Scenario Outline` describes we want to validate the Kubernetes cluster is good and ready to use.
 
 Under the `Examples:` we have the following which represents the testing parameters. These will be referenced in one or more steps:
 
 `| kubeConfig | driverNames | namespace | name | storageClasses |`
 
-Looking at the steps, the first step `Given a kubernetes <kubeConfig>` uses the `kubeConfig` parameter as a file path value to the kubeconfig file. If empty string is used, then the default `<user-homedir>/.kube/config` is assumed to the path. 
+Looking at the steps, the first step `Given a Kubernetes <kubeConfig>` uses the `kubeConfig` parameter as a file path value to the kubeconfig file. If an empty string is used, then the default `<user-homedir>/.kube/config` is assumed to the path. 
 
 Each of the subsequent steps will be executed per `Example` row. So, if we put it all together, then the setup test does the following:
-* Tries connecting to the kubernetes cluster using the kubeconfig found at `kubeConfig`.
+* Tries connecting to the Kubernetes cluster using the kubeconfig found at `kubeConfig`.
 * Checks if the required environmental variables are set.
 * Checks if the specified driverName is installed in the cluster.
 * Checks if the specified comma delimited string of `storageClasses` exist in the cluster.
 * Checks if there is a specified `namespace` existing in the cluster. This should be the namespace associated with the installed CSI driver.
 * Checks if the driver pods in the `namespace` have the expected CSI driver pods running, and the podmon sidecar is running.
-* Checks if it can access each node in the cluster, if so, it will copy over the scripts from `SCRIPTS_DIR` into a directory on the node.
+* Checks if it can access each node in the cluster. If so, it will copy over the scripts from `SCRIPTS_DIR` into a directory on the node.
 
 If the setup test does not pass for any reason, the subsequent `@integration` test scenarios will not be run.
 
@@ -110,9 +110,9 @@ Let's now take a look at an actual testing scenario:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
 ```
 
-All the previous descriptions about the `Examples` applies, except that these are applied to a failure test scenario. In the above, the test does the following:
+All the previous descriptions about the `Examples` apply, except that these are applied to a failure test scenario. In the above, the test does the following:
 
-* Tries connecting to the kubernetes cluster using the kubeconfig found at `kubeConfig`.
+* Tries connecting to the Kubernetes cluster using the kubeconfig found at `kubeConfig`.
 * Deploys test pods with given number of pods, volumes, and devices. The volumes will be based on the `driverType`.
 * Expects the test pods to be running with in `deploySecs`.
 * Induces a failure of the specified `failure` type against a number of `workers` and `primary` nodes for a total of `failSecs`. The `workers` and `primary` values are either ratios written in English or numbers, e.g. "one-third", "1", "2". Whether ratio or number, ultimately a number of nodes will be determined to be failed. The test will randomly choose hosts to fulfill that number of failed nodes.
@@ -127,4 +127,4 @@ All the previous descriptions about the `Examples` applies, except that these ar
 
 * If you run into an error that points to a problem accessing a file or directory, check if the `SCRIPTS_DIR` is pointing the location of the Karavi Resiliency test scripts.
 
-* If you see early errors in the tests indicating that it failed create a session, check if you have the right credentials.
+* If you see early errors in the tests indicating that it failed to create a session, check if you have the right credentials.
