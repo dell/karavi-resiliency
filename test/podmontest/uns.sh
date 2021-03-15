@@ -12,6 +12,7 @@
 
 instances=${instances:-4}
 prefix="pmt"
+remove_all=""
 
 for param in $*
 do
@@ -26,8 +27,17 @@ do
           prefix=$1
           shift
           ;;
+       "--all")
+          shift
+          remove_all=$1
+          shift
+          ;;
     esac
 done
+
+if [ "$remove_all"x != "x" ]; then
+  instances=$(kubectl get pods -l "podmon.dellemc.com/driver=csi-${remove_all}" -A | grep -c "$prefix")
+fi
 
 i=1
 while [ $i -le $instances ]; do
