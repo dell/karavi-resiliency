@@ -128,3 +128,5 @@ All the previous descriptions about the `Examples` apply, except that these are 
 * If you run into an error that points to a problem accessing a file or directory, check if the `SCRIPTS_DIR` is pointing the location of the Karavi Resiliency test scripts.
 
 * If you see early errors in the tests indicating that it failed to create a session, check if you have the right credentials.
+
+* If you see errors later on in the tests indicating that it failed to create a session, check if all the Kubernetes nodes are up and running. It could be that a node has not come back up after a test failure invocation.
