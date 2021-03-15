@@ -44,6 +44,10 @@ type integration struct {
 	scriptsDir          string
 }
 
+// Used for keeping of track of the last test that was
+// run, so that we can clean up in case of failure
+var lastTestDriverType string
+
 // wordsToNumberMap used for mapping a number-word strings to a float64 value.
 var wordsToNumberMap = map[string]float64{
 	"zero":       0.0,
@@ -85,6 +89,10 @@ var primaryLabelKey = fmt.Sprintf("node-role.kubernetes.io/%s", string(primary))
 // With multiple scenarios, we want to do this only once.
 var nodesWithScripts map[string]bool
 var nodesWithScriptsInitOnce sync.Once
+
+// Parameters for use with the background poller
+var k8sPollInterval = 2 * time.Second
+var pollTick *time.Ticker
 
 // isWorkerNode is a filter function for searching for nodes that look to be worker nodes
 var isWorkerNode = func(node corev1.Node) bool {
@@ -160,7 +168,8 @@ func (i *integration) allPodsAreRunningWithinSeconds(wait int) error {
 	}
 
 	log.Infof("Test pods are not all running. Waiting up to %d seconds.", wait)
-	timeout := time.NewTimer(time.Duration(wait) * time.Second)
+	timeoutDuration := time.Duration(wait) * time.Second
+	timeout := time.NewTimer(timeoutDuration)
 	ticker := time.NewTicker(checkTickerInterval * time.Second)
 	done := make(chan bool)
 	start := time.Now()
@@ -174,7 +183,7 @@ func (i *integration) allPodsAreRunningWithinSeconds(wait int) error {
 				allRunning, err = i.allPodsInTestNamespacesAreRunning()
 				done <- true
 			case <-ticker.C:
-				log.Info("Checking if all test pods are running")
+				log.Infof("Checking if all test pods are running (time left %v)", timeoutDuration-time.Since(start))
 				// Check each of the test namespaces for running pods (final check)
 				allRunning, err = i.allPodsInTestNamespacesAreRunning()
 				if allRunning {
@@ -221,7 +230,8 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 	}
 
 	log.Infof("Requested nodes to fail. Waiting up to %d seconds to see if they show up as failed.", wait)
-	timeout := time.NewTimer(time.Duration(wait) * time.Second)
+	timeoutDuration := time.Duration(wait) * time.Second
+	timeout := time.NewTimer(timeoutDuration)
 	ticker := time.NewTicker(checkTickerInterval * time.Second)
 	done := make(chan bool)
 	start := time.Now()
@@ -262,7 +272,7 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 				foundFailedPrimary, err = i.searchForNodes(requestedPrimaryAndFailed)
 				done <- true
 			case <-ticker.C:
-				log.Info("Checking if requested nodes show up as failed")
+				log.Infof("Checking if requested nodes show up as failed (time left %v)", timeoutDuration-time.Since(start))
 				foundFailedWorkers, err = i.searchForNodes(requestedWorkersAndFailed)
 				foundFailedPrimary, err = i.searchForNodes(requestedPrimaryAndFailed)
 				if len(foundFailedPrimary) == len(failedPrimary) && len(foundFailedWorkers) == len(failedWorkers) {
@@ -343,13 +353,46 @@ func (i *integration) deployPods(podsPerNode, numVols, numDevs, driverType, stor
 		return err
 	}
 
-	i.driverType = driverType
+	i.setDriverType(driverType)
 	i.podCount = podCount
 	i.devCount = devCount
 	i.volCount = volCount
 
-	log.Infof("Waiting %d seconds for pods to deploy", wait)
-	time.Sleep(time.Duration(wait) * time.Second)
+	log.Infof("Waiting up to %d seconds for pods to deploy", wait)
+	runningCount := 0
+	timeoutDuration := time.Duration(wait) * time.Second
+	timeout := time.NewTimer(timeoutDuration)
+	ticker := time.NewTicker(checkTickerInterval * time.Second)
+	done := make(chan bool)
+	start := time.Now()
+
+	go func() {
+		for {
+			select {
+			case <-timeout.C:
+				log.Info("Timed out, but doing last check if test pods are running")
+				runningCount = i.getNumberOfRunningTestPods()
+				done <- true
+			case <-ticker.C:
+				log.Infof("Check if test pods are running (time left %v)", timeoutDuration-time.Since(start))
+				runningCount = i.getNumberOfRunningTestPods()
+				if runningCount == i.podCount {
+					done <- true
+				}
+			}
+		}
+	}()
+
+	<-done
+	timeout.Stop()
+	ticker.Stop()
+
+	log.Infof("Test pods running check finished after %v", time.Since(start))
+	err = AssertExpectedAndActual(assert.Equal, i.podCount, runningCount,
+		fmt.Sprintf("Expected %d test pods to be running after %d seconds", i.podCount, wait))
+	if err != nil {
+		return err
+	}
 
 	// For the test pods number of namespaces = podCount
 	for n := 1; n <= podCount; n++ {
@@ -375,7 +418,8 @@ func (i *integration) theTaintsForTheFailedNodesAreRemovedWithinSeconds(wait int
 		log.Infof("Podmon taint is still on nodes. Waiting up to %d seconds until the taint is removed.", wait)
 	}
 
-	timeout := time.NewTimer(time.Duration(wait) * time.Second)
+	timeoutDuration := time.Duration(wait) * time.Second
+	timeout := time.NewTimer(timeoutDuration)
 	ticker := time.NewTicker(checkTickerInterval * time.Second)
 	done := make(chan bool)
 	start := time.Now()
@@ -388,7 +432,7 @@ func (i *integration) theTaintsForTheFailedNodesAreRemovedWithinSeconds(wait int
 				havePodmonTaint, err = i.checkIfNodesHaveTaint(taintKey)
 				done <- true
 			case <-ticker.C:
-				log.Infof("Checking if podmon taints have been removed")
+				log.Infof("Checking if podmon taints have been removed (time left %v)", timeoutDuration-time.Since(start))
 				havePodmonTaint, err = i.checkIfNodesHaveTaint(taintKey)
 				if !havePodmonTaint {
 					done <- true
@@ -449,41 +493,69 @@ func (i *integration) thereAreDriverPodsWithThisPrefix(namespace, prefix string)
 	lookForNode := fmt.Sprintf("%s-node", prefix)
 	nRunningControllers := 0
 	nRunningNode := 0
+	nRunningControllerPodmons := 0
+	nRunningNodePodmons := 0
 	for _, pod := range pods.Items {
 		if pod.Status.Phase == "Running" {
 			if strings.HasPrefix(pod.Name, lookForController) {
+				if i.podmonContainerRunning(pod) {
+					nRunningControllerPodmons++
+				}
 				nRunningControllers++
 			} else if strings.HasPrefix(pod.Name, lookForNode) {
+				if i.podmonContainerRunning(pod) {
+					nRunningNodePodmons++
+				}
 				nRunningNode++
 			}
 		}
 	}
 
-	// Success condition is if there is at least one controller running
-	// and all worker nodes have a running node driver pod
+	// Success condition is:
+	//  - At least one controller running
+	//  - All worker nodes have a running node driver pod
+	//  - There is a controller podmon container running
+	//  - There are node podmon containers running
 	controllersRunning := nRunningControllers != 0
 	allNodesRunning := nRunningNode == nWorkerNodes
 
-	return AssertExpectedAndActual(assert.Equal, true, controllersRunning && allNodesRunning,
+	// First, check if we have the expected pods running
+	err = AssertExpectedAndActual(assert.Equal, true, controllersRunning && allNodesRunning,
 		fmt.Sprintf("Expected %s driver controller and node pods to be running in %s namespace. controllersRunning = %v, allNodesRunning = %v",
 			prefix, namespace, controllersRunning, allNodesRunning))
+	if err != nil {
+		return err
+	}
+
+	// Second, check if we have running podmon containers that we expect
+	controllerPodmonsGood := (nRunningControllerPodmons > 0) && nRunningControllerPodmons == nRunningControllers
+	nodePodmonsGood := (nRunningNodePodmons > 0) && nRunningNodePodmons == nRunningNode
+	return AssertExpectedAndActual(assert.Equal, true, controllerPodmonsGood && nodePodmonsGood,
+		fmt.Sprintf("Expected podmon container to be running in %s controller and node pods. Number of controller podmon is %d. Number of node podmon is %d",
+			prefix, nRunningControllerPodmons, nRunningNodePodmons))
 }
 
 func (i *integration) finallyCleanupEverything() error {
-	log.Info("Attempting to clean up everything")
 	uninstallScript := "uns.sh"
 	prefix := "pmtv"
-	if i.driverType == "unity" {
+	if lastTestDriverType == "unity" {
 		prefix = "pmtu"
 	}
+
+	if lastTestDriverType == "" {
+		// Nothing to clean up
+		return nil
+	}
+
+	log.Infof("Attempting to clean up everything for driverType '%s'", lastTestDriverType)
 
 	deployScriptPath := filepath.Join("..", "..", "test", "podmontest", uninstallScript)
 	script := "bash"
 
 	args := []string{
 		deployScriptPath,
-		"--instances", strconv.Itoa(i.podCount),
 		"--prefix", prefix,
+		"--all", lastTestDriverType,
 	}
 	command := exec.Command(script, args...)
 	command.Stdout = os.Stdout
@@ -500,6 +572,8 @@ func (i *integration) finallyCleanupEverything() error {
 		return err
 	}
 
+	// Cleaned up, so zero the podCount
+	i.podCount = 0
 	return nil
 }
 
@@ -917,10 +991,22 @@ func (i *integration) induceFailureOn(name string, ip, failureType string, wait 
 	return nil
 }
 
+func (i *integration) podmonContainerRunning(pod corev1.Pod) bool {
+	for index, container := range pod.Spec.Containers {
+		if container.Name == "podmon" {
+			podmonIsReady := pod.Status.ContainerStatuses[index].Ready
+			log.Infof("podmon %s on %s/%s is Ready=%v", container.Image, pod.Name, pod.Spec.NodeName, podmonIsReady)
+			if podmonIsReady {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func nodeHasCondition(node corev1.Node, conditionType corev1.NodeConditionType) bool {
 	for _, condition := range node.Status.Conditions {
 		if conditionType == condition.Type {
-			log.Infof("Node %s checking condition type %s. Current status=%s last-heartbeat=%s", node.Name, condition.Type, condition.Status, condition.LastHeartbeatTime)
 			if condition.Status == "True" {
 				return true
 			}
@@ -929,8 +1015,81 @@ func nodeHasCondition(node corev1.Node, conditionType corev1.NodeConditionType) 
 	return false
 }
 
+func (i *integration) k8sPoll() {
+	list, getNodesErr := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
+	if getNodesErr == nil {
+		for _, node := range list.Items {
+			nodeReady := nodeHasCondition(node, "Ready")
+			taintKeys := make([]string, 0)
+			for _, taint := range node.Spec.Taints {
+				taintKeys = append(taintKeys, taint.Key)
+			}
+			log.Infof("k8sPoll: Node: %s Ready:%v Taints: %s", node.Name, nodeReady, strings.Join(taintKeys, ","))
+		}
+	} else {
+		log.Infof("k8sPoll: listing nodes error: %s", getNodesErr)
+	}
+
+	if i.driverType != "" {
+		pods, getPodsErr := i.listPodsByLabel(fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", i.driverType))
+		if getPodsErr == nil {
+			for _, pod := range pods.Items {
+				log.Infof("k8sPoll: %s %s/%s %s", pod.Spec.NodeName, pod.Namespace, pod.Name, pod.Status.Phase)
+			}
+		} else {
+			log.Infof("k8sPoll: get pods failed: %s", getPodsErr)
+		}
+	}
+}
+
+func (i *integration) getNumberOfRunningTestPods() int {
+	if pods, getPodsErr := i.listPodsByLabel(fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", i.driverType)); getPodsErr == nil {
+		nRunning := 0
+		for _, pod := range pods.Items {
+			if pod.Status.Phase == "Running" {
+				nRunning++
+			}
+		}
+		return nRunning
+	}
+	return 0
+}
+
+func (i *integration) listPodsByLabel(label string) (*corev1.PodList, error) {
+	return i.k8s.GetClient().CoreV1().Pods("").List(context.Background(), metav1.ListOptions{LabelSelector: label})
+}
+
+func (i *integration) startK8sPoller() {
+	for {
+		select {
+		case <-pollTick.C:
+			i.k8sPoll()
+		}
+	}
+}
+
+func (i *integration) setDriverType(driver string) {
+	i.driverType = driver
+	lastTestDriverType = driver
+}
+
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	i := &integration{}
+	pollK8sEnabled := false
+	if pollK8sStr := os.Getenv("POLL_K8S"); strings.ToLower(pollK8sStr) == "true" {
+		pollK8sEnabled = true
+	}
+	context.BeforeScenario(func(sc *godog.Scenario) {
+		if pollK8sEnabled {
+			pollTick = time.NewTicker(k8sPollInterval)
+			go i.startK8sPoller()
+		}
+	})
+	context.AfterScenario(func(sc *godog.Scenario, err error) {
+		if pollK8sEnabled {
+			pollTick.Stop()
+		}
+	})
 	context.Step(`^a kubernetes "([^"]*)"$`, i.givenKubernetes)
 	context.Step(`^validate that all pods are running within (\d+) seconds$`, i.allPodsAreRunningWithinSeconds)
 	context.Step(`^I fail "([^"]*)" worker nodes and "([^"]*)" primary nodes with "([^"]*)" failure for (\d+) seconds$`, i.failWorkerAndPrimaryNodes)
@@ -940,6 +1099,7 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^there is a "([^"]*)" in the cluster$`, i.thereIsThisNamespaceInTheCluster)
 	context.Step(`^there are driver pods in "([^"]*)" with this "([^"]*)" prefix$`, i.thereAreDriverPodsWithThisPrefix)
 	context.Step(`^finally cleanup everything$`, i.finallyCleanupEverything)
+	context.Step(`^cluster is clean of test pods$`, i.finallyCleanupEverything)
 	context.Step(`^test environmental variables are set$`, i.expectedEnvVariablesAreSet)
 	context.Step(`^can logon to nodes and drop test scripts$`, i.canLogonToNodesAndDropTestScripts)
 	context.Step(`^these storageClasses "([^"]*)" exist in the cluster$`, i.theseStorageClassesExistInTheCluster)
