@@ -974,6 +974,7 @@ func (i *integration) podmonContainerRunning(pod corev1.Pod) bool {
 		if container.Name == "podmon" {
 			podmonIsReady := pod.Status.ContainerStatuses[index].Ready
 			log.Infof("podmon %s on %s/%s is Ready=%v", container.Image, pod.Name, pod.Spec.NodeName, podmonIsReady)
+			log.Infof("podmon %s on %s/%s args: %s", container.Image, pod.Name, pod.Spec.NodeName, strings.Join(container.Args, " "))
 			if podmonIsReady {
 				return true
 			}
