@@ -23,6 +23,7 @@ These environmental variables need to be set:
 | PASSWORD | Yes | The password to use for scp'ing failure test scripts and ssh'ing to invoke the failure scripts. _It is assumed all hosts can be accessible with the same password_ | _Appropriate value for your test hosts_ |
 | SCRIPTS_DIR | Yes | The full path to the Karavi Resiliency test scripts from the machine that you are invoking the integration test. | For example if you've cloned the karavi-resiliency repo to /workspace/karavi-resiliency, then this value should be _/workspace/karavi-resiliency/test/sh_ | 
 | POLL_K8S | No |When enabled, will run a background poller that dumps status of the nodes and test pods.  | "true" |
+| RESILIENCY_INT_TEST_STOP_ON_FAILURE | No | By default the integration will be set to stop on any failure. Using this flag and setting it to 'false' will allow tests to continue on failure | default: "true", Set to "false" to disable |
 
 # Running 
 
