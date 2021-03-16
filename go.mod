@@ -2,13 +2,13 @@ module podmon
 
 go 1.13
 
-replace github.com/dell/dell-csi-extensions/podmon => ./dell-csi-extensions/podmon
+// replace github.com/dell/dell-csi-extensions/podmon => ./dell-csi-extensions/podmon
 
 require (
 	github.com/bramvdbogaerde/go-scp v0.0.0-20201229172121-7a6c0268fa67
 	github.com/container-storage-interface/spec v1.1.0
 	github.com/cucumber/godog v0.10.0
-	github.com/dell/dell-csi-extensions/podmon v0.0.0
+	github.com/dell/dell-csi-extensions/podmon v0.1.0
 	github.com/dell/gofsutil v1.3.0
 	github.com/golang/mock v1.5.0
 	github.com/kubernetes-csi/csi-lib-utils v0.7.0
