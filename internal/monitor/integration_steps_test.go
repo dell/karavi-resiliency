@@ -425,7 +425,7 @@ func (i *integration) theTaintsForTheFailedNodesAreRemovedWithinSeconds(wait int
 		// expect the podmon taint to be cleaned up as well.
 		taintKeys = taintKeys + "," + fmt.Sprintf("%s.%s", lastTestDriverType, PodmonTaintKeySuffix)
 	}
-	log.Infof("These nodes should not be on the nodes: %s", taintKeys)
+	log.Infof("These taints should not be on the nodes: %s", taintKeys)
 	hasTaints, err := i.checkIfNodesHaveTaints(taintKeys)
 	if err != nil {
 		return err
@@ -1104,15 +1104,16 @@ func (i *integration) setDriverType(driver string) {
 // labeledPodsToNodes map will be in this format: "<namespace>/<podname>".
 func (i *integration) populateLabeledPodsToNodes() error {
 	i.labeledPodsToNodes = make(map[string]string)
-	if pods, getPodsErr := i.listPodsByLabel(fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", lastTestDriverType)); getPodsErr == nil {
-		for _, pod := range pods.Items {
-			nsPodName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
-			i.labeledPodsToNodes[nsPodName] = pod.Spec.NodeName
-		}
-		return nil
-	} else {
+	pods, getPodsErr := i.listPodsByLabel(fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", lastTestDriverType))
+	if getPodsErr != nil {
 		return getPodsErr
 	}
+
+	for _, pod := range pods.Items {
+		nsPodName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+		i.labeledPodsToNodes[nsPodName] = pod.Spec.NodeName
+	}
+	return nil
 }
 
 // nodeHasLabeledPods will search through the integration.labeledPodsToNodes map looking
@@ -1129,13 +1130,15 @@ func (i *integration) nodeHasLabeledPods(checkNodeNames []string) bool {
 }
 
 func (i *integration) isNodeFailed(node corev1.Node, expectPodmonTaint bool) bool {
+	isFailed := false
 	if expectPodmonTaint {
 		podmonTaint := fmt.Sprintf("%s.%s", lastTestDriverType, PodmonTaintKeySuffix)
-		return nodeHasTaint(&node, podmonTaint, corev1.TaintEffectNoSchedule)
+		isFailed = nodeHasTaint(&node, podmonTaint, corev1.TaintEffectNoSchedule)
 	} else {
 		nodeIsNotReady := !nodeHasCondition(node, "Ready")
-		return nodeIsNotReady
+		isFailed = nodeIsNotReady
 	}
+	return isFailed
 }
 
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
