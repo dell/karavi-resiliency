@@ -21,6 +21,7 @@ Feature: Integration Test
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
+    And wait <nodeCleanSecs> to see there are no taints
     And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
@@ -43,6 +44,7 @@ Feature: Integration Test
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node slow reboots)
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
+    And wait <nodeCleanSecs> to see there are no taints
     And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
@@ -65,6 +67,7 @@ Feature: Integration Test
   Scenario Outline: Deploy pods when there are failed nodes already
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
+    And wait <nodeCleanSecs> to see there are no taints
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
     And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
     Then validate that all pods are running within <deploySecs> seconds
@@ -82,6 +85,7 @@ Feature: Integration Test
   Scenario Outline: Short failure window tests
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
+    And wait <nodeCleanSecs> to see there are no taints
     And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
