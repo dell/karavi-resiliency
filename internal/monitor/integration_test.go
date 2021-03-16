@@ -31,9 +31,10 @@ func TestFirstCheck(t *testing.T) {
 	}
 
 	godogOptions := godog.Options{
-		Format: "pretty",
-		Paths:  []string{"features"},
-		Tags:   "int-setup-check",
+		Format:        "pretty",
+		Paths:         []string{"features"},
+		Tags:          "int-setup-check",
+		StopOnFailure: true,
 	}
 	status := godog.TestSuite{
 		Name:                "integration",
@@ -64,9 +65,10 @@ func TestIntegration(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format: "pretty",
-		Paths:  []string{"features"},
-		Tags:   "integration",
+		Format:        "pretty",
+		Paths:         []string{"features"},
+		Tags:          "integration",
+		StopOnFailure: true,
 	}
 	status := godog.TestSuite{
 		Name:                "integration",
