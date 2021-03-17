@@ -1,5 +1,3 @@
-.PHONY: clean unit-test gocover
-
 clean:
 	go clean -cache
 
