@@ -47,6 +47,7 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 		cm.PodKeyToControllerPodInfo.Delete(podKey)
 		return nil
 	}
+	
 	// Single thread processing of this pod
 	Lock(podKey, pod, LockSleepTimeDelay)
 	defer Unlock(podKey)
