@@ -40,18 +40,16 @@ cd /workspace/karavi-resiliency/internal/monitor
 
 Set your environmental variables (one time):
 ```shell
-export RESILIENCY_INT_TEST="true"
 export NODE_USER="username"
 export PASSWORD="password"
-export SCRIPTS_DIR="/workspace/karavi-resiliency/test/sh"
-# Optionally:
-export POLL_K8S="true"
 ```
 
 Invoke the make rule:
 ```shell
 make integration-test
 ```
+
+The `integration-test` rule will automatically set environmental variables, RESILIENCY_INT_TEST & SCRIPTS_DIR prior to invoking the test.
 
 # Feature file
 
