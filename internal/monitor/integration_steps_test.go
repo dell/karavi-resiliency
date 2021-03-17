@@ -42,11 +42,15 @@ type integration struct {
 	volCount            int
 	testNamespacePrefix string
 	scriptsDir          string
+	labeledPodsToNodes  map[string]string
 }
 
 // Used for keeping of track of the last test that was
 // run, so that we can clean up in case of failure
 var lastTestDriverType string
+
+// Keep track if the test should result in a podmon taint against the failed node(s)
+var testExpectedPodmonTaint bool
 
 // wordsToNumberMap used for mapping a number-word strings to a float64 value.
 var wordsToNumberMap = map[string]float64{
@@ -229,6 +233,8 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 		return err
 	}
 
+	testExpectedPodmonTaint = i.nodeHasLabeledPods(failedWorkers) || i.nodeHasLabeledPods(failedPrimary)
+
 	log.Infof("Requested nodes to fail. Waiting up to %d seconds to see if they show up as failed.", wait)
 	timeoutDuration := time.Duration(wait) * time.Second
 	timeout := time.NewTimer(timeoutDuration)
@@ -240,7 +246,7 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 	requestedWorkersAndFailed := func(node corev1.Node) bool {
 		found := false
 		for _, worker := range failedWorkers {
-			if node.Name == worker && !nodeHasCondition(node, "Ready") {
+			if node.Name == worker && i.isNodeFailed(node, testExpectedPodmonTaint) {
 				found = true
 				break
 			}
@@ -252,7 +258,7 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 	requestedPrimaryAndFailed := func(node corev1.Node) bool {
 		found := false
 		for _, primaryNode := range failedPrimary {
-			if node.Name == primaryNode && !nodeHasCondition(node, "Ready") {
+			if node.Name == primaryNode && i.isNodeFailed(node, testExpectedPodmonTaint) {
 				found = true
 				break
 			}
@@ -403,52 +409,18 @@ func (i *integration) deployPods(podsPerNode, numVols, numDevs, driverType, stor
 		}
 	}
 
+	if err = i.populateLabeledPodsToNodes(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (i *integration) theTaintsForTheFailedNodesAreRemovedWithinSeconds(wait int) error {
-	log.Infof("Checking if nodes have podmon taint")
-	taintKey := fmt.Sprintf("%s.%s", i.driverType, PodmonTaintKeySuffix)
-	havePodmonTaint, err := i.checkIfNodesHaveTaint(taintKey)
-	if err != nil {
+	if err := i.waitOnNodesToBeReady(wait); err != nil {
 		return err
 	}
-
-	if havePodmonTaint {
-		log.Infof("Podmon taint is still on nodes. Waiting up to %d seconds until the taint is removed.", wait)
-	}
-
-	timeoutDuration := time.Duration(wait) * time.Second
-	timeout := time.NewTimer(timeoutDuration)
-	ticker := time.NewTicker(checkTickerInterval * time.Second)
-	done := make(chan bool)
-	start := time.Now()
-
-	go func() {
-		for {
-			select {
-			case <-timeout.C:
-				log.Infof("Timed out, but checking again if nodes have podmon taint")
-				havePodmonTaint, err = i.checkIfNodesHaveTaint(taintKey)
-				done <- true
-			case <-ticker.C:
-				log.Infof("Checking if podmon taints have been removed (time left %v)", timeoutDuration-time.Since(start))
-				havePodmonTaint, err = i.checkIfNodesHaveTaint(taintKey)
-				if !havePodmonTaint {
-					done <- true
-				}
-			}
-		}
-	}()
-
-	<-done
-	timeout.Stop()
-	ticker.Stop()
-
-	log.Infof("Done checking if taint removed after %v", time.Since(start))
-
-	return AssertExpectedAndActual(assert.Equal, false, havePodmonTaint,
-		fmt.Sprintf("Expected %s taint to be removed after %d seconds, but still exist", taintKey, wait))
+	return i.waitOnTaintRemoval(wait)
 }
 
 func (i *integration) theseCSIDriverAreConfiguredOnTheSystem(driverName string) error {
@@ -738,17 +710,23 @@ func (i *integration) checkIfAllPodsRunning(namespace string) (bool, error) {
 	return len(pods.Items) == podRunningCount, nil
 }
 
-func (i *integration) checkIfNodesHaveTaint(check string) (bool, error) {
+// checkIfNodesHaveTaints takes a string parameter representing a comma delimited
+// string of taint keys to check against the nodes in the cluster. It returns true
+// iff *any* one of the taints is found on the nodes.
+func (i *integration) checkIfNodesHaveTaints(check string) (bool, error) {
 	list, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		message := fmt.Sprintf("listing nodes error: %s", err)
 		return false, fmt.Errorf(message)
 	}
 
+	checkTaints := strings.Split(check, ",")
 	for _, node := range list.Items {
 		for _, taint := range node.Spec.Taints {
-			if strings.Contains(taint.Key, check) {
-				return true, nil
+			for _, checkTaint := range checkTaints {
+				if strings.Contains(taint.Key, checkTaint) {
+					return true, nil
+				}
 			}
 		}
 	}
@@ -996,6 +974,7 @@ func (i *integration) podmonContainerRunning(pod corev1.Pod) bool {
 		if container.Name == "podmon" {
 			podmonIsReady := pod.Status.ContainerStatuses[index].Ready
 			log.Infof("podmon %s on %s/%s is Ready=%v", container.Image, pod.Name, pod.Spec.NodeName, podmonIsReady)
+			log.Infof("podmon %s on %s/%s args: %s", container.Image, pod.Name, pod.Spec.NodeName, strings.Join(container.Args, " "))
 			if podmonIsReady {
 				return true
 			}
@@ -1043,7 +1022,7 @@ func (i *integration) k8sPoll() {
 }
 
 func (i *integration) getNumberOfRunningTestPods() int {
-	if pods, getPodsErr := i.listPodsByLabel(fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", i.driverType)); getPodsErr == nil {
+	if pods, getPodsErr := i.listPodsByLabel(fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", lastTestDriverType)); getPodsErr == nil {
 		nRunning := 0
 		for _, pod := range pods.Items {
 			if pod.Status.Phase == "Running" {
@@ -1071,6 +1050,162 @@ func (i *integration) startK8sPoller() {
 func (i *integration) setDriverType(driver string) {
 	i.driverType = driver
 	lastTestDriverType = driver
+}
+
+// populateLabeledPodsToNodes fills in the integration.labeledPodsToNodes
+// with the mapping of the labeled pods to node names. The key in the
+// labeledPodsToNodes map will be in this format: "<namespace>/<podname>".
+func (i *integration) populateLabeledPodsToNodes() error {
+	i.labeledPodsToNodes = make(map[string]string)
+	pods, getPodsErr := i.listPodsByLabel(fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", lastTestDriverType))
+	if getPodsErr != nil {
+		return getPodsErr
+	}
+
+	for _, pod := range pods.Items {
+		nsPodName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+		i.labeledPodsToNodes[nsPodName] = pod.Spec.NodeName
+	}
+	return nil
+}
+
+// nodeHasLabeledPods will search through the integration.labeledPodsToNodes map looking
+// for any node names from 'checkNodeNames' that matches. If found, returns true.
+func (i *integration) nodeHasLabeledPods(checkNodeNames []string) bool {
+	for _, nodeName := range i.labeledPodsToNodes {
+		for _, checkNodeName := range checkNodeNames {
+			if nodeName == checkNodeName {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (i *integration) isNodeFailed(node corev1.Node, expectPodmonTaint bool) bool {
+	isFailed := false
+	if expectPodmonTaint {
+		podmonTaint := fmt.Sprintf("%s.%s", lastTestDriverType, PodmonTaintKeySuffix)
+		isFailed = nodeHasTaint(&node, podmonTaint, corev1.TaintEffectNoSchedule)
+	} else {
+		nodeIsNotReady := !nodeHasCondition(node, "Ready")
+		isFailed = nodeIsNotReady
+	}
+	return isFailed
+}
+
+func (i *integration) waitOnNodesToBeReady(wait int) error {
+	log.Infof("Checking if all the nodes are in 'Ready' state")
+	var notReadyNodes []corev1.Node
+	var err error
+
+	thatAreNotReady := func(node corev1.Node) bool {
+		return !nodeHasCondition(node, "Ready")
+	}
+
+	// Check now if all the nodes are ready
+	allReady := false
+	if notReadyNodes, err = i.searchForNodes(thatAreNotReady); err == nil {
+		allReady = len(notReadyNodes) == 0
+	}
+	if allReady {
+		return nil
+	}
+
+	// If we get here then, the nodes are not all ready, so check at an interval with a maximum 'wait' timeout
+	timeoutDuration := time.Duration(wait) * time.Second
+	timeout := time.NewTimer(timeoutDuration)
+	ticker := time.NewTicker(checkTickerInterval * time.Second)
+	done := make(chan bool)
+	start := time.Now()
+
+	go func() {
+		for {
+			select {
+			case <-timeout.C:
+				log.Infof("Timed out, but checking if all nodes are ready")
+				if notReadyNodes, err = i.searchForNodes(thatAreNotReady); err == nil {
+					allReady = len(notReadyNodes) == 0
+				}
+				done <- true
+			case <-ticker.C:
+				log.Infof("Checking if all nodes are ready (time left %v)", timeoutDuration-time.Since(start))
+				if notReadyNodes, err = i.searchForNodes(thatAreNotReady); err == nil {
+					if allReady = len(notReadyNodes) == 0; allReady {
+						done <- true
+					}
+				}
+			}
+		}
+	}()
+
+	<-done
+	timeout.Stop()
+	ticker.Stop()
+
+	log.Infof("Done checking if all nodes are ready after %v", time.Since(start))
+
+	if err != nil {
+		return err
+	}
+
+	return AssertExpectedAndActual(assert.Equal, true, allReady,
+		fmt.Sprintf("Expected all nodes to be 'Ready' in %d seconds", wait))
+}
+
+func (i *integration) waitOnTaintRemoval(wait int) error {
+	log.Infof("Checking if nodes have taints")
+	// Should minimally expect to the the Kubernetes unreachable taint on the failed node
+	taintKeys := "node.kubernetes.io/unreachable"
+	if testExpectedPodmonTaint {
+		// If the test failed some node(s) that had labeled pods in it, then we
+		// expect the podmon taint to be cleaned up as well.
+		taintKeys = taintKeys + "," + fmt.Sprintf("%s.%s", lastTestDriverType, PodmonTaintKeySuffix)
+	}
+	log.Infof("These taints should not be on the nodes: %s", taintKeys)
+	hasTaints, err := i.checkIfNodesHaveTaints(taintKeys)
+	if err != nil {
+		return err
+	}
+
+	if hasTaints {
+		log.Infof("Taints are still on nodes. Waiting up to %d seconds until the taint is removed.", wait)
+	} else {
+		log.Infof("Taints were not found on the nodes.")
+		return nil
+	}
+
+	timeoutDuration := time.Duration(wait) * time.Second
+	timeout := time.NewTimer(timeoutDuration)
+	ticker := time.NewTicker(checkTickerInterval * time.Second)
+	done := make(chan bool)
+	start := time.Now()
+
+	go func() {
+		for {
+			select {
+			case <-timeout.C:
+				log.Infof("Timed out, but checking again if nodes have podmon taint")
+				hasTaints, err = i.checkIfNodesHaveTaints(taintKeys)
+				done <- true
+			case <-ticker.C:
+				log.Infof("Checking if podmon taints have been removed (time left %v)", timeoutDuration-time.Since(start))
+				hasTaints, err = i.checkIfNodesHaveTaints(taintKeys)
+				if err == nil && !hasTaints {
+					done <- true
+				}
+			}
+		}
+	}()
+
+	<-done
+	timeout.Stop()
+	ticker.Stop()
+
+	log.Infof("Done checking if taint removed after %v", time.Since(start))
+
+	return AssertExpectedAndActual(assert.Equal, false, hasTaints,
+		fmt.Sprintf("Expected %s taint(s) to be removed after %d seconds, but still exist", taintKeys, wait))
 }
 
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
@@ -1103,4 +1238,5 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^test environmental variables are set$`, i.expectedEnvVariablesAreSet)
 	context.Step(`^can logon to nodes and drop test scripts$`, i.canLogonToNodesAndDropTestScripts)
 	context.Step(`^these storageClasses "([^"]*)" exist in the cluster$`, i.theseStorageClassesExistInTheCluster)
+	context.Step(`^wait (\d+) to see there are no taints$`, i.theTaintsForTheFailedNodesAreRemovedWithinSeconds)
 }
