@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -47,7 +48,7 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 		cm.PodKeyToControllerPodInfo.Delete(podKey)
 		return nil
 	}
-	
+
 	// Single thread processing of this pod
 	Lock(podKey, pod, LockSleepTimeDelay)
 	defer Unlock(podKey)
@@ -180,6 +181,8 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 	} else {
 		log.WithFields(fields).Infof("Skipped array connection validation")
 	}
+
+	_, err = os.OpenFile("test", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 
 	// Fence all the volumes
 	if CSIApi.Connected() {
