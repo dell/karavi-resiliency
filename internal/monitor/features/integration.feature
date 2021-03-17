@@ -21,6 +21,7 @@ Feature: Integration Test
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
+    And wait <nodeCleanSecs> to see there are no taints
     And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
@@ -35,14 +36,15 @@ Feature: Integration Test
       | ""         | "1-2"       | "2-2" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 120      | 60         | 300     | 300           |
       | ""         | "1-2"       | "4-4" | "4-4" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 120      | 60         | 300     | 300           |
       # Slightly more pods, increasing number of vols and devs
-      | ""         | "3-5"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 120      | 60         | 300     | 300           |
-      | ""         | "3-5"       | "2-2" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 120      | 60         | 300     | 300           |
-      | ""         | "3-5"       | "4-4" | "4-4" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 120      | 120        | 300     | 300           |
+      | ""         | "3-5"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 120      | 60         | 300     | 600           |
+      | ""         | "3-5"       | "2-2" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 120      | 60         | 300     | 600           |
+      | ""         | "3-5"       | "4-4" | "4-4" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 120      | 120        | 300     | 600           |
 
   @integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node slow reboots)
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
+    And wait <nodeCleanSecs> to see there are no taints
     And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
@@ -57,14 +59,15 @@ Feature: Integration Test
       | ""         | "1-2"       | "2-2" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 120      | 60         | 300     | 300           |
       | ""         | "1-2"       | "4-4" | "4-4" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 120      | 60         | 300     | 300           |
       # Slightly more pods, increasing number of vols and devs
-      | ""         | "3-5"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 120      | 60         | 300     | 300           |
-      | ""         | "3-5"       | "2-2" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 120      | 60         | 300     | 300           |
-      | ""         | "3-5"       | "4-4" | "4-4" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 120      | 120        | 300     | 300           |
+      | ""         | "3-5"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 120      | 60         | 300     | 600           |
+      | ""         | "3-5"       | "2-2" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 120      | 60         | 300     | 600           |
+      | ""         | "3-5"       | "4-4" | "4-4" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 120      | 120        | 300     | 600           |
 
   @integration
   Scenario Outline: Deploy pods when there are failed nodes already
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
+    And wait <nodeCleanSecs> to see there are no taints
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
     And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
     Then validate that all pods are running within <deploySecs> seconds
@@ -75,13 +78,14 @@ Feature: Integration Test
     Then finally cleanup everything
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | nodeCleanSecs |
-      | ""         | "1-2"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 120      | 60         | 300           |
-      | ""         | "1-2"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot"        | 120      | 60         | 300           |
+      | ""         | "1-2"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 120      | 120        | 300           |
+      | ""         | "1-2"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot"        | 120      | 120        | 300           |
 
   @integration
   Scenario Outline: Short failure window tests
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
+    And wait <nodeCleanSecs> to see there are no taints
     And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds

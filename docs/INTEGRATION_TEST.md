@@ -23,6 +23,7 @@ These environmental variables need to be set:
 | PASSWORD | Yes | The password to use for scp'ing failure test scripts and ssh'ing to invoke the failure scripts. _It is assumed all hosts can be accessible with the same password_ | _Appropriate value for your test hosts_ |
 | SCRIPTS_DIR | Yes | The full path to the Karavi Resiliency test scripts from the machine that you are invoking the integration test. | For example if you've cloned the karavi-resiliency repo to /workspace/karavi-resiliency, then this value should be _/workspace/karavi-resiliency/test/sh_ | 
 | POLL_K8S | No |When enabled, will run a background poller that dumps status of the nodes and test pods.  | "true" |
+| RESILIENCY_INT_TEST_STOP_ON_FAILURE | No | By default the integration will be set to stop on any failure. Using this flag and setting it to 'false' will allow tests to continue on failure | default: "true", Set to "false" to disable |
 
 # Running 
 
@@ -39,18 +40,16 @@ cd /workspace/karavi-resiliency/internal/monitor
 
 Set your environmental variables (one time):
 ```shell
-export RESILIENCY_INT_TEST="true"
 export NODE_USER="username"
 export PASSWORD="password"
-export SCRIPTS_DIR="/workspace/karavi-resiliency/test/sh"
-# Optionally:
-export POLL_K8S="true"
 ```
 
 Invoke the make rule:
 ```shell
 make integration-test
 ```
+
+The `integration-test` rule will automatically set environmental variables, RESILIENCY_INT_TEST & SCRIPTS_DIR prior to invoking the test.
 
 # Feature file
 
@@ -99,6 +98,8 @@ Let's now take a look at an actual testing scenario:
   @integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
     Given a kubernetes <kubeConfig>
+    And cluster is clean of test pods
+    And wait <nodeCleanSecs> to see there are no taints
     And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
@@ -107,18 +108,20 @@ Let's now take a look at an actual testing scenario:
     Then finally cleanup everything
 
     Examples:
-      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
+      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers | primary | failure | failSecs | deploySecs | runSecs | nodeCleanSecs |
 ```
 
 All the previous descriptions about the `Examples` apply, except that these are applied to a failure test scenario. In the above, the test does the following:
 
 * Tries connecting to the Kubernetes cluster using the kubeconfig found at `kubeConfig`.
+* Removes any existing test pods that may have been left over from a previous test.
+* Waits `nodeCleanSecs` for all the nodes to be ready, and the podmon taints to be clear. This validation allows the test to run in a clean state.
 * Deploys test pods with given number of pods, volumes, and devices. The volumes will be based on the `driverType`.
 * Expects the test pods to be running with in `deploySecs`.
 * Induces a failure of the specified `failure` type against a number of `workers` and `primary` nodes for a total of `failSecs`. The `workers` and `primary` values are either ratios written in English or numbers, e.g. "one-third", "1", "2". Whether ratio or number, ultimately a number of nodes will be determined to be failed. The test will randomly choose hosts to fulfill that number of failed nodes.
   * Accepted ratio values are: "one-fourth", "1/4", "one-third", "1/3", "one-half", "1/2", "two-thirds", "2/3".
 * Expects the test pods to be running with in `deploySecs`. This is to validate that the fail over of the test pods (if any) occurred, and they are in good condition again after the node failure(s).
-* Checks that the podmon taints are removed from the nodes after `nodeCleanSecs`.
+* Checks that all nodes are in the 'Ready' state and that the podmon taints are removed from the nodes after `nodeCleanSecs`.
 * Deletes all test pods from the cluster.
 
 # Troubleshooting

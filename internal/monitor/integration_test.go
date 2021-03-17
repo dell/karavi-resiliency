@@ -20,8 +20,12 @@ import (
 )
 
 const enableIntTestVar = "RESILIENCY_INT_TEST"
+const enableStopOnFailure = "RESILIENCY_INT_TEST_STOP_ON_FAILURE"
 
 var setupIsGood = false
+
+// stopOnFailure enabled means any failed tests would stop the tests (default: true)
+var stopOnFailure = true
 
 func TestFirstCheck(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableIntTestVar)
@@ -30,10 +34,17 @@ func TestFirstCheck(t *testing.T) {
 		return
 	}
 
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
 	godogOptions := godog.Options{
-		Format: "pretty",
-		Paths:  []string{"features"},
-		Tags:   "int-setup-check",
+		Format:        "pretty",
+		Paths:         []string{"features"},
+		Tags:          "int-setup-check",
+		StopOnFailure: stopOnFailure,
 	}
 	status := godog.TestSuite{
 		Name:                "integration",
@@ -62,11 +73,18 @@ func TestIntegration(t *testing.T) {
 		return
 	}
 
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format: "pretty",
-		Paths:  []string{"features"},
-		Tags:   "integration",
+		Format:        "pretty",
+		Paths:         []string{"features"},
+		Tags:          "integration",
+		StopOnFailure: stopOnFailure,
 	}
 	status := godog.TestSuite{
 		Name:                "integration",
