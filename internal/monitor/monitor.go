@@ -32,6 +32,7 @@ const (
 	podReadyCondition       = "Ready"
 	podInitializedCondition = "Initialized"
 	podmon                  = "podmon"
+	crashLoopBackOffReason  = "CrashLoopBackOff"
 	// PodmonTaintKeySuffix is used for creating a driver specific podmon taint key
 	PodmonTaintKeySuffix = "podmon.storage.dell.com"
 )
@@ -62,6 +63,7 @@ type PodMonitorType struct {
 	Mode                          string   // controller, node, or standalone
 	PodKeyMap                     sync.Map // podkey to *v1.Pod in controller (temporal) or *NodePodInfo in node
 	PodKeyToControllerPodInfo     sync.Map // podkey to *ControllerPodInfo in controller
+	PodKeyToCrashLoopBackOffCount sync.Map // podkey to CrashLoopBackOffCount
 	APIConnected                  bool     // connected to k8s API
 	ArrayConnected                bool     // node is connected to array
 	SkipArrayConnectionValidation bool     // skip validation array connection lost
