@@ -28,6 +28,9 @@ import (
 	"podmon/internal/k8sapi"
 )
 
+// MaxCrashLoopBackOffRetry is the maximum number of times for a pod to be deleted in response to a CrashLoopBackOff
+const MaxCrashLoopBackOffRetry = 5
+
 //ControllerPodInfo has information for tracking health of the system
 type ControllerPodInfo struct { // information controller keeps on hand about a pod
 	PodKey   string   // the Pod Key (namespace/name) of the pod
@@ -42,9 +45,10 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 		pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, pod.Spec.NodeName, pod.Status.Message, pod.Status.Reason, eventType)
 	// Lock so that only one thread is processing pod at a time
 	podKey := getPodKey(pod)
-	// Clean up pod key to node mapping if deleting.
+	// Clean up pod key to PodInfo and CrashLoopBackOffCount mappings if deleting.
 	if eventType == watch.Deleted {
 		cm.PodKeyToControllerPodInfo.Delete(podKey)
+		cm.PodKeyToCrashLoopBackOffCount.Delete(podKey)
 		return nil
 	}
 	// Single thread processing of this pod
@@ -68,6 +72,7 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 			// Determine if node tainted
 			taintnosched := nodeHasTaint(node, nodeUnreachableTaint, v1.TaintEffectNoSchedule)
 			taintnoexec := nodeHasTaint(node, nodeUnreachableTaint, v1.TaintEffectNoExecute)
+			taintpodmon := nodeHasTaint(node, PodmonTaintKey, v1.TaintEffectNoSchedule)
 
 			// Determine pod status
 			ready := false
@@ -80,6 +85,16 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 				}
 				if condition.Type == podInitializedCondition {
 					initialized = condition.Status == v1.ConditionTrue
+				}
+			}
+
+			// Loop for containerStatus for CrashLoopBackOff
+			crashLoopBackOff := false
+			containerStatuses := pod.Status.ContainerStatuses
+			for _, containerStatus := range containerStatuses {
+				log.Debugf("container status ID %s ready %v state %v", containerStatus.ContainerID, containerStatus.Ready, containerStatus.State)
+				if containerStatus.State.Waiting != nil && containerStatus.State.Waiting.Reason == crashLoopBackOffReason {
+					crashLoopBackOff = true
 				}
 			}
 
@@ -98,13 +113,26 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 					ArrayIDs: arrayIDs,
 				}
 				cm.PodKeyToControllerPodInfo.Store(podKey, podInfo)
+				// Delete (reset) the CrashLoopBackOff counter since we're running.
+				cm.PodKeyToCrashLoopBackOffCount.Delete(podKey)
 			}
 
-			log.Printf("podMonitorHandler: namespace: %s name: %s nodename: %s initialized: %t taint-nosched: %t taint-noexec: %t ready: %t",
-				pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, pod.Spec.NodeName, initialized, taintnosched, taintnoexec, ready)
+			log.Infof("podMonitorHandler: namespace: %s name: %s nodename: %s initialized: %t ready: %t taints [nosched: %t noexec: %t podmon: %t ]",
+				pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, pod.Spec.NodeName, initialized, ready, taintnosched, taintnoexec, taintpodmon)
 			// TODO: option for taintnosched vs. taintnoexec
-			if (taintnoexec || taintnosched) && !ready {
-				go cm.controllerCleanupPod(pod, node, "NodeFailure")
+			if (taintnoexec || taintnosched || taintpodmon) && !ready {
+				go cm.controllerCleanupPod(pod, node, "NodeFailure", taintpodmon)
+			} else if !ready && crashLoopBackOff {
+				cnt, _ := cm.PodKeyToCrashLoopBackOffCount.LoadOrStore(podKey, 0)
+				crashLoopBackOffCount := cnt.(int)
+				if crashLoopBackOffCount < MaxCrashLoopBackOffRetry {
+					log.Infof("cleaning up CrashLoopBackOff pod %s", podKey)
+					K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, crashLoopBackOffReason, "podmon cleaning pod %s with delete",
+						string(pod.ObjectMeta.UID), node.ObjectMeta.Name, fmt.Sprintf("retry: %d", crashLoopBackOffCount))
+					err = K8sAPI.DeletePod(ctx, pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, pod.ObjectMeta.UID, false)
+					crashLoopBackOffCount = crashLoopBackOffCount + 1
+					cm.PodKeyToCrashLoopBackOffCount.Store(podKey, crashLoopBackOffCount)
+				}
 			}
 		}
 
@@ -113,7 +141,7 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 }
 
 // Attempts to cleanup a Pod that is in trouble. Returns true if made it all the way to deleting the pod.
-func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reason string) bool {
+func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reason string, taintpodmon bool) bool {
 	fields := make(map[string]interface{})
 	fields["namespace"] = pod.ObjectMeta.Namespace
 	fields["pod"] = pod.ObjectMeta.Name
@@ -171,8 +199,10 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 		if CSIApi.Connected() {
 			log.WithFields(fields).Infof("Validating host connectivity for node %s volumes %v", node.ObjectMeta.Name, volIDs)
 			connected, iosInProgress, err := cm.callValidateVolumeHostConnectivity(node, volIDs, true)
-			if connected || iosInProgress || err != nil {
+			// Don't consider connected status if taintpodmon is set, because the node may just have come back online.
+			if (connected && !taintpodmon) || iosInProgress || err != nil {
 				log.WithFields(fields).Info("Aborting pod cleanup because array still connected and/or recently did I/O")
+				K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, reason, "podmon aborted pod cleanup %s array connected or recent I/O", string(pod.ObjectMeta.UID), node.ObjectMeta.Name)
 				return false
 			}
 		}
@@ -192,6 +222,7 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 		}
 		if nerrors > 0 {
 			log.WithFields(fields).Errorf("There were %d errors calling ControllerUnpublishVolume to fence the node. Aborting pod cleanup.", nerrors)
+			K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, reason, "podmon aborted pod cleanup %s couldn't fence volumes", string(pod.ObjectMeta.UID), node.ObjectMeta.Name)
 			return false
 		}
 	}
@@ -334,7 +365,7 @@ func (cm *PodMonitorType) ArrayConnectivityMonitor(pollRate time.Duration) {
 				if err == nil {
 					if string(pod.ObjectMeta.UID) == podUID && pod.Spec.NodeName == node.ObjectMeta.Name {
 						log.Infof("Cleaning up pod %s/%s because of array connectivity loss", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
-						cm.controllerCleanupPod(pod, node, "ArrayConnectionLost")
+						cm.controllerCleanupPod(pod, node, "ArrayConnectionLost", false)
 					} else {
 						log.Infof("Skipping pod %s/%s podUID %s %s node %s %s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name,
 							string(pod.ObjectMeta.UID), podUID, pod.Spec.NodeName, node.ObjectMeta.Name)
@@ -346,7 +377,7 @@ func (cm *PodMonitorType) ArrayConnectivityMonitor(pollRate time.Duration) {
 		cm.PodKeyToControllerPodInfo.Range(fnPodKeyToControllerPodInfo)
 		time.Sleep(pollRate)
 		if pollRate < 10*time.Millisecond {
-			// unit testing exit
+			// disabled or unit testing exit
 			return
 		}
 	}

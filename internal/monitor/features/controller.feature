@@ -42,6 +42,7 @@ Feature: Controller Monitor
    | "node1"       | 2    | "Initialized" | "noexec"                | "none"                          | "Updated" | "true"  | "false" | "Successfully cleaned up pod"   |
    | "node1"       | 2    | "NotReady"    | "noexec"                | "none"                          | "Updated" | "true"  | "false" | "Successfully cleaned up pod"   |
    | "node1"       | 2    | "NotReady"    | "nosched"               | "none"                          | "Updated" | "true"  | "false" | "Successfully cleaned up pod"   |
+   | "node1"       | 2    | "CrashLoop"   | "none"                  | "none"                          | "Updated" | "false" | "false" | "cleaning up CrashLoopBackOff pod" |
    | "node1"       | 2    | "NotReady"    | "nosched"               | "none"                          | "Deleted" | "false" | "false" | "none"                          |
    | "node1"       | 2    | "Ready"       | "none"                  | "none"                          | "Updated" | "false" | "true"  | "none"                          |
    | "node1"       | 2    | "NotReady"    | "noexec"                | "GetPod"                        | "Updated" | "false" | "false" | "GetPod failed"                 |
