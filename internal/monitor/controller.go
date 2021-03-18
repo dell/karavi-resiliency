@@ -31,6 +31,9 @@ import (
 // MaxCrashLoopBackOffRetry is the maximum number of times for a pod to be deleted in response to a CrashLoopBackOff
 const MaxCrashLoopBackOffRetry = 5
 
+// MaxControllerCleanupPodRetry is the maximum number of retries for pod cleanup
+var MaxControllerCleanupPodRetry = 3
+
 //ControllerPodInfo has information for tracking health of the system
 type ControllerPodInfo struct { // information controller keeps on hand about a pod
 	PodKey   string   // the Pod Key (namespace/name) of the pod
@@ -121,7 +124,7 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 				pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, pod.Spec.NodeName, initialized, ready, taintnosched, taintnoexec, taintpodmon)
 			// TODO: option for taintnosched vs. taintnoexec
 			if (taintnoexec || taintnosched || taintpodmon) && !ready {
-				go cm.controllerCleanupPod(pod, node, "NodeFailure", taintpodmon)
+				go cm.queueControllerCleanupPod(pod, node, "NodeFailure", taintpodmon)
 			} else if !ready && crashLoopBackOff {
 				cnt, _ := cm.PodKeyToCrashLoopBackOffCount.LoadOrStore(podKey, 0)
 				crashLoopBackOffCount := cnt.(int)
@@ -138,6 +141,43 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 
 	}
 	return nil
+}
+
+func (cm *PodMonitorType) queueControllerCleanupPod(pod *v1.Pod, node *v1.Node, reason string, taintpodmon bool) {
+	queueEntry := controllerCleanupPodRequest{
+		pod:         pod,
+		node:        node,
+		reason:      reason,
+		taintpodmon: taintpodmon,
+	}
+	log.Infof("queueing %v", queueEntry)
+	cm.ControllerCleanupPodQueue <- queueEntry
+}
+
+type controllerCleanupPodRequest struct {
+	pod         *v1.Pod  // the pod to be cleaned
+	node        *v1.Node // the node holding the pod
+	reason      string   // reason for the cleanup (for the event)
+	taintpodmon bool     // boolean if the podmon taint is applied
+	retryCount  int      // number of retries for this request
+}
+
+func (cm *PodMonitorType) runControllerCleanupPod() {
+	for {
+		select {
+		case req := <-cm.ControllerCleanupPodQueue:
+			done := cm.controllerCleanupPod(req.pod, req.node, req.reason, req.taintpodmon)
+			if !done {
+				req.retryCount++
+				if req.retryCount <= MaxControllerCleanupPodRetry {
+					// Implement retry if couldn't be completed
+					log.Infof("Requeue ControllerCleanupPodRequest pod %s/%s (%s) retry %d", req.pod.ObjectMeta.Namespace,
+						req.pod.ObjectMeta.Name, req.pod.ObjectMeta.UID, req.retryCount)
+					cm.ControllerCleanupPodQueue <- req
+				}
+			}
+		}
+	}
 }
 
 // Attempts to cleanup a Pod that is in trouble. Returns true if made it all the way to deleting the pod.
@@ -365,7 +405,7 @@ func (cm *PodMonitorType) ArrayConnectivityMonitor(pollRate time.Duration) {
 				if err == nil {
 					if string(pod.ObjectMeta.UID) == podUID && pod.Spec.NodeName == node.ObjectMeta.Name {
 						log.Infof("Cleaning up pod %s/%s because of array connectivity loss", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
-						cm.controllerCleanupPod(pod, node, "ArrayConnectionLost", false)
+						cm.queueControllerCleanupPod(pod, node, "ArrayConnectionLost", false)
 					} else {
 						log.Infof("Skipping pod %s/%s podUID %s %s node %s %s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name,
 							string(pod.ObjectMeta.UID), podUID, pod.Spec.NodeName, node.ObjectMeta.Name)

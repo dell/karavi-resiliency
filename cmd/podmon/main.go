@@ -43,6 +43,7 @@ const (
 	mode                                     = "controller"
 	skipArrayConnectionValidation            = false
 	driverPath                               = "csi-vxflexos.dellemc.com"
+	cleanupPodThreads                        = 3
 )
 
 //K8sAPI is reference to the internal Kubernetes wrapper client
@@ -129,7 +130,8 @@ func main() {
 		}
 	}
 	monitor.PodMonitor.DriverPathStr = *args.driverPath
-	log.Infof("PodMonitor.DriverPathStr = %s", monitor.PodMonitor.DriverPathStr)
+	monitor.ControllerCleanupPodThreads = *args.cleanupPodThreads
+	log.Infof("PodMonitor.DriverPathStr = %s CleanupPodThreads %d", monitor.PodMonitor.DriverPathStr, monitor.ControllerCleanupPodThreads)
 	run := func(context.Context) {
 		if *args.mode == "node" {
 			err := StartAPIMonitorFn(K8sAPI, monitor.APICheckFirstTryTimeout, monitor.APICheckRetryTimeout, monitor.APICheckInterval, monitor.APIMonitorWait)
@@ -177,6 +179,7 @@ type PodmonArgs struct {
 	mode                                     *string // running mode, either "controller" for controller sidecar, "node" node sidecar, "standalone"
 	skipArrayConnectionValidation            *bool   // skip the validation that array connectivity has been lost
 	driverPath                               *string // driverPath to use for parsing csi.volume.kubernetes.io/nodeid annotation
+	cleanupPodThreads                        *int    // number of threads for controller cleanupPod
 }
 
 var args PodmonArgs
@@ -194,6 +197,7 @@ func getArgs() {
 		args.mode = flag.String("mode", mode, "operating mode: controller (default), node, or standalone")
 		args.skipArrayConnectionValidation = flag.Bool("skipArrayConnectionValidation", skipArrayConnectionValidation, "skip validation of array connectivity loss before killing pod")
 		args.driverPath = flag.String("driverPath", driverPath, "driverPath to use for parsing csi.volume.kubernetes.io/nodeid annotation")
+		args.cleanupPodThreads = flag.Int("cleanupPodThreads", cleanupPodThreads, "cleanupPodThreads sets the number of threads for cleaning up pods in the controller")
 	})
 
 	// -- For testing purposes. Re-default the values since main will be called multiple times --

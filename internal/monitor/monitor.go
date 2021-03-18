@@ -56,19 +56,24 @@ var (
 	MonitorRestartTimeDelay = 10 * time.Second
 	//LockSleepTimeDelay wait for lock retry
 	LockSleepTimeDelay = 1 * time.Second
+	// ControllerCleanupPodQueueLength is the queue size for the ControllerCleanupPodQueue
+	ControllerCleanupPodQueueLength = 255
+	// ControllerCleanupPodThreads is the number of threads servicing the ControllerCleanupPodQueue
+	ControllerCleanupPodThreads = 3
 )
 
 //PodMonitorType structure is tracking data for the pod monitor
 type PodMonitorType struct {
-	Mode                          string   // controller, node, or standalone
-	PodKeyMap                     sync.Map // podkey to *v1.Pod in controller (temporal) or *NodePodInfo in node
-	PodKeyToControllerPodInfo     sync.Map // podkey to *ControllerPodInfo in controller
-	PodKeyToCrashLoopBackOffCount sync.Map // podkey to CrashLoopBackOffCount
-	APIConnected                  bool     // connected to k8s API
-	ArrayConnected                bool     // node is connected to array
-	SkipArrayConnectionValidation bool     // skip validation array connection lost
-	CSIExtensionsPresent          bool     // the CSI PodmonExtensions are present
-	DriverPathStr                 string   // CSI Driver path string for parsing csi.volume.kubernetes.io/nodeid annotation
+	Mode                          string                           // controller, node, or standalone
+	PodKeyMap                     sync.Map                         // podkey to *v1.Pod in controller (temporal) or *NodePodInfo in node
+	PodKeyToControllerPodInfo     sync.Map                         // podkey to *ControllerPodInfo in controller
+	PodKeyToCrashLoopBackOffCount sync.Map                         // podkey to CrashLoopBackOffCount
+	APIConnected                  bool                             // connected to k8s API
+	ArrayConnected                bool                             // node is connected to array
+	SkipArrayConnectionValidation bool                             // skip validation array connection lost
+	CSIExtensionsPresent          bool                             // the CSI PodmonExtensions are present
+	DriverPathStr                 string                           // CSI Driver path string for parsing csi.volume.kubernetes.io/nodeid annotation
+	ControllerCleanupPodQueue     chan controllerCleanupPodRequest // A queue for controllerCleanupPod requests
 }
 
 //PodMonitor is a reference to tracking data for the pod monitor
@@ -170,6 +175,10 @@ func podMonitorHandler(eventType watch.EventType, object interface{}) error {
 //StartPodMonitor starts the PodMonitor so that it is processing pods which might have problems.
 // The labelKey and labelValue are used for filtering.
 func StartPodMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, labelValue string, restartDelay time.Duration) {
+	PodMonitor.ControllerCleanupPodQueue = make(chan controllerCleanupPodRequest, ControllerCleanupPodQueueLength)
+	for i := 0; i < ControllerCleanupPodThreads; i++ {
+		go PodMonitor.runControllerCleanupPod()
+	}
 	log.Infof("attempting to start PodMonitor\n")
 	PodmonTaintKey = fmt.Sprintf("%s.%s", Driver.GetDriverName(), PodmonTaintKeySuffix)
 	podMonitor := Monitor{Client: client}

@@ -98,6 +98,12 @@ func (f *feature) aControllerMonitor(driver string) error {
 	f.podmonMonitor = &PodMonitorType{}
 	f.podmonMonitor.CSIExtensionsPresent = true
 	f.podmonMonitor.DriverPathStr = "csi-vxflexos.dellemc.com"
+	if f.podmonMonitor.ControllerCleanupPodQueue == nil {
+		f.podmonMonitor.ControllerCleanupPodQueue = make(chan controllerCleanupPodRequest, ControllerCleanupPodQueueLength)
+		for i := 0; i < 1; i++ {
+			go f.podmonMonitor.runControllerCleanupPod()
+		}
+	}
 	gofsutil.UseMockFS()
 	RemoveDir = f.mockRemoveDir
 	f.badWatchObject = false
