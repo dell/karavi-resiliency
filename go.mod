@@ -2,8 +2,6 @@ module podmon
 
 go 1.13
 
-// replace github.com/dell/dell-csi-extensions/podmon => ./dell-csi-extensions/podmon
-
 require (
 	github.com/bramvdbogaerde/go-scp v0.0.0-20201229172121-7a6c0268fa67
 	github.com/container-storage-interface/spec v1.1.0
