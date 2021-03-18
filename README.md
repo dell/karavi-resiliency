@@ -22,15 +22,13 @@ For more background on forced deletion of Pods in a StatefulSet, please visit [F
 
 _Karavi Resiliency_ is a project designed to make Kubernetes Applications, including those that utilize persistent storage, more resilient to various failures. The first component of _Karavi Resiliency_ is a pod monitor that is specifically designed to protect stateful applications from various failures. It is not a standalone application, but rather is deployed as a _sidecar_ to CSI (Container Storage Interface) drivers, in both the driver's controller pods and the driver's node pods. Deploying Karavi Resiliency as a sidecar allows it to make direct requests to the driver through the Unix domain socket that Kubernetes sidecars use to make CSI requests.
 
-The pod monitor sidecar is currently named "podmon", but it might be renamed to "resiliency" or "karavi-resiliency" in future releases. When used in this document, podmon refers specifically to the sidecar container.
-
 Some of the methods Karavi Resiliency invokes in the driver are standard CSI methods, such as NodeUnpublishVolume, NodeUnstageVolume, and ControllerUnpublishVolume. Karavi Resiliency also uses proprietary calls that are not part of the standard CSI specification. Currently there is only one, ValidateVolumeHostConnectivity that returns information on whether a host is connected to the storage system and/or whether any I/O activity has happened in the recent past from a list of specified volumes. This allows Karavi Resiliency to make more accurate determinations about the state of the system and its persistent volumes.
 
 Accordingly Karavi Resiliency is adapted to, and qualified with each CSI driver it is to be used with. Different storage systems have different nuances and characteristics that Karavi Resiliency must take into account.
 
-Karavi Resiliency is currently in a _Technical Preview Phase_, and should be considered _alpha_ software. We are actively seeking feedback from users about its features, effectiveness, and reliability. We will take that input, along with our own results from doing extensive testing, and incrementally improve the software. We do ***not*** recommend or support it for production use at this time.
+Karavi Resiliency is currently in a _Technical Preview Phase_, and should be considered _alpha_ software. We are actively seeking feedback from users about its features, effectiveness, and reliability. Please provide feedback using the karavi@dell.com email alias. We will take that input, along with our own results from doing extensive testing, and incrementally improve the software. We do ***not*** recommend or support it for production use at this time.
 
-The rest of the documentation is organized as follows:
+# Table of Contents
 
 ## I. [Use Cases](docs/USE_CASES.md) 
 Contains descriptions of the types of Kubernetes system failures that _Karavi Resiliency_ was designed to assist with. 
@@ -58,7 +56,6 @@ This section explains what information we need to diagnose the cause of problems
 
 ## IX. [Testing Methodology and Results](docs/TESTING.md)
 This section contains information how we tested _Karavi Resiliency_ and the results we achieved.
-
 
 ## X. Information for Project Contributors
 - [Code of Conduct](./docs/CODE_OF_CONDUCT.md)
