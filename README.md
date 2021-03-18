@@ -30,34 +30,34 @@ Karavi Resiliency is currently in a _Technical Preview Phase_, and should be con
 
 # Table of Contents
 
-## I. [Use Cases](docs/USE_CASES.md) 
+## [Use Cases](docs/USE_CASES.md) 
 Contains descriptions of the types of Kubernetes system failures that _Karavi Resiliency_ was designed to assist with. 
 
-## II. [Supported Drivers, Access Protocols, and Driver Features](docs/SUPPORTED_DRIVERS.md)
+## [Supported Drivers, Access Protocols, and Driver Features](docs/SUPPORTED_DRIVERS.md)
 Contains details about what drivers are supported, and what features are available with each driver.
 
-## III. [Karavi Resiliency Design and How It Works](docs/DESIGN.md)
+## [Karavi Resiliency Design and How It Works](docs/DESIGN.md)
 Contains the details about the design you need to need to know. 
 
-## IV. [Limitations and Exclusions](docs/LIMITATIONS.md)
+## [Limitations and Exclusions](docs/LIMITATIONS.md)
 Contains information on limitations. Please read this- especially for the _alpha_ stage, as not all features are implemented during _alpha_.
 
-## V. [Deploying Karavi Resiliency](docs/DEPLOYING.md)
+## [Deploying Karavi Resiliency](docs/DEPLOYING.md)
 Contains information on how to deploy _Karavi Resiliency_ as part of the driver installation process.
 
-## VI. [Deploying and Managing Applications Protected By Karavi Resiliency](docs/APPLICATIONS.md)
+## [Deploying and Managing Applications Protected By Karavi Resiliency](docs/APPLICATIONS.md)
 Contains information on how to deploy protected applications and how to know they are protected.
 
-## VII. [Recovering from Failures](docs/RECOVERY.md)
+## [Recovering from Failures](docs/RECOVERY.md)
 Contains important information about how to recover when failures cannot be resolved automatically.
 
-## VIII. [Reporting Problems](docs/PROBLEMS.md)
+## [Reporting Problems](docs/PROBLEMS.md)
 This section explains what information we need to diagnose the cause of problems with the _Karavi Resiliency_ protection systems. This information should be submitted in any issues if possible.
 
-## IX. [Testing Methodology and Results](docs/TESTING.md)
+## [Testing Methodology and Results](docs/TESTING.md)
 This section contains information how we tested _Karavi Resiliency_ and the results we achieved.
 
-## X. Information for Project Contributors
+## Information for Project Contributors
 - [Code of Conduct](./docs/CODE_OF_CONDUCT.md)
 - Guides
     - [Maintainer Guide](./docs/MAINTAINER_GUIDE.md)
