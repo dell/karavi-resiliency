@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	csi "github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	csiext "github.com/dell/dell-csi-extensions/podmon"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -127,8 +127,10 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 				crashLoopBackOffCount := cnt.(int)
 				if crashLoopBackOffCount < MaxCrashLoopBackOffRetry {
 					log.Infof("cleaning up CrashLoopBackOff pod %s", podKey)
-					K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, crashLoopBackOffReason, "podmon cleaning pod %s with delete",
-						string(pod.ObjectMeta.UID), node.ObjectMeta.Name, fmt.Sprintf("retry: %d", crashLoopBackOffCount))
+					if err = K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, crashLoopBackOffReason, "podmon cleaning pod %s with delete",
+						string(pod.ObjectMeta.UID), node.ObjectMeta.Name, fmt.Sprintf("retry: %d", crashLoopBackOffCount)); err != nil {
+						log.Errorf("Failed to send %s event: %s", crashLoopBackOffReason, err.Error())
+					}
 					err = K8sAPI.DeletePod(ctx, pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, pod.ObjectMeta.UID, false)
 					crashLoopBackOffCount = crashLoopBackOffCount + 1
 					cm.PodKeyToCrashLoopBackOffCount.Store(podKey, crashLoopBackOffCount)
@@ -177,13 +179,14 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 	volIDs := make([]string, 0)
 	vaNamesToDelete := make([]string, 0)
 	for _, va := range volumeAttachmentList.Items {
-		podVA, err := K8sAPI.IsVolumeAttachmentToPod(ctx, &va, pod)
+		vaCopy := va // To prevent gosec error: "G601 (CWE-118): Implicit memory aliasing in for loop"
+		podVA, err := K8sAPI.IsVolumeAttachmentToPod(ctx, &vaCopy, pod)
 		if err != nil {
 			log.WithFields(fields).Errorf("Aborting cleanup because could not determine if VA %s belongs to pod: %s", va.ObjectMeta.Name, err.Error())
 			return false
 		}
 		if podVA {
-			volID, err := K8sAPI.GetVolumeHandleFromVA(ctx, &va)
+			volID, err := K8sAPI.GetVolumeHandleFromVA(ctx, &vaCopy)
 			if err != nil {
 				log.WithFields(fields).Errorf("Aborting cleanup because could not getVolumeHandleFromVA: %v %s", va, err.Error())
 				return false
@@ -202,7 +205,11 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 			// Don't consider connected status if taintpodmon is set, because the node may just have come back online.
 			if (connected && !taintpodmon) || iosInProgress || err != nil {
 				log.WithFields(fields).Info("Aborting pod cleanup because array still connected and/or recently did I/O")
-				K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, reason, "podmon aborted pod cleanup %s array connected or recent I/O", string(pod.ObjectMeta.UID), node.ObjectMeta.Name)
+				if err = K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, reason,
+					"podmon aborted pod cleanup %s array connected or recent I/O",
+					string(pod.ObjectMeta.UID), node.ObjectMeta.Name); err != nil {
+					log.Errorf("Failed to send %s event: %s", reason, err.Error())
+				}
 				return false
 			}
 		}
@@ -222,7 +229,11 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 		}
 		if nerrors > 0 {
 			log.WithFields(fields).Errorf("There were %d errors calling ControllerUnpublishVolume to fence the node. Aborting pod cleanup.", nerrors)
-			K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, reason, "podmon aborted pod cleanup %s couldn't fence volumes", string(pod.ObjectMeta.UID), node.ObjectMeta.Name)
+			if err = K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, reason,
+				"podmon aborted pod cleanup %s couldn't fence volumes",
+				string(pod.ObjectMeta.UID), node.ObjectMeta.Name); err != nil {
+				log.Errorf("Failed to send %s event: %s", reason, err.Error())
+			}
 			return false
 		}
 	}
@@ -243,7 +254,11 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 	}
 
 	// Force delete the pod.
-	K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, reason, "podmon cleaning pod %s with force delete", string(pod.ObjectMeta.UID), node.ObjectMeta.Name)
+	if err = K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, reason,
+		"podmon cleaning pod %s with force delete",
+		string(pod.ObjectMeta.UID), node.ObjectMeta.Name); err != nil {
+		log.Errorf("Failed to send %s event: %s", reason, err.Error())
+	}
 	err = K8sAPI.DeletePod(ctx, pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, pod.ObjectMeta.UID, true)
 	if err == nil {
 		log.WithFields(fields).Infof("Successfully cleaned up pod")
@@ -392,7 +407,7 @@ type nodeArrayConnectivityCache struct {
 var connectivityCache nodeArrayConnectivityCache
 
 //ArrayConnectivityConnectionLossThreshold is the number of consecutive samples that must fail before we declare connectivity loss
-var ArrayConnectivityConnectionLossThreshold int = 3
+var ArrayConnectivityConnectionLossThreshold = 3
 
 // CheckConnectivity returns true if the node has connectivity to the arrayID supplied
 func (nacc *nodeArrayConnectivityCache) CheckConnectivity(cm *PodMonitorType, node *v1.Node, arrayID string) bool {
