@@ -43,6 +43,7 @@ const (
 	mode                                     = "controller"
 	skipArrayConnectionValidation            = false
 	driverPath                               = "csi-vxflexos.dellemc.com"
+	logLevel                                 = "INFO"
 )
 
 //K8sAPI is reference to the internal Kubernetes wrapper client
@@ -77,6 +78,13 @@ func main() {
 		TimestampFormat: time.RFC1123,
 	})
 	getArgs()
+	if ll, err := log.ParseLevel(*args.logLevel); err == nil {
+		log.Infof("Setting log level to %v", ll)
+		log.SetLevel(ll)
+	} else {
+		log.Errorf("An invalid log level provided: %s", *args.logLevel)
+		return
+	}
 	switch *args.mode {
 	case "controller":
 		monitor.PodMonitor.Mode = *args.mode
@@ -177,6 +185,7 @@ type PodmonArgs struct {
 	mode                                     *string // running mode, either "controller" for controller sidecar, "node" node sidecar, "standalone"
 	skipArrayConnectionValidation            *bool   // skip the validation that array connectivity has been lost
 	driverPath                               *string // driverPath to use for parsing csi.volume.kubernetes.io/nodeid annotation
+	logLevel                                 *string // Set the log level for the podmon sidecar
 }
 
 var args PodmonArgs
@@ -194,6 +203,7 @@ func getArgs() {
 		args.mode = flag.String("mode", mode, "operating mode: controller (default), node, or standalone")
 		args.skipArrayConnectionValidation = flag.Bool("skipArrayConnectionValidation", skipArrayConnectionValidation, "skip validation of array connectivity loss before killing pod")
 		args.driverPath = flag.String("driverPath", driverPath, "driverPath to use for parsing csi.volume.kubernetes.io/nodeid annotation")
+		args.logLevel = flag.String("logLevel", logLevel, "set a log output level")
 	})
 
 	// -- For testing purposes. Re-default the values since main will be called multiple times --
@@ -207,6 +217,7 @@ func getArgs() {
 	*args.mode = mode
 	*args.skipArrayConnectionValidation = skipArrayConnectionValidation
 	*args.driverPath = driverPath
+	*args.logLevel = logLevel
 	flag.Parse()
 }
 
