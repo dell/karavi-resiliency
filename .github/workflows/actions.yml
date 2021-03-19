@@ -57,7 +57,7 @@ jobs:
       - name: Run Go Security
         uses: securego/gosec@master
         with:
-          args: -exclude-dir=test -exclude=G104,G601 ./...
+          args: -exclude-dir=test ./...
   malware_security_scan:
     name: Malware Scanner
     runs-on: ubuntu-latest
