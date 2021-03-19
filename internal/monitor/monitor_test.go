@@ -53,11 +53,14 @@ func TestControllerMode(t *testing.T) {
 		Paths:  []string{"features"},
 		Tags:   "controller-mode",
 	}
-	godog.TestSuite{
+	status := godog.TestSuite{
 		Name:                "monitor",
 		ScenarioInitializer: MonitorTestScenarioInit,
 		Options:             &godogOptions,
 	}.Run()
+	if status != 0 {
+		t.Error("There were failed node-mode tests")
+	}
 	log.Printf("Controller-mode test finished")
 }
 

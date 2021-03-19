@@ -156,11 +156,17 @@ func podMonitorHandler(eventType watch.EventType, object interface{}) error {
 	pm := &PodMonitor
 	switch PodMonitor.Mode {
 	case "controller":
-		pm.controllerModePodHandler(pod, eventType)
+		if err := pm.controllerModePodHandler(pod, eventType); err != nil {
+			return err
+		}
 	case "standalone":
-		pm.controllerModePodHandler(pod, eventType)
+		if err := pm.controllerModePodHandler(pod, eventType); err != nil {
+			return err
+		}
 	case "node":
-		pm.nodeModePodHandler(pod, eventType)
+		if err := pm.nodeModePodHandler(pod, eventType); err != nil {
+			return err
+		}
 	default:
 		log.Error("PodMonitor.Mode not set")
 	}

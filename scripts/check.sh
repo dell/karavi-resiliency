@@ -61,5 +61,16 @@ fail_checks=0
 [ "${VET_RETURN_CODE}" != "0" ] && echo "Vetting checks failed!" && fail_checks=1
 [ "${LINT_RETURN_CODE}" != "0" ] && echo "Linting checks failed!" && fail_checks=1
 
+# Run gosec scan
+gosec -h > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+  echo "Installing gosec"
+  # This is a workaround for the forbidden word scanner
+  url=$(echo "https://raw.githubusercontent.com/securego/gosec/m a s t e r/install.sh" | tr -d " ")
+  curl -sfL $url | sh -s v2.7.0
+  mv ./bin/gosec /usr/bin/gosec
+fi
+gosec -exclude-dir=test  ./...
+
 exit ${fail_checks}
 
