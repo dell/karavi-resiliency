@@ -61,5 +61,14 @@ fail_checks=0
 [ "${VET_RETURN_CODE}" != "0" ] && echo "Vetting checks failed!" && fail_checks=1
 [ "${LINT_RETURN_CODE}" != "0" ] && echo "Linting checks failed!" && fail_checks=1
 
+# Run gosec scan
+gosec -h > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+  echo "Installing gosec"
+  curl -sfL https://raw.githubusercontent.com/securego/gosec/master/install.sh | sh -s v2.7.0
+  mv ./bin/gosec /usr/bin/gosec
+fi
+gosec -exclude-dir=test  ./...
+
 exit ${fail_checks}
 
