@@ -43,14 +43,12 @@ type integration struct {
 	testNamespacePrefix string
 	scriptsDir          string
 	labeledPodsToNodes  map[string]string
+	nodesToTaints       map[string]string
 }
 
 // Used for keeping of track of the last test that was
 // run, so that we can clean up in case of failure
 var lastTestDriverType string
-
-// Keep track if the test should result in a podmon taint against the failed node(s)
-var testExpectedPodmonTaint bool
 
 // wordsToNumberMap used for mapping a number-word strings to a float64 value.
 var wordsToNumberMap = map[string]float64{
@@ -153,6 +151,8 @@ func (i *integration) givenKubernetes(configPath string) error {
 		return err
 	}
 
+	i.nodesToTaints = make(map[string]string)
+
 	nodesWithScriptsInitOnce.Do(func() {
 		nodesWithScripts = make(map[string]bool)
 	})
@@ -233,8 +233,6 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 		return err
 	}
 
-	testExpectedPodmonTaint = i.nodeHasLabeledPods(failedWorkers) || i.nodeHasLabeledPods(failedPrimary)
-
 	log.Infof("Requested nodes to fail. Waiting up to %d seconds to see if they show up as failed.", wait)
 	timeoutDuration := time.Duration(wait) * time.Second
 	timeout := time.NewTimer(timeoutDuration)
@@ -246,7 +244,7 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 	requestedWorkersAndFailed := func(node corev1.Node) bool {
 		found := false
 		for _, worker := range failedWorkers {
-			if node.Name == worker && i.isNodeFailed(node, testExpectedPodmonTaint) {
+			if node.Name == worker && i.isNodeFailed(node) {
 				found = true
 				break
 			}
@@ -258,7 +256,7 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 	requestedPrimaryAndFailed := func(node corev1.Node) bool {
 		found := false
 		for _, primaryNode := range failedPrimary {
-			if node.Name == primaryNode && i.isNodeFailed(node, testExpectedPodmonTaint) {
+			if node.Name == primaryNode && i.isNodeFailed(node) {
 				found = true
 				break
 			}
@@ -710,19 +708,21 @@ func (i *integration) checkIfAllPodsRunning(namespace string) (bool, error) {
 	return len(pods.Items) == podRunningCount, nil
 }
 
-// checkIfNodesHaveTaints takes a string parameter representing a comma delimited
-// string of taint keys to check against the nodes in the cluster. It returns true
-// iff *any* one of the taints is found on the nodes.
-func (i *integration) checkIfNodesHaveTaints(check string) (bool, error) {
+// checkIfNodesHaveTaints will iterate through the list of nodes in the cluster
+// validating if each node has the expected taints based on the failure.
+// That is, if the node failed and it had pods on it, it should expect to see
+// the Kubernetes unreachable and the podmon taint. If the node didn't have
+// any pods running on it, then it should expect only the unreachable taint.
+func (i *integration) checkIfNodesHaveTaints() (bool, error) {
 	list, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		message := fmt.Sprintf("listing nodes error: %s", err)
 		return false, fmt.Errorf(message)
 	}
 
-	checkTaints := strings.Split(check, ",")
 	for _, node := range list.Items {
 		for _, taint := range node.Spec.Taints {
+			checkTaints := strings.Split(i.getExpectedTaints(node.Name), ",")
 			for _, checkTaint := range checkTaints {
 				if strings.Contains(taint.Key, checkTaint) {
 					return true, nil
@@ -833,6 +833,10 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 			failedNodes = append(failedNodes, name)
 			failed++
 		}
+	}
+
+	for _, name := range failedNodes {
+		i.nodesToTaints[name] = i.getExpectedTaints(name)
 	}
 
 	return failedNodes, nil
@@ -1004,6 +1008,9 @@ func (i *integration) k8sPoll() {
 				taintKeys = append(taintKeys, taint.Key)
 			}
 			log.Infof("k8sPoll: Node: %s Ready:%v Taints: %s", node.Name, nodeReady, strings.Join(taintKeys, ","))
+			if expectedTaints, ok := i.nodesToTaints[node.Name]; ok {
+				log.Infof("k8sPool: ^^^^^^^^^^^ is a failed node. Expecting taints: %s", expectedTaints)
+			}
 		}
 	} else {
 		log.Infof("k8sPoll: listing nodes error: %s", getNodesErr)
@@ -1069,22 +1076,9 @@ func (i *integration) populateLabeledPodsToNodes() error {
 	return nil
 }
 
-// nodeHasLabeledPods will search through the integration.labeledPodsToNodes map looking
-// for any node names from 'checkNodeNames' that matches. If found, returns true.
-func (i *integration) nodeHasLabeledPods(checkNodeNames []string) bool {
-	for _, nodeName := range i.labeledPodsToNodes {
-		for _, checkNodeName := range checkNodeNames {
-			if nodeName == checkNodeName {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func (i *integration) isNodeFailed(node corev1.Node, expectPodmonTaint bool) bool {
+func (i *integration) isNodeFailed(node corev1.Node) bool {
 	isFailed := false
-	if expectPodmonTaint {
+	if i.nodeHadPodsRunning(node.Name) {
 		podmonTaint := fmt.Sprintf("%s.%s", lastTestDriverType, PodmonTaintKeySuffix)
 		isFailed = nodeHasTaint(&node, podmonTaint, corev1.TaintEffectNoSchedule)
 	} else {
@@ -1155,15 +1149,7 @@ func (i *integration) waitOnNodesToBeReady(wait int) error {
 
 func (i *integration) waitOnTaintRemoval(wait int) error {
 	log.Infof("Checking if nodes have taints")
-	// Should minimally expect to the the Kubernetes unreachable taint on the failed node
-	taintKeys := "node.kubernetes.io/unreachable"
-	if testExpectedPodmonTaint {
-		// If the test failed some node(s) that had labeled pods in it, then we
-		// expect the podmon taint to be cleaned up as well.
-		taintKeys = taintKeys + "," + fmt.Sprintf("%s.%s", lastTestDriverType, PodmonTaintKeySuffix)
-	}
-	log.Infof("These taints should not be on the nodes: %s", taintKeys)
-	hasTaints, err := i.checkIfNodesHaveTaints(taintKeys)
+	hasTaints, err := i.checkIfNodesHaveTaints()
 	if err != nil {
 		return err
 	}
@@ -1186,11 +1172,11 @@ func (i *integration) waitOnTaintRemoval(wait int) error {
 			select {
 			case <-timeout.C:
 				log.Infof("Timed out, but checking again if nodes have podmon taint")
-				hasTaints, err = i.checkIfNodesHaveTaints(taintKeys)
+				hasTaints, err = i.checkIfNodesHaveTaints()
 				done <- true
 			case <-ticker.C:
 				log.Infof("Checking if podmon taints have been removed (time left %v)", timeoutDuration-time.Since(start))
-				hasTaints, err = i.checkIfNodesHaveTaints(taintKeys)
+				hasTaints, err = i.checkIfNodesHaveTaints()
 				if err == nil && !hasTaints {
 					done <- true
 				}
@@ -1205,7 +1191,30 @@ func (i *integration) waitOnTaintRemoval(wait int) error {
 	log.Infof("Done checking if taint removed after %v", time.Since(start))
 
 	return AssertExpectedAndActual(assert.Equal, false, hasTaints,
-		fmt.Sprintf("Expected %s taint(s) to be removed after %d seconds, but still exist", taintKeys, wait))
+		fmt.Sprintf("Expected taints to be removed after %d seconds, but still exist", wait))
+}
+
+// getExpectedTaints returns a comma delimited list of taints for the node with 'nodeName'
+// supposing that it had been failed by the test. Note, this does not necessarily mean
+// that the node was actually failed by the test.
+func (i *integration) getExpectedTaints(nodeName string) string {
+	// Should minimally expect to the the Kubernetes unreachable taint on the failed node
+	theseTaints := "node.kubernetes.io/unreachable"
+	if i.nodeHadPodsRunning(nodeName) {
+		// If the test failed some node(s) that had labeled pods in it, then we
+		// expect the podmon taint to be cleaned up as well.
+		theseTaints = theseTaints + "," + fmt.Sprintf("%s.%s", lastTestDriverType, PodmonTaintKeySuffix)
+	}
+	return theseTaints
+}
+
+func (i *integration) nodeHadPodsRunning(nodeName string) bool {
+	for _, failedNodeName := range i.labeledPodsToNodes {
+		if failedNodeName == nodeName {
+			return true
+		}
+	}
+	return false
 }
 
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {

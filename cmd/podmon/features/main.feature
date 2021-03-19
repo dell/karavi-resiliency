@@ -89,3 +89,29 @@ Feature: Podmon Main
       | "localhost"  | "1234"  | "--mode=controller --leaderelection=true --csisock='csi.sock'" | "ValidateVolumeHostConnectivity" | "false"       |
       | "localhost"  | "1234"  | "--mode=node --leaderelection=true --csisock='csi.sock'"       | "ValidateVolumeHostConnectivity" | "false"       |
       | "localhost"  | "1234"  | "--mode=standalone --leaderelection=true --csisock='csi.sock'" | "ValidateVolumeHostConnectivity" | "false"       |
+
+  Scenario Outline: Different driver paths
+    Given a podmon instance
+    And Podmon env vars set to <k8sHostValue>:<k8sPort>
+    And I invoke main with arguments <args>
+    Then the last log message contains <message>
+
+    Examples:
+      | k8sHostValue | k8sPort | args                    | message                 |
+      | "localhost"  | "1234"  | "--driverPath=unity"    | "leader election: true" |
+      | "localhost"  | "1234"  | "--driverPath=vxflexos" | "leader election: true" |
+
+  Scenario Outline: Test logging levels
+    Given a podmon instance
+    And Podmon env vars set to <k8sHostValue>:<k8sPort>
+    And I invoke main with arguments <args>
+    Then the last log message contains <message>
+
+    Examples:
+      | k8sHostValue | k8sPort | args               | message                               |
+      | "localhost"  | "1234"  | "--logLevel=fake"  | "An invalid log level provided: fake" |
+      | "localhost"  | "1234"  | "--logLevel=warn"  | "Setting log level to warn"           |
+      # We set the log level to warning in the previous test, we'll set to info to get output
+      | "localhost"  | "1234"  | "--logLevel=info"  | "leader election: true"                                |
+      | "localhost"  | "1234"  | "--logLevel=WaRn"  | "Setting log level to warning"        |
+      | "localhost"  | "1234"  | "--logLevel=DeBug" | "leader election: true"               |
