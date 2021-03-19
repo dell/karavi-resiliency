@@ -237,6 +237,8 @@ func (f *feature) iInduceError(induced string) error {
 		f.badWatchObject = true
 	case "Unmount":
 		gofsutil.GOFSMock.InduceUnmountError = true
+	case "CreateEvent":
+		f.k8sapiMock.InducedErrors.CreateEvent = true
 	default:
 		return fmt.Errorf("Unknown induced error: %s", induced)
 	}
