@@ -10,7 +10,7 @@ You may obtain a copy of the License at
 
 # Reporting Problems
 
-If you experience a problem with Karavi Resiliency it is important you provide us as with much information as possible so that we can diagnose the issue and improve Karavi Resiliency. Some tools have been provided in the _tools_ directory that will help you understand the system's state and facilitate sending us the logs and other information we will need to diagnose a problem.
+If you experience a problem with Karavi Resiliency it is important you provide us with as much information as possible so that we can diagnose the issue and improve Karavi Resiliency. Some tools have been provided in the _tools_ directory that will help you understand the system's state and facilitate sending us the logs and other information needed to diagnose a problem.
 
 ## Monitoring Protected Pods and Node Status
 
@@ -39,7 +39,7 @@ For systems with many protected pods, the _monx.sh_ may provide a more usable ou
 
 ## Collecting and Submitting Logs
 
-If you have a problem with podmon that you would like Dell to diagnose, please use the tools/collect_logs.sh script to collect the information we need into a tar file and submit the tar file as part of your Problem Report. Type "collect_logs.sh --help" for help on the arguments.
+If you have a problem with Karavi Resiliency that you would like Dell to diagnose, please use the tools/collect_logs.sh script to collect the information we need into a tar file and submit the tar file as part of your Problem Report. Type "collect_logs.sh --help" for help on the arguments.
 
 The script collects the following information:
 * A list of the driver pods.
