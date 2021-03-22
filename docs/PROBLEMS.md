@@ -10,12 +10,42 @@ You may obtain a copy of the License at
 
 # Reporting Problems
 
-If you experience a problem with Karavi Resiliency it is important you provide us as much information as possible so that we can diagnose the issue and improve Karavi Resiliency. If possible, please submit all the following data (listed in decreasing order of importance):
+If you experience a problem with Karavi Resiliency it is important you provide us with as much information as possible so that we can diagnose the issue and improve Karavi Resiliency. Some tools have been provided in the [tools](../tools) directory that will help you understand the system's state and facilitate sending us the logs and other information needed to diagnose a problem.
 
-* The controller-podmon logs. If there are multiple controllers deployed, submit the podmon logs for the controller that has been elected leader, or submit the logs for all the podmon controllers.
-* The node-podmon log for any involved nodes (nodes containing pods that have not been able to achieve the Ready state).
-* The output of "kubectl describe pod ..." for the failed pod(s).
-* The output of "kubectl get pvc -n namespace" for the namespace(s) of the failed pod.
-* The events for the namespace(s) that have failed pods ("kubectl get events -n namespace")
-* The CSI driver node logs for any involved nodes.
-* The CSI driver controller logs. If there are multiple controllers, submit the driver logs for the controller that has been elected leader, or submit the logs for all the driver controllers.
+## Monitoring Protected Pods and Node Status
+
+There are two tools for monitoring the status of protected pods and nodes.
+
+The [mon.sh](../tools/mon.sh) script displays the following information every 5 seconds:
+
+* The date and time.
+* A list of the nodes and their status.
+* A list of the taints applied to each node.
+* A list of the leases in the CSI drivers namespace. (Edit the script to change the driver namespace if necessary. It defaults to vxflexos as the driver namespace.)
+* A list of the CSI driver pods and their status (defaults to vxflexos namespace.) 
+* A list of the protected pods and their status. (Edit the script if you do not use the default podmon label key.)
+
+![Output from mon.sh](mon.jpg)
+
+For systems with many protected pods, the [monx.sh](../tools/monx.sh) may provide a more usable output format. It displays the following fields every 5 seconds:
+
+* The date and time.
+* A list of the nodes and their status.
+* A list of the taints applied to each node.
+* A summary for each node hosting protected pods of the number of pods in various states such as the Running, Creating, and Error states. (Edit the script if you do not use the default podmon label key.)
+* A list of the protected pods not in the Running state.
+
+![Output from monx.sh](monx.jpg)
+
+## Collecting and Submitting Logs
+
+If you have a problem with Karavi Resiliency that you would like Dell to diagnose, please use the [collect_logs.sh](../tools/collect_logs.sh) script to collect the information we need into a tar file and submit the tar file as part of your Problem Report. Type "collect_logs.sh --help" for help on the arguments.
+
+The script collects the following information:
+* A list of the driver pods.
+* A list of the protected pods.
+* The podmon container logs for each of the driver pods.
+* The driver container logs for each of the driver pods.
+* For each namespace containing protected pods, the recent events logged in that namespace.
+
+After successful execution of the script, it will deposit a file similar to driver.logs.20210319_1407.tgz in the current directory. Please submit that file with any Problem Report.
