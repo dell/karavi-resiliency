@@ -81,7 +81,11 @@ const (
 	remoteScriptDir = "/root/karavi-resiliency-tests"
 	// An int value representing number of seconds to periodically check status
 	checkTickerInterval = 10
+	stopFilename        = "stop_test"
 )
+
+// Used for stopping the test from continuing
+var stopTestRequested bool
 
 // Workaround for non-inclusive word scan
 var primary = []byte{'m', 'a', 's', 't', 'e', 'r'}
@@ -127,6 +131,22 @@ var isPrimaryNode = func(node corev1.Node) bool {
 }
 
 func (i *integration) givenKubernetes(configPath string) error {
+	// Check if there was a request to stop the integration test. All tests would
+	// need to go through this step of getting the Kubernetes configuration, so
+	// it would be appropriate to do the check here to prevent further tests.
+	if stopTestRequested {
+		return godog.ErrUndefined
+	}
+
+	// Look for a "stop" file. If found, we signal that the tests should stop.
+	if fileInfo, stopFileErr := os.Stat(stopFilename); stopFileErr == nil {
+		log.Infof("Found stop test file %s", fileInfo.Name())
+		stopTestRequested = true
+		// Clean up the stop file, so that the test can be rerun.
+		os.Remove(fileInfo.Name())
+		return godog.ErrUndefined
+	}
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return err
