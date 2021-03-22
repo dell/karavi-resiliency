@@ -16,7 +16,7 @@
 ns=""
 podmon_label="podmon.dellemc.com/driver"
 CWD=$(pwd)
-
+TAR=$(which tar)
 CONTAINERS="podmon driver"
 
 for param in $*; do
@@ -86,8 +86,8 @@ TARNAME="$CWD/driver.logs.$TIMESTAMP.tgz"
 cd /tmp
 
 # Tar up the logs using the time stamp
-echo /usr/bin/tar -c -z -v -f  $TARNAME $DIRNAME
-/usr/bin/tar -c -z -v -f  $TARNAME $DIRNAME
+echo "$TAR" -c -z -v -f  $TARNAME $DIRNAME
+$TAR -c -z -v -f  $TARNAME $DIRNAME
 
 # Remove the temporary directory
 rm -rf $TEMPDIR
