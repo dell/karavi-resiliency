@@ -51,6 +51,23 @@ make integration-test
 
 The `integration-test` rule will automatically set environmental variables, RESILIENCY_INT_TEST & SCRIPTS_DIR prior to invoking the test.
 
+# Stopping Test Cleanly
+
+If you would like to stop the test from continuing without having to use ctrl-C, you can do the following:
+
+Go to the internal/monitor directory, example:
+```shell
+cd /workspace/karavi-resiliency/internal/monitor
+```
+
+Create an empty 'stop_test' file:
+```shell
+touch stop_test
+```
+
+Any current test that is running will complete, but subsequent test cases will not be run. 
+The integration test will automatically delete the `stop_test` file, so that you can re-run the tests.
+
 # Feature file
 
 The test configuration is specified in a [Gherkin BDD](https://cucumber.io/docs/gherkin/) format in the [integration.feature](../internal/monitor/features/integration.feature) file. Each test `Scenario Outline` captures an overarching test condition we would like to put the system under for testing. The goal is for each `Scenario Outline` to be as human-readable as possible. For each `Scenario Outline`, there are `Examples` used to fill in different parameters. Each example is a separate test and all the steps (e.g., `When ...`, `And ...`, `Then ...`) for the `Scenario Outline` will be executed.
