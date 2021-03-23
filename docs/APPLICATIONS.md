@@ -13,11 +13,11 @@ You may obtain a copy of the License at
  The first thing to remember about _Karavi Resiliency_ is that it only takes action on pods configured with the designated label. Both the key and the value have to match what is in the podmon helm configuration. Karavi Resiliency emits a log message at startup with the label key and value it is using to monitor pods:
 
  ```
- labelSelector: {map[podmon.dellemc.com/driver:csi-unity]
+ labelSelector: {map[podmon.dellemc.com/driver:csi-vxflexos]
  ```
- The above message indicates the key is: podmon.dellemc.com/driver and the label value is csi-unity. To search for the pods that would be monitored, try this:
+ The above message indicates the key is: podmon.dellemc.com/driver and the label value is csi-vxflexos. To search for the pods that would be monitored, try this:
  ```
-[root@lglbx209 podmontest]# kubectl get pods -A -l podmon.dellemc.com/driver=csi-unity
+[root@lglbx209 podmontest]# kubectl get pods -A -l podmon.dellemc.com/driver=csi-vxflexos
 NAMESPACE   NAME           READY   STATUS    RESTARTS   AGE
 pmtu1       podmontest-0   1/1     Running   0          3m7s
 pmtu2       podmontest-0   1/1     Running   0          3m8s
