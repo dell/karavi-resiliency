@@ -19,7 +19,7 @@ Dell currently develops and maintains the following CSI Drivers:
 * [Unity CSI Driver](https://github.com/dell/csi-unity)
 * [Bare Metal CSI Driver](https://github.com/dell/csi-baremetal)
 
-Currently in the initial Tech. Preview Karavi Resiliency only provides complete support for PowerFlex and limited support for Unity. Additional array support in Karavi Resiliency is planned for the near future.
+Currently, in the initial Technical Preview, Karavi Resiliency only provides complete support for PowerFlex. Additional array support in Karavi Resiliency is planned for the near future.
 
 ## PowerFlex Support
 
@@ -29,12 +29,3 @@ PowerFlex is a highly scalable array that is very well suited to Kubernetes depl
 * A roboust mechanism if Nodes are doing I/O to volumes (sampled over a 5 second period).
 * Low latency REST API supports fast CSI provisioning and deprovisioning operations.
 * A proprietary network protocol provided by the SDC component that can run over the same IP interface as the K8S control plane or over a separate IP interface for Array I/O.
-
-## Unity Support
-
-The Unity support in Karavi Resiliency has only begun recently as is not completed. Nevertheless, it is possible to test on a limited basis in the Tech. Preview:
-
-* Initially supports NFS and iSCSI protocols. (Fibrechannel is not supported yet.)
-* Array connectivity detection is implemented for iSCSI only. However detection times are slow (on the order of a minute or more.)
-* The mechanism to detect I/O is in progress to volumes is not yet implemented.
-

@@ -12,7 +12,7 @@ You may obtain a copy of the License at
 
 Karavi Resiliency is deployed as part of the CSI driver deployment. The drivers can be deployed either by a _helm chart_ or by the _Dell CSI Operator_. For the alpha (Tech. Preview) phase, only _helm chart_ installation is supported.
 
-For information on the PowerFlex CSI driver, see (PowerFlex CSI Driver)[https://github.com/dell/csi-powerflex]. For information on the Unity CSI driver, see (Unity CSI Driver)[https://github.com/dell/csi-unity].
+For information on the PowerFlex CSI driver, see (PowerFlex CSI Driver)[https://github.com/dell/csi-powerflex].
 
 Configure all the helm chart parameters described below before deploying the drivers.
 
@@ -85,31 +85,3 @@ podmon:
       - "-leaderelection=false"
 
 ```
-
-## Unity Specific Recommendations
-
-For the initial Tech. Preview (alpha) phase, we have not fully completed the array connection validation work required in the driver. However it is possible to use Karavi Resiliency in limited tests for Unity. For now it is recommended to set "skipArrayConnectionValidation=true" and to not set "arrayConnectivityPollRate" or "arrayConnectivityConnectionLossThreshold".
-
-Here is a typical deployment used for testing:
-
-```
-podmon:
-  enabled: true
-  image: image_repository_host_ip:5000/podmon:v0.0.54
-  controller:
-    args:
-      - "-csisock=unix:/var/run/csi/csi.sock"
-      - "-labelvalue=csi-unity"
-      - "-driverPath=csi-unity.dellemc.com"
-      - "-mode=controller"
-      - "-skipArrayConnectionValidation=true"
-  node:
-    args:
-      - "-csisock=unix:/var/lib/kubelet/plugins/unity.emc.dell.com/csi_sock"
-      - "-labelvalue=csi-unity"
-      - "-driverPath=csi-unity.dellemc.com"
-      - "-mode=node"
-      - "-leaderelection=false"
-
-```
-
