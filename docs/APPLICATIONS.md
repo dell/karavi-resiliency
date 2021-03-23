@@ -28,7 +28,7 @@ pmtu3       podmontest-0   1/1     Running   0          3m6s
  ```
  kubectl get events -n pmtu1
  ...
- 61s         Warning   NodeFailure              pod/podmontest-0              podmon cleaning pod [7520ba2a-cec5-4dff-8537-20c9bdafbe26 lglbx215.lss.emc.com] with force delete
+ 61s         Warning   NodeFailure              pod/podmontest-0              podmon cleaning pod [7520ba2a-cec5-4dff-8537-20c9bdafbe26 node.example.com] with force delete
 ...
  ```
 

@@ -41,27 +41,22 @@ fmt() {
 echo === Checking format...
 fmt
 FMT_RETURN_CODE=$?
-echo === Finished
+echo === Finished code=$FMT_RETURN_CODE
 
 echo === Vetting...
 go vet ${MOD_FLAGS} ${DIRS}
 VET_RETURN_CODE=$?
-echo === Finished
+echo === Finished code=$VET_RETURN_CODE
 
 echo === Linting...
 (command -v golint >/dev/null 2>&1 \
     || GO111MODULE=off go get -insecure -u golang.org/x/lint/golint) \
     && golint --set_exit_status ${DIRS}
 LINT_RETURN_CODE=$?
-echo === Finished
-
-# Report output.
-fail_checks=0
-[ "${FMT_RETURN_CODE}" != "0" ] && echo "Formatting checks failed!" && fail_checks=1
-[ "${VET_RETURN_CODE}" != "0" ] && echo "Vetting checks failed!" && fail_checks=1
-[ "${LINT_RETURN_CODE}" != "0" ] && echo "Linting checks failed!" && fail_checks=1
+echo === Finished code=$LINT_RETURN_CODE
 
 # Run gosec scan
+echo === Gosec scan...
 gosec -h > /dev/null 2>&1
 if [ $? -ne 0 ]; then
   echo "Installing gosec"
@@ -71,6 +66,23 @@ if [ $? -ne 0 ]; then
   mv ./bin/gosec /usr/bin/gosec
 fi
 gosec -exclude-dir=test  ./...
+GOSEC_RETURN_CODE=$?
+echo === Finished code=$GOSEC_RETURN_CODE
+
+# Run internal references scanner
+echo === Running private data scans...
+docker pull "$DOCKER_REPO"/code-sanitizer
+docker run --rm -v "$(pwd)":"/usr/local/share" "$DOCKER_REPO"/code-sanitizer /usr/local/share
+INTERNAL_SCAN_CODE=$?
+echo === Finished code=$INTERNAL_SCAN_CODE
+
+# Report output.
+fail_checks=0
+[ "${FMT_RETURN_CODE}" != "0" ] && echo "Formatting checks failed!" && fail_checks=1
+[ "${VET_RETURN_CODE}" != "0" ] && echo "Vetting checks failed!" && fail_checks=1
+[ "${LINT_RETURN_CODE}" != "0" ] && echo "Linting checks failed!" && fail_checks=1
+[ "${GOSEC_RETURN_CODE}" != "0" ] && echo "Gosec found Golang security issues" && fail_checks=1
+[ "${INTERNAL_SCAN_CODE}" != "0" ] && echo "Sanitizer scanner found internal references" && fail_checks=1
 
 exit ${fail_checks}
 
