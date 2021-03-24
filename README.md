@@ -74,6 +74,10 @@ This section contains information how we tested _Karavi Resiliency_ and the resu
 Don’t hesitate to ask! Contact the team and community on the [Support Page](./docs/SUPPORT.md) if you need any help.
 Open an issue if you found a bug on [Github Issues](https://github.com/dell/karavi-resiliency/issues).
 
+## Versioning
+
+This project is adhering to [Semantic Versioning](https://semver.org/).
+
 ## About
 
 This project is 100% open source and community-driven. All components are available
