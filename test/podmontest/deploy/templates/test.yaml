@@ -35,8 +35,10 @@ spec:
         containers:
           - name: podmontest
             image: {{ required "Must set image for podmonTest" .Values.podmonTest.image }}
-            imagePullPolicy: Always
+            imagePullPolicy: IfNotPresent
             command: [ "/podmontest" ]
+            args:
+              - "-doexit=true"
             env:
               - name: ROOT_DIR
                 value: "/"
