@@ -12,7 +12,7 @@
 CWD=$(pwd)
 NVOLUMES=2
 STORAGECLASS=vxflexos
-MAXPODS=4
+MAXPODS=90
 
 # checks that all labeled pods are running, exits if not
 wait_on_running() {
@@ -23,6 +23,8 @@ wait_on_running() {
 		non_running_pods=$(kubectl get pods -l podmon.dellemc.com/driver -A -o wide | grep -v NAMESPACE | grep -v Running | wc -l)
 	done
 }
+
+date
 
 BOUNCEIPTIME=240
 instances="4"
@@ -85,3 +87,5 @@ cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --sto
 wait_on_running
 sh ../sh/nway.sh --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1300
 fi
+
+date
