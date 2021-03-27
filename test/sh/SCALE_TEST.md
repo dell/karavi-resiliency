@@ -24,7 +24,7 @@ Each iteration is divided into three phases:
 2. Waiting on the pods that were rescheduled to reach a running state. At the end of this phase a message
 similar to "moving pods:  4 time for pod recovery seconds:  70" is printed. This is the time from the initiation of
 node failure until all the pods were moved and reach the running state again. This is the metric generally used
-for scalability, that plots on X-axis the number of pods that were impacted, and the Y-axis the time until all 
+for scalability, that plots on the X-axis the number of pods that were impacted, and the Y-axis the time until all 
 pods were recovered.
 
 3. Waiting on the taints to be removed from the failed nodes. At the end of this phase a message is printed
