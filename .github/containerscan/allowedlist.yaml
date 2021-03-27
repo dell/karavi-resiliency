@@ -4,3 +4,6 @@ general:
     - CVE-2019-25013
     # We do not use sqlite-libs
     - CVE-2019-5827
+    # At the time of this comment, these were still under analysis
+    - CVE-2021-3449
+    - CVE-2021-3450
