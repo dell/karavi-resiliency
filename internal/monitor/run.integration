@@ -11,7 +11,7 @@
 #
 
 ITERATIONS=100
-RESILIENCY=/home/tom/karavi-resiliency
+RESILIENCY=../..
 
 ITER=1
 while [ $ITER -le $ITERATIONS ]; do
