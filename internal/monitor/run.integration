@@ -1,0 +1,31 @@
+#!/bin/sh
+
+ITERATIONS=100
+RESILIENCY=/home/tom/karavi-resiliency
+
+ITER=1
+while [ $ITER -le $ITERATIONS ]; do
+	date
+	echo "Iteration: " $ITER
+	echo "Clean up any remaing pods"
+	sh $RESILIENCY/test/podmontest/uns.sh --prefix pmtv --instances 18
+	sleep 360
+	sh $RESILIENCY/tools/mon.sh --once
+
+	echo "****************** Execute the integration test ***********************************************"
+	source int_test_params.sh
+	make integration-test
+	RC=$?
+	echo "Return code: " $RC
+
+	date
+	sh $RESILIENCY/tools/mon.sh --once
+	echo "Collecting logs"
+	sh $RESILIENCY/tools/collect_logs.sh --ns vxflexos
+	sleep 300
+	sh $RESILIENCY/tools/mon.sh --once
+
+	ITER=$((ITER + 1))
+	if [ -e stop ]; then echo "exiting due to stop file"; exit 0; fi
+done
+
