@@ -18,7 +18,8 @@ Configure all the helm chart parameters described below before deploying the dri
 
 ## Helm Chart Installation
 
-These installation instructions apply to the helm chart in the github.com/dell/csi-powerflex repository version v1.4.0. There was a change
+These installation instructions apply to the helm chart in the (PowerFlex CSI Driver)[https://github.com/dell/csi-powerflex] repository
+version v1.4.0.  There was a change
 identified after the PowerFlex driver release that needs to be made to the helm chart, specifically to the file helm/csi-vxflexos/templates/node.yaml. It is a simple two line addition to the podmon container section of the chart. Please make this change before deploying podmon.
 
 The diff is as follows:
