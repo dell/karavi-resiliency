@@ -61,6 +61,8 @@ echo pods $pods
 
 # Collect the logs into the TEMPDIR
 cd $TEMPDIR
+kubectl get nodes -o wide >nodes.list
+kubectl get nodes -o custom-columns=NAME:.metadata.name,TAINTS:.spec.taints >taints.list
 kubectl get pods -n $ns -o wide >driver.pods.list
 kubectl get pods -A -o wide -l $podmon_label >protected.pods.list
 for pod in $pods; 
