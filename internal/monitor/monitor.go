@@ -192,7 +192,7 @@ func StartPodMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, l
 		watcher, err := api.SetupPodWatch(ctx, "", listOptions)
 		if err != nil {
 			// The following check excludes unit testing, to avoid polluting the log messages captured
-			if restartDelay > 10 * time.Millisecond {
+			if restartDelay > 10*time.Millisecond {
 				log.Errorf("Could not create PodWatcher: %s - will retry\n", err)
 			}
 			time.Sleep(restartDelay)
@@ -249,7 +249,7 @@ func StartNodeMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, 
 		watcher, err := api.SetupNodeWatch(ctx, listOptions)
 		if err != nil {
 			// The following check excludes unit testing, to avoid polluting the log messages captured
-			if restartDelay > 10 * time.Millisecond {
+			if restartDelay > 10*time.Millisecond {
 				log.Errorf("Could not create NodeWatcher: %s - will retry\n", err)
 			}
 			time.Sleep(restartDelay)
