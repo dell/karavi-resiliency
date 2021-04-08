@@ -4,7 +4,12 @@ metadata:
     name: podmontest
     namespace: {{ required "Must set namespace" .Values.podmonTest.namespace }}
 ---
+{{- if eq .Values.podmonTest.deploymentType "statefulset" }}
 kind: StatefulSet
+{{ end }}
+{{- if eq .Values.podmonTest.deploymentType "deployment" }}
+kind: Deployment
+{{ end }}
 apiVersion: apps/v1
 metadata:
     name: podmontest
@@ -13,7 +18,13 @@ spec:
     selector:
         matchLabels:
           app: podmontest
+
+{{- if eq .Values.podmonTest.deploymentType "statefulset" }}
     serviceName: 2vols
+{{ end }}
+{{- if eq .Values.podmonTest.deploymentType "deployment" }}
+    replicas: 1
+{{ end }}
     template:
       metadata:
         labels:

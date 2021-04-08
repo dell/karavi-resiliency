@@ -18,6 +18,7 @@ zone=${zone:-""}
 storageClassName=${storageClassName:-unity-virt21048j9rzz-nfs}
 image="$REGISTRY_HOST:$REGISTRY_PORT/podmontest:v0.0.54"
 prefix="pmtu"
+deploymentType="statefulset"
 
 if [ "$DEBUG"x != "x" ]; then
   DEBUG="--dry-run --debug"
@@ -51,6 +52,10 @@ do
           storageClassName=$1
           shift
           ;;
+       "--deployment")
+          deploymentType="deployment"
+          shift
+          ;;
     esac
 done
 
@@ -67,6 +72,7 @@ while [ $i -le $instances ]; do
               --set podmonTest.storageClassName="$storageClassName" \
               --set podmonTest.ndevices=$ndevices \
               --set podmonTest.nvolumes=$nvolumes \
+              --set podmonTest.deploymentType=$deploymentType \
               --set podmonTest.image="$image" \
               --set podmonTest.zone="$zone"
   i=$((i + 1))
