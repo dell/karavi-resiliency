@@ -44,6 +44,8 @@ type integration struct {
 	scriptsDir          string
 	labeledPodsToNodes  map[string]string
 	nodesToTaints       map[string]string
+	isOpenshift         bool
+	bastionNode         string
 }
 
 // Used for keeping of track of the last test that was
@@ -82,6 +84,7 @@ const (
 	// An int value representing number of seconds to periodically check status
 	checkTickerInterval = 10
 	stopFilename        = "stop_test"
+	OpenshiftBastion    = "OPENSHIFT_BASTION"
 )
 
 // Used for stopping the test from continuing
@@ -164,6 +167,11 @@ func (i *integration) givenKubernetes(configPath string) error {
 		message := fmt.Sprintf("kubernetes connection error: %s", err)
 		log.Info(message)
 		return fmt.Errorf(message)
+	}
+
+	err, i.isOpenshift = i.detectOpenshift()
+	if err != nil {
+		return err
 	}
 
 	err = i.dumpNodeInfo()
@@ -452,17 +460,10 @@ func (i *integration) theseCSIDriverAreConfiguredOnTheSystem(driverName string) 
 }
 
 func (i *integration) thereIsThisNamespaceInTheCluster(namespace string) error {
-	foundNamespace := false
-	namespaces, err := i.k8s.GetClient().CoreV1().Namespaces().List(context.Background(), metav1.ListOptions{})
-	if err != nil {
+	var err error
+	var foundNamespace bool
+	if err, foundNamespace = i.getNamespace(namespace); err != nil {
 		return err
-	}
-
-	for _, ns := range namespaces.Items {
-		if namespace == ns.Name {
-			foundNamespace = true
-			break
-		}
 	}
 
 	return AssertExpectedAndActual(assert.Equal, true, foundNamespace,
@@ -596,6 +597,16 @@ func (i *integration) expectedEnvVariablesAreSet() error {
 		return err
 	}
 
+	// If using Openshift, check for Openshift specific env vars
+	if i.isOpenshift {
+		i.bastionNode = os.Getenv(OpenshiftBastion)
+		err = AssertExpectedAndActual(assert.Equal, true, i.bastionNode != "",
+			fmt.Sprintf("Expected %s env variable when using an Openshift cluster.\n"+
+				"Try export %s=<name/IP of Bastion node> before running tests.", OpenshiftBastion, OpenshiftBastion))
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -610,6 +621,13 @@ func (i *integration) canLogonToNodesAndDropTestScripts() error {
 	})
 	if err != nil {
 		return err
+	}
+
+	if i.isOpenshift {
+		err = i.copyOverTestScriptsToNode(os.Getenv(OpenshiftBastion))
+		if err != nil {
+			return err
+		}
 	}
 
 	for _, node := range nodes {
@@ -882,6 +900,17 @@ func (i *integration) searchForNodes(filter func(node corev1.Node) bool) ([]core
 
 // copyOverTestScripts will SCP the scripts for inducing failures to the remote system 'address'
 func (i *integration) copyOverTestScripts(address string) error {
+	if i.isOpenshift {
+		return i.copyOverTestScriptsToOpenshift(address)
+	} else {
+		return i.copyOverTestScriptsToNode(address)
+	}
+}
+
+//copyOverTestScriptsNode copies over the scripts to the node at 'address'.
+//This will use internal SSH library to do the set up and copying to the
+//specified node.
+func (i *integration) copyOverTestScriptsToNode(address string) error {
 	info := ssh.AccessInfo{
 		Hostname: address,
 		Port:     "22",
@@ -931,6 +960,62 @@ func (i *integration) copyOverTestScripts(address string) error {
 	}
 
 	log.Infof("Scripts successfully copied to %s:%s", address, remoteScriptDir)
+	return nil
+}
+
+//copyOverTestScriptsToOpenshift will copy over script files onto the Openshift node at 'address'.
+//This depends on the Bastion node having the script files copied over already. Then for each
+//script file, we will use the 'scp' command from the Bastion node to copy over the files from
+//there to the Openshift node.
+func (i *integration) copyOverTestScriptsToOpenshift(address string) error {
+	//SSH and SCP are all done through the Bastion node
+	info := ssh.AccessInfo{
+		Hostname: i.bastionNode,
+		Port:     "22",
+		Username: os.Getenv("NODE_USER"),
+		Password: os.Getenv("PASSWORD"),
+	}
+
+	wrapper := ssh.NewWrapper(&info)
+
+	client := ssh.CommandExecution{
+		AccessInfo: &info,
+		SSHWrapper: wrapper,
+		Timeout:    sshTimeout,
+	}
+
+	openshiftNodeDir := fmt.Sprintf("/tmp%s", remoteScriptDir)
+	log.Infof("Attempting to scp scripts from %s:%s to %s:%s", i.bastionNode, i.scriptsDir, address, openshiftNodeDir)
+
+	mkDirCmd := fmt.Sprintf("ssh core@%s 'date; rm -rf %s; mkdir -p %s'", address, openshiftNodeDir, openshiftNodeDir)
+	log.Info(mkDirCmd)
+	if mkDirErr := client.Run(mkDirCmd); mkDirErr == nil {
+		for _, out := range client.GetOutput() {
+			log.Infof("%s", out)
+		}
+	} else {
+		return mkDirErr
+	}
+
+	copyFileCmd := fmt.Sprintf("scp -r %s core@%s:%s", remoteScriptDir, address, openshiftNodeDir)
+	log.Info(copyFileCmd)
+	err := client.Run(copyFileCmd)
+	if err != nil {
+		return err
+	}
+
+	// After copying the files, add execute permissions and list the directory
+	lsDirCmd := fmt.Sprintf("ssh core@%s 'sudo chmod +x %s/* ; sudo ls -ltr %s'", address, openshiftNodeDir, openshiftNodeDir)
+	log.Info(lsDirCmd)
+	if lsErr := client.Run(lsDirCmd); lsErr == nil {
+		for _, out := range client.GetOutput() {
+			log.Infof("%s", out)
+		}
+	} else {
+		return lsErr
+	}
+
+	log.Infof("Scripts successfully copied to %s:%s", address, openshiftNodeDir)
 	return nil
 }
 
@@ -1235,6 +1320,31 @@ func (i *integration) nodeHadPodsRunning(nodeName string) bool {
 		}
 	}
 	return false
+}
+
+func (i *integration) getNamespace(namespace string) (error, bool) {
+	namespaces, err := i.k8s.GetClient().CoreV1().Namespaces().List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		return err, false
+	}
+
+	for _, ns := range namespaces.Items {
+		if namespace == ns.Name {
+			return nil, true
+		}
+	}
+
+	return nil, false
+}
+
+func (i *integration) detectOpenshift() (error, bool) {
+	var err error
+	var hasOpenshiftNS bool
+	if err, hasOpenshiftNS = i.getNamespace("openshift"); err != nil {
+		return err, false
+	}
+
+	return nil, hasOpenshiftNS
 }
 
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
