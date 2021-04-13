@@ -15,6 +15,7 @@ import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"os"
+	"strings"
 )
 
 type drivertype interface {
@@ -23,6 +24,9 @@ type drivertype interface {
 	GetDriverBlockDev(volumeHandle, pvName, podUUID string) string
 	GetStagingMountDir(volumeHandle, pvName string) string
 	GetStagingBlockDir(volumeHandle, pvName string) string
+	NodeUnpublishExcludedError(err error) bool
+	NodeUnstageExcludedError(err error) bool
+	FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID string) error
 }
 
 //Driver is an instance of the drivertype interface to provide driver specific functions.
@@ -67,6 +71,21 @@ func (d *VxflexDriver) GetStagingBlockDir(volumeHandle, pvName string) string {
 	return ""
 }
 
+// NodeUnpublishExcludeError filters out NodeUnpublish errors that should be excluded
+func (d *VxflexDriver) NodeUnpublishExcludedError(err error) bool {
+	return false
+}
+
+// NodeUnstageExcludedError filters out NodeStage errors that should be excluded
+func (d *VxflexDriver) NodeUnstageExcludedError(err error) bool {
+	return false
+}
+
+// FinalCleanup handles any driver specific final cleanup.
+func (d *VxflexDriver) FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID  string) error {
+	return nil
+}
+
 //UnityDriver provides a Driver instance for the Unity architecture.
 type UnityDriver struct {
 }
@@ -102,4 +121,32 @@ func (d *UnityDriver) GetStagingBlockDir(volumeHandle, pvName string) string {
 	stagingBlockDir := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/volumeDevices/staging/%s", pvName)
 	log.Infof("stagingBlockDir: %s", stagingBlockDir)
 	return stagingBlockDir
+}
+
+// NodeUnpublishExcludedError filters out NodeUnpublish errors that should be excluded
+func (d *UnityDriver) NodeUnpublishExcludedError(err error) bool {
+	if strings.Contains(err.Error(), "NFS Share for filesystem") && strings.Contains(err.Error(), "not found") {
+		log.Infof("Ignored error: %s", err)
+		return true
+	}
+	return false
+}
+
+// NodeUnstageExcludedError filters out NodeStage errors that should be excluded
+func (d *UnityDriver) NodeUnstageExcludedError(err error) bool {
+	if strings.Contains(err.Error(), "NFS Share for filesystem") && strings.Contains(err.Error(), "not found") {
+		log.Infof("Ignored error: %s", err)
+		return true
+	}
+	return false
+}
+
+// FinalCleanup handles any driver specific final cleanup.
+func (d *UnityDriver) FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID  string) error {
+//	pvDirectory := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/pv/%s", pvName)
+//	err := os.RemoveAll(pvDirectory)
+//	if err != nil {
+//		log.Errorf("Could not RemoveAll pv directory: %s: %s", pvDirectory, err)
+//	}
+	return nil
 }
