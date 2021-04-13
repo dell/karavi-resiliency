@@ -81,6 +81,8 @@ const (
 	sshTimeout = 10 * time.Second
 	// Directory where test scripts will be dropped
 	remoteScriptDir = "/root/karavi-resiliency-tests"
+	// Directory on Openshift nodes where the scripts will be dropped
+	openShiftRemoteScriptDir = "/tmp/karavi-resiliency-tests"
 	// An int value representing number of seconds to periodically check status
 	checkTickerInterval = 10
 	stopFilename        = "stop_test"
@@ -172,6 +174,11 @@ func (i *integration) givenKubernetes(configPath string) error {
 	err, i.isOpenshift = i.detectOpenshift()
 	if err != nil {
 		return err
+	}
+
+	if i.isOpenshift {
+		// Expecting env var pointing to the Bastion node hostname/IP
+		i.bastionNode = os.Getenv(OpenshiftBastion)
 	}
 
 	err = i.dumpNodeInfo()
@@ -599,7 +606,6 @@ func (i *integration) expectedEnvVariablesAreSet() error {
 
 	// If using Openshift, check for Openshift specific env vars
 	if i.isOpenshift {
-		i.bastionNode = os.Getenv(OpenshiftBastion)
 		err = AssertExpectedAndActual(assert.Equal, true, i.bastionNode != "",
 			fmt.Sprintf("Expected %s env variable when using an Openshift cluster.\n"+
 				"Try export %s=<name/IP of Bastion node> before running tests.", OpenshiftBastion, OpenshiftBastion))
@@ -984,10 +990,9 @@ func (i *integration) copyOverTestScriptsToOpenshift(address string) error {
 		Timeout:    sshTimeout,
 	}
 
-	openshiftNodeDir := fmt.Sprintf("/tmp%s", remoteScriptDir)
-	log.Infof("Attempting to scp scripts from %s:%s to %s:%s", i.bastionNode, i.scriptsDir, address, openshiftNodeDir)
+	log.Infof("Attempting to scp scripts from Bastion node %s to %s:%s", i.bastionNode, address, openShiftRemoteScriptDir)
 
-	mkDirCmd := fmt.Sprintf("ssh core@%s 'date; rm -rf %s; mkdir -p %s'", address, openshiftNodeDir, openshiftNodeDir)
+	mkDirCmd := fmt.Sprintf("ssh core@%s 'date; rm -rf %s; mkdir -p %s'", address, openShiftRemoteScriptDir, openShiftRemoteScriptDir)
 	log.Info(mkDirCmd)
 	if mkDirErr := client.Run(mkDirCmd); mkDirErr == nil {
 		for _, out := range client.GetOutput() {
@@ -997,7 +1002,8 @@ func (i *integration) copyOverTestScriptsToOpenshift(address string) error {
 		return mkDirErr
 	}
 
-	copyFileCmd := fmt.Sprintf("scp -r %s core@%s:%s", remoteScriptDir, address, openshiftNodeDir)
+	// Use SCP to copy the script files on the Bastion node into the /tmp dir of the Openshift node.
+	copyFileCmd := fmt.Sprintf("scp -r %s core@%s:%s", remoteScriptDir, address, "/tmp")
 	log.Info(copyFileCmd)
 	err := client.Run(copyFileCmd)
 	if err != nil {
@@ -1005,7 +1011,7 @@ func (i *integration) copyOverTestScriptsToOpenshift(address string) error {
 	}
 
 	// After copying the files, add execute permissions and list the directory
-	lsDirCmd := fmt.Sprintf("ssh core@%s 'sudo chmod +x %s/* ; sudo ls -ltr %s'", address, openshiftNodeDir, openshiftNodeDir)
+	lsDirCmd := fmt.Sprintf("ssh core@%s 'sudo chmod +x %s/* ; sudo ls -ltr %s'", address, openShiftRemoteScriptDir, openShiftRemoteScriptDir)
 	log.Info(lsDirCmd)
 	if lsErr := client.Run(lsDirCmd); lsErr == nil {
 		for _, out := range client.GetOutput() {
@@ -1015,7 +1021,7 @@ func (i *integration) copyOverTestScriptsToOpenshift(address string) error {
 		return lsErr
 	}
 
-	log.Infof("Scripts successfully copied to %s:%s", address, openshiftNodeDir)
+	log.Infof("Scripts successfully copied to %s:%s", address, openShiftRemoteScriptDir)
 	return nil
 }
 
@@ -1047,7 +1053,10 @@ func (i *integration) induceFailureOn(name string, ip, failureType string, wait 
 		Username: os.Getenv("NODE_USER"),
 		Password: os.Getenv("PASSWORD"),
 	}
-
+	if i.isOpenshift {
+		// On Openshift, failure scripts are invoked via the Bastion node
+		info.Hostname = i.bastionNode
+	}
 	wrapper := ssh.NewWrapper(&info)
 
 	client := ssh.CommandExecution{
@@ -1062,10 +1071,19 @@ func (i *integration) induceFailureOn(name string, ip, failureType string, wait 
 		return fmt.Errorf("no mapping for failureType %s", failureType)
 	}
 
+	dirToUse := remoteScriptDir
+	if i.isOpenshift {
+		dirToUse = openShiftRemoteScriptDir
+	}
+
 	// Invoke script allows us to programmatically invoke the failure script and not fail the SSH session
-	invokerScript := fmt.Sprintf("%s/invoke.sh", remoteScriptDir)
-	failureScript := fmt.Sprintf("%s/%s", remoteScriptDir, scriptToUse)
+	invokerScript := fmt.Sprintf("%s/invoke.sh", dirToUse)
+	failureScript := fmt.Sprintf("%s/%s", dirToUse, scriptToUse)
 	invokeFailCmd := fmt.Sprintf("%s %s --seconds %d", invokerScript, failureScript, wait)
+	if i.isOpenshift {
+		// For Openshift, failure script invocation is done from the Bastion node to the Openshift node
+		invokeFailCmd = fmt.Sprintf("ssh core@%s sudo %s", ip, invokeFailCmd)
+	}
 	log.Infof("Command to invoke: %s", invokeFailCmd)
 	if invokeErr := client.SendRequest(invokeFailCmd); invokeErr == nil {
 		for _, out := range client.GetOutput() {
