@@ -171,7 +171,7 @@ func (i *integration) givenKubernetes(configPath string) error {
 		return fmt.Errorf(message)
 	}
 
-	err, i.isOpenshift = i.detectOpenshift()
+	i.isOpenshift, err = i.detectOpenshift()
 	if err != nil {
 		return err
 	}
@@ -469,7 +469,7 @@ func (i *integration) theseCSIDriverAreConfiguredOnTheSystem(driverName string) 
 func (i *integration) thereIsThisNamespaceInTheCluster(namespace string) error {
 	var err error
 	var foundNamespace bool
-	if err, foundNamespace = i.getNamespace(namespace); err != nil {
+	if foundNamespace, err = i.getNamespace(namespace); err != nil {
 		return err
 	}
 
@@ -908,9 +908,8 @@ func (i *integration) searchForNodes(filter func(node corev1.Node) bool) ([]core
 func (i *integration) copyOverTestScripts(address string) error {
 	if i.isOpenshift {
 		return i.copyOverTestScriptsToOpenshift(address)
-	} else {
-		return i.copyOverTestScriptsToNode(address)
 	}
+	return i.copyOverTestScriptsToNode(address)
 }
 
 //copyOverTestScriptsNode copies over the scripts to the node at 'address'.
@@ -1340,29 +1339,29 @@ func (i *integration) nodeHadPodsRunning(nodeName string) bool {
 	return false
 }
 
-func (i *integration) getNamespace(namespace string) (error, bool) {
+func (i *integration) getNamespace(namespace string) (bool, error) {
 	namespaces, err := i.k8s.GetClient().CoreV1().Namespaces().List(context.Background(), metav1.ListOptions{})
 	if err != nil {
-		return err, false
+		return false, err
 	}
 
 	for _, ns := range namespaces.Items {
 		if namespace == ns.Name {
-			return nil, true
+			return true, nil
 		}
 	}
 
-	return nil, false
+	return false, nil
 }
 
-func (i *integration) detectOpenshift() (error, bool) {
+func (i *integration) detectOpenshift() (bool, error) {
 	var err error
 	var hasOpenshiftNS bool
-	if err, hasOpenshiftNS = i.getNamespace("openshift"); err != nil {
-		return err, false
+	if hasOpenshiftNS, err = i.getNamespace("openshift"); err != nil {
+		return false, err
 	}
 
-	return nil, hasOpenshiftNS
+	return hasOpenshiftNS, nil
 }
 
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
