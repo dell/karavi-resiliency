@@ -82,7 +82,7 @@ const (
 	// Directory where test scripts will be dropped
 	remoteScriptDir = "/root/karavi-resiliency-tests"
 	// Directory on Openshift nodes where the scripts will be dropped
-	openShiftRemoteScriptDir = "/tmp/karavi-resiliency-tests"
+	openShiftRemoteScriptDir = "/usr/tmp/karavi-resiliency-tests"
 	// An int value representing number of seconds to periodically check status
 	checkTickerInterval = 10
 	stopFilename        = "stop_test"
@@ -1003,7 +1003,7 @@ func (i *integration) copyOverTestScriptsToOpenshift(address string) error {
 	}
 
 	// Use SCP to copy the script files on the Bastion node into the /tmp dir of the Openshift node.
-	copyFileCmd := fmt.Sprintf("scp -r %s core@%s:%s", remoteScriptDir, address, "/tmp")
+	copyFileCmd := fmt.Sprintf("scp -r %s core@%s:%s", remoteScriptDir, address, "/usr/tmp")
 	log.Info(copyFileCmd)
 	err := client.Run(copyFileCmd)
 	if err != nil {
