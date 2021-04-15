@@ -10,11 +10,11 @@ You may obtain a copy of the License at
 
 # Triage issues
 
-The main goal of issue triage is to categorize all incoming Karavi Resiliency issues and make sure each issue has all basic information needed for anyone else to understand and be able to start working on it.
+The main goal of issue triage is to categorize all incoming CSM for Resiliency issues and make sure each issue has all basic information needed for anyone else to understand and be able to start working on it.
 
-> **Note:** This information is for Karavi Resiliency project Maintainers, Owners, and Admins. If you are a Contributor, then you will not be able to perform most of the tasks in this topic.
+> **Note:** This information is for CSM for Resiliency project Maintainers, Owners, and Admins. If you are a Contributor, then you will not be able to perform most of the tasks in this topic.
 
-The core maintainers of the Karavi Resiliency project are responsible for categorizing all incoming issues and delegating any critical or important issue to other maintainers. Triage provides an important way to contribute to an open source project. 
+The core maintainers of the CSM for Resiliency project are responsible for categorizing all incoming issues and delegating any critical or important issue to other maintainers. Triage provides an important way to contribute to an open source project. 
 
 Triage helps ensure issues resolve quickly by:
 
@@ -126,7 +126,7 @@ The easiest way to find issues that haven't been triaged is to search for issues
 
 ## 2. Ensure the issue contains basic information
 
-Make sure that the issue's author provided the standard issue information. The Karavi Resiliency project utilizes [GitHub issue templates](https://help.github.com/en/articles/creating-issue-templates-for-your-repository) to guide contributors to provide standard information that must be included for each type of template or type of issue.
+Make sure that the issue's author provided the standard issue information. The CSM for Resiliency project utilizes [GitHub issue templates](https://help.github.com/en/articles/creating-issue-templates-for-your-repository) to guide contributors to provide standard information that must be included for each type of template or type of issue.
 
 ### Standard issue information that must be included
 
@@ -135,8 +135,8 @@ The following section describes the various issue templates and the expected con
 #### Bug reports
 
 Should explain what happened, what was expected and how to reproduce it together with any additional information that may help to give a complete picture of what happened such as screenshots, output and any environment related information that's applicable and/or maybe related to the reported problem:
-- Karavi Resiliency version
-- Platform & OS Karavi Resiliency is installed on
+- CSM for Resiliency version
+- Platform & OS CSM for Resiliency is installed on
 
 #### Feature requests
 

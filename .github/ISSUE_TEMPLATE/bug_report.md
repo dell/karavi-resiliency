@@ -24,7 +24,7 @@ A clear and concise description of what you expected to happen.
 If applicable, add screenshots to help explain your problem.
 
 **Logs**
-If applicable, submit logs, or stack traces from the affected services. Use [collect-logs.sh](../../tools/collect_logs.sh) to capture Karavi Resiliency data and logs.
+If applicable, submit logs, or stack traces from the affected services. Use [collect-logs.sh](../../tools/collect_logs.sh) to capture CSM for Resiliency data and logs.
 
 **System Information (please complete the following information):**
  - OS/Version: [e.g. RHEL 7.6]

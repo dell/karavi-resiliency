@@ -8,9 +8,9 @@ You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-# Deploying Karavi Resiliency
+# Deploying CSM for Resiliency
 
-Karavi Resiliency is deployed as part of the CSI driver deployment. The drivers can be deployed either by a _helm chart_ or by the _Dell CSI Operator_. For the alpha (Tech. Preview) phase, only _helm chart_ installation is supported.
+CSM for Resiliency is deployed as part of the CSI driver deployment. The drivers can be deployed either by a _helm chart_ or by the _Dell CSI Operator_. For the alpha (Tech. Preview) phase, only _helm chart_ installation is supported.
 
 For information on the PowerFlex CSI driver, see (PowerFlex CSI Driver)[https://github.com/dell/csi-powerflex].
 
@@ -40,7 +40,7 @@ The diff is as follows:
 
 For reference, the entire node.yaml file with the change applied is available here: [node.yaml](node.yaml).
 
-The drivers that support Helm chart deployment allow Karavi Resiliency to be _optionally_ deployed by variables in the chart. There is a _podmon_ block specified in the _values.yaml_ file of the chart that will look similar the text below by default:
+The drivers that support Helm chart deployment allow CSM for Resiliency to be _optionally_ deployed by variables in the chart. There is a _podmon_ block specified in the _values.yaml_ file of the chart that will look similar the text below by default:
 
 ```
 # Podmon is an optional feature under development and tech preview.
@@ -61,8 +61,8 @@ podmon:
   #    - "-leaderelection=false"
 ```
 
-To deploy Karavi Resiliency with the driver, the following changes are requried:
-1. Enable Karavi Resiliency by changing the podmon.enabled boolean to true. This will enable both controller-podmon and node-podmon.
+To deploy CSM for Resiliency with the driver, the following changes are required:
+1. Enable CSM for Resiliency by changing the podmon.enabled boolean to true. This will enable both controller-podmon and node-podmon.
 2. Specify the podmon image to be used as podmon.image.
 3. Specify arguments to controller-podmon in the podmon.controller.args block. See "Podmon Arguments" below. Note that some arguments are required. Note that the arguments supplied to controller-podmon are different than those supplied to node-podmon.
 4. Specify arguments to node-podmon in the podmon.node.args block. See "Podmon Arguments" below. Note that some arguments are required. Note that the arguments supplied to controller-podmon are different than those supplied to node-podmon.
@@ -71,14 +71,14 @@ To deploy Karavi Resiliency with the driver, the following changes are requried:
   
 |Argument | Required | Description | Applicability |
 |---------|----------|-------------|---------------|
-| enabled | Required | Boolean "true" enables Karavi Resiliency deployment with the driver in a helm installation. | top level |
+| enabled | Required | Boolean "true" enables CSM for Resiliency deployment with the driver in a helm installation. | top level |
 | image   | Required | Must be set to a repository where the podmon image can be pulled. | controller & node |
 |mode     | Required | Must be set to "controller" for controller-podmon and "node" for node-podmon. | controller & node |
 |csisock  | Required | This should be left as set in the helm template for the driver. For controller: "-csisock=unix:/var/run/csi/csi.sock". For node it will vary depending on the driver's identity, e.g. "-csisock=unix:/var/lib/kubelet/plugins/vxflexos.emc.dell.com/csi_sock" | controller & node |
 | leaderelection | Required | Boolean value that should be set true for controller and false for node. The default value is true. | controller & node |
 | skipArrayConnectionValidation | Optional | Boolean value that if set to true will cause controllerPodCleanup to skip the validation that no I/O is ongong before cleaning up the pod. | controller |
-| labelKey | Optional | String value that sets the label key used to denote pods to be monitored by Karavi Resiliency. It will make life easier if this key is the same for all driver types, and drivers are differentiated by different labelValues (see below). If the label keys are the same across all drivers you can do "kubectl get pods -A -l labelKey" to find all the Karavi Resiliency protected pods. labelKey defaults to "podmon.dellemc.com/driver". | controller & node |
-| labelValue | Required | String that sets the value that denotes pods to be monitored by Karavi Resiliency. This must be specific for each driver. Defaults to "csi-vxflexos" | controller & node |
+| labelKey | Optional | String value that sets the label key used to denote pods to be monitored by CSM for Resiliency. It will make life easier if this key is the same for all driver types, and drivers are differentiated by different labelValues (see below). If the label keys are the same across all drivers you can do "kubectl get pods -A -l labelKey" to find all the CSM for Resiliency protected pods. labelKey defaults to "podmon.dellemc.com/driver". | controller & node |
+| labelValue | Required | String that sets the value that denotes pods to be monitored by CSM for Resiliency. This must be specific for each driver. Defaults to "csi-vxflexos" | controller & node |
 | arrayConnectivityPollRate | Optional | The minimum polling rate in seconds to determine if array has connectivity to a node. Should not be set to less than 5 seconds. See the specific section for each array type for additional guidance. | controller |
 | arrayConnectivityConnectionLossThreshold | Optional | Gives the number of failed connection polls that will be deemed to indicate array connectivity loss. Should not be set to less than 3. See the specific section for each array type for additional guidance. | controller |
 

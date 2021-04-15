@@ -1,6 +1,6 @@
 Feature: Integration Test
-  As a karavi-resiliency developer
-  I want to test karavi-resiliency in a kubernetes environment
+  As a CSM for Resiliency developer
+  I want to test CSM for Resiliency in a kubernetes environment
   So that it is known to work on various pod clean up cases and give consistent results
 
   @int-setup-check
