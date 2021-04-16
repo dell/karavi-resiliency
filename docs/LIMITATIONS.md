@@ -8,9 +8,9 @@ You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-# Limitaions and Exclusions
+# Limitations and Exclusions
 
-This file contains information on Limitations and Exclusions that users should be aware of. Additionally there are driver specific limitations and exclusions that may be called out in the "Deploying Karavi Resiliency" page.
+This file contains information on Limitations and Exclusions that users should be aware of. Additionally, there are driver specific limitations and exclusions that may be called out in the "Deploying CSM for Resiliency" page.
 
 ## Supported and Tested Operating Modes
 
@@ -31,7 +31,7 @@ The following provisioning types are supported and have been tested:
 
 * Pods that use persistent volumes from multiple CSI drivers. This _cannot_ be supported because multiple controller-podmons (one for each driver type) would be trying to manage the failover with conflicting actions.
 
-* ReadWriteMany volumes. This may have issues if a node has multiple pods accessing the same volumes. In any case once pod cleanup fences the volumes on a node, they will no longer be available to any pods using those volumes on that node. We will endavor to support this in the future.
+* ReadWriteMany volumes. This may have issues if a node has multiple pods accessing the same volumes. In any case once pod cleanup fences the volumes on a node, they will no longer be available to any pods using those volumes on that node. We will endeavor to support this in the future.
 
 * Multiple instances of the same driver type (for example two CSI driver for Dell EMC PowerFlex deployments.)
 
