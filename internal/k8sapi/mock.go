@@ -150,6 +150,20 @@ func (mock *K8sMock) GetPod(ctx context.Context, namespace, name string) (*v1.Po
 	return pod, nil
 }
 
+func (mock *K8sMock) GetCachedVolumeAttachment(ctx context.Context, pvName, nodeName string) (*storagev1.VolumeAttachment, error) {
+	valist := &storagev1.VolumeAttachmentList{}
+	if mock.InducedErrors.GetVolumeAttachments {
+		return nil, errors.New("induced GetVolumeAttachments error")
+	}
+	valist.Items = make([]storagev1.VolumeAttachment, 0)
+	for _, item := range mock.NameToVolumeAttachment {
+		if *item.Spec.Source.PersistentVolumeName == pvName && item.Spec.NodeName == nodeName {
+			return item, nil
+		}
+	}
+	return nil, nil
+}
+
 // GetVolumeAttachments gets all the volume attachments in the K8S system
 func (mock *K8sMock) GetVolumeAttachments(ctx context.Context) (*storagev1.VolumeAttachmentList, error) {
 	valist := &storagev1.VolumeAttachmentList{}

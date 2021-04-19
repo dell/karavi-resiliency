@@ -12,9 +12,12 @@ package criapi
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	"os"
 	"time"
 )
 
@@ -70,9 +73,30 @@ func (cri *Client) ListContainers(ctx context.Context, req *v1alpha2.ListContain
 	return CRIClient.RuntimeServiceClient.ListContainers(ctx, req)
 }
 
+var knownPaths [3]string  = [3]string{"/var/run/dockershim.sock", "/run/containerd/containerd.sock", "/run/crio/crio.sock" }
+
+// ChoseCRIPath chooses an appropriate unix domain socket path to the CRI interface.
+func (cri *Client) ChooseCRIPath() (string, error) {
+	for _, path := range knownPaths {
+		_, err := os.Stat(path)
+		if err == nil {
+			retval := fmt.Sprintf("unix:///%s", path)
+			return retval, nil
+		}
+	}
+	return "", errors.New("Could not find path for CRI runtime from knownPaths")
+}
+
+// GetContainerInfo gets current status of all the containers on this server using CRI interface.
+// The result is a map of ID to a structure containing the ID, Name, and State.
 func (cri *Client) GetContainerInfo(ctx context.Context) (map[string]*ContainerInfo, error) {
 	result := make(map[string]*ContainerInfo)
-	client, err := NewCRIClient("unix:/var/run/dockershim.sock")
+	
+	path, err := cri.ChooseCRIPath()
+	if err != nil {
+		return result, err
+	}
+	client, err := NewCRIClient(path)
 	if err != nil {
 		return result, err
 	}

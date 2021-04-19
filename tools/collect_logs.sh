@@ -77,7 +77,7 @@ done
 protectedpods=$(getprotectedpods)
 for podns in $protectedpods;
 do
-	count=$(kubectl get events -n pmtv2 | grep -v '^LAST' | wc -l)
+	count=$(kubectl get events -n $podns | grep -v '^LAST' | wc -l)
 	if [ $count -gt 0 ]; then
 		kubectl get events -n $podns >$podns.events
 	fi
