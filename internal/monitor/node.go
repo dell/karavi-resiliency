@@ -23,8 +23,8 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	cri "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 	"os"
-	"podmon/internal/k8sapi"
 	"podmon/internal/criapi"
+	"podmon/internal/k8sapi"
 	"podmon/internal/utils"
 	"strings"
 	"time"
@@ -42,6 +42,8 @@ var APICheckFirstTryTimeout = MediumTimeout
 //APIMonitorWait a function reference that can control the API monitor loop
 var APIMonitorWait = internalAPIMonitorWait
 
+// TaintCountDelay delays pod cleanup until at least TaintCountDelay iterations of the apiMonitorLoop have executed,
+// giving the node time to stabalize (e.g. kubelet reconcile with API server) before initiating cleanup.
 var TaintCountDelay = 4
 
 // StartAPIMonitor checks API connectivity by pinging the indicated (self) node
@@ -97,7 +99,7 @@ func (pm *PodMonitorType) apiMonitorLoop(api k8sapi.K8sAPI, nodeName string, fir
 			}
 			// If our node is tainted, we need to clean it up
 			if nodeHasTaint(node, PodmonTaintKey, v1.TaintEffectNoSchedule) {
-				taintCount = taintCount+1
+				taintCount = taintCount + 1
 				// Delay the first few intervals if necessary to give the node time to stabalize
 				if taintCount >= TaintCountDelay {
 					if pm.nodeModeCleanupPods(node) {
@@ -262,7 +264,7 @@ type NodePodInfo struct { // information we keep on hand about a pod
 
 // nodeModeCleanupPods attempts cleanup of all the pods that were registered from the pod Watcher nodeModePodHandler
 // Returns true if taint was removed, false if taint should remain.
-func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) (bool) {
+func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 	crictx, cricancel := K8sAPI.GetContext(ShortTimeout)
 	defer cricancel()
 	// Using CRI, get the pod information
@@ -344,10 +346,9 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) (bool) {
 		if err := taintNode(node.ObjectMeta.Name, true); err != nil {
 			log.Errorf("Failed to remove taint against %s node: %v", node.ObjectMeta.Name, err)
 			return false
-		} else {
-			log.Infof("Cleanup of pods complete: %v", podKeys)
-			return true
 		}
+		log.Infof("Cleanup of pods complete: %v", podKeys)
+		return true
 	}
 
 	log.Infof("pods skipped for cleanup because still present or container executing: %v", podKeysSkipped)
@@ -503,4 +504,3 @@ func (pm *PodMonitorType) callNodeUnstageVolume(fields map[string]interface{}, t
 }
 
 var getContainers = criapi.CRIClient.GetContainerInfo
-

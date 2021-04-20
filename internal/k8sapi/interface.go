@@ -45,7 +45,8 @@ type K8sAPI interface {
 	// GetPod retrieves a pod of the give namespace and name
 	GetPod(ctx context.Context, namespace, name string) (*v1.Pod, error)
 
-	// GetCachedVolumeAttachment gets a single volume attachment (from cache if possible).
+	// GetCachedVolumeAttachment will try to load the volumeattachment select by the persistent volume name and node name.
+	// If found it is returned from the cache. If not found, the cache is reloaded and the result returned from the reloaded data.
 	GetCachedVolumeAttachment(ctx context.Context, pvName, nodeName string) (*storagev1.VolumeAttachment, error)
 
 	// GetVolumeAttachments gets all the volume attachments in the K8S system

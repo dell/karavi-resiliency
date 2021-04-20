@@ -71,7 +71,7 @@ func (d *VxflexDriver) GetStagingBlockDir(volumeHandle, pvName string) string {
 	return ""
 }
 
-// NodeUnpublishExcludeError filters out NodeUnpublish errors that should be excluded
+// NodeUnpublishExcludedError filters out NodeUnpublish errors that should be excluded
 func (d *VxflexDriver) NodeUnpublishExcludedError(err error) bool {
 	return false
 }
@@ -82,7 +82,7 @@ func (d *VxflexDriver) NodeUnstageExcludedError(err error) bool {
 }
 
 // FinalCleanup handles any driver specific final cleanup.
-func (d *VxflexDriver) FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID  string) error {
+func (d *VxflexDriver) FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID string) error {
 	return nil
 }
 
@@ -142,11 +142,6 @@ func (d *UnityDriver) NodeUnstageExcludedError(err error) bool {
 }
 
 // FinalCleanup handles any driver specific final cleanup.
-func (d *UnityDriver) FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID  string) error {
-//	pvDirectory := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/pv/%s", pvName)
-//	err := os.RemoveAll(pvDirectory)
-//	if err != nil {
-//		log.Errorf("Could not RemoveAll pv directory: %s: %s", pvDirectory, err)
-//	}
+func (d *UnityDriver) FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID string) error {
 	return nil
 }

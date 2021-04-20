@@ -150,6 +150,8 @@ func (mock *K8sMock) GetPod(ctx context.Context, namespace, name string) (*v1.Po
 	return pod, nil
 }
 
+// GetCachedVolumeAttachment will try to load the volumeattachment select by the persistent volume name and node name.
+// If found it is returned from the cache. If not found, the cache is reloaded and the result returned from the reloaded data.
 func (mock *K8sMock) GetCachedVolumeAttachment(ctx context.Context, pvName, nodeName string) (*storagev1.VolumeAttachment, error) {
 	valist := &storagev1.VolumeAttachmentList{}
 	if mock.InducedErrors.GetVolumeAttachments {

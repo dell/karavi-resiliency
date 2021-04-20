@@ -20,9 +20,11 @@ Feature: Monitor generic code
       | "node1" | 0    | "none"           | "none"       | "None"    | "Setup of PodWatcher complete" |
       | "node1" | 0    | "none"           | "none"       | "Add"     | "PodMonitor.Mode not set"      |
       | "node1" | 0    | "none"           | "controller" | "Add"     | "podMonitorHandler"            |
+      | "node1" | 0    | "GetPod"         | "controller" | "Add"     | "GetPod error"                 |
       | "node1" | 0    | "BadWatchObject" | "controller" | "Add"     | "podMonitorHandler nil pod"    |
       | "node1" | 0    | "none"           | "node"       | "Add"     | "nodeModePodHandler"           |
       | "node1" | 0    | "none"           | "standalone" | "Add"     | "podMonitorHandler"            |
+      | "node1" | 0    | "GetPod"         | "standalone" | "Add"     | "GetPod error"                 |
       | "node1" | 0    | "none"           | "none"       | "Modify"  | "PodMonitor.Mode not set"      |
       | "node1" | 0    | "none"           | "none"       | "Delete"  | "PodMonitor.Mode not set"      |
       | "node1" | 0    | "none"           | "none"       | "Stop"    | "PodWatcher stopped..."        |

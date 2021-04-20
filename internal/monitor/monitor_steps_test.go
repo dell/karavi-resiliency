@@ -22,11 +22,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
-	cri "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes/fake"
+	cri "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 	"os"
 	"path/filepath"
 	"podmon/internal/criapi"
@@ -40,8 +40,8 @@ import (
 )
 
 const (
-	podns string = "podns"
-	containerID = "1234"
+	podns       string = "podns"
+	containerID        = "1234"
 )
 
 type feature struct {
@@ -55,9 +55,9 @@ type feature struct {
 	// CSIMock
 	csiapiMock *csiapi.CSIMock
 	// K8SMock
-	k8sapiMock               *k8sapi.K8sMock
+	k8sapiMock *k8sapi.K8sMock
 	// CRI mock
-	criMock			 *criapi.MockClient
+	criMock                  *criapi.MockClient
 	err                      error
 	success                  bool
 	podList                  []*v1.Pod   // For multi-pod tests
@@ -251,11 +251,15 @@ func (f *feature) iInduceError(induced string) error {
 		f.criMock.InducedErrors.GetContainerInfo = true
 	case "ContainerRunning":
 		containerInfo := &criapi.ContainerInfo{
-			ID: containerID,
-			Name: "running-container",
+			ID:    containerID,
+			Name:  "running-container",
 			State: cri.ContainerState_CONTAINER_RUNNING,
 		}
 		f.criMock.MockContainerInfos[containerID] = containerInfo
+	case "NodeUnpublishNFSShareNotFound":
+		f.csiapiMock.InducedErrors.NodeUnpublishNFSShareNotFound = true
+	case "NodeUnstageNFSShareNotFound":
+		f.csiapiMock.InducedErrors.NodeUnstageNFSShareNotFound = true
 	default:
 		return fmt.Errorf("Unknown induced error: %s", induced)
 	}
@@ -456,12 +460,12 @@ func (f *feature) createPod(node string, nvolumes int, condition string) *v1.Pod
 	pod.Status.Message = "pod updated"
 	pod.Status.Reason = "pod reason"
 	pod.Status.ContainerStatuses = make([]v1.ContainerStatus, 0)
-	containerStatus := v1.ContainerStatus {
+	containerStatus := v1.ContainerStatus{
 		ContainerID: "//" + containerID,
 	}
-	containerInfo := &criapi.ContainerInfo {
-		ID: containerID,
-		Name: "running-container",
+	containerInfo := &criapi.ContainerInfo{
+		ID:    containerID,
+		Name:  "running-container",
 		State: cri.ContainerState_CONTAINER_EXITED,
 	}
 	f.criMock.MockContainerInfos["1234"] = containerInfo
@@ -536,6 +540,7 @@ func (f *feature) createPod(node string, nvolumes int, condition string) *v1.Pod
 		pvc.ObjectMeta.Namespace = podns
 		pvc.ObjectMeta.Name = fmt.Sprintf("pvc-%s-%d", f.podUID[podIndex], i)
 		pvc.Spec.VolumeName = pv.ObjectMeta.Name
+		pvc.Status.Phase = "Bound"
 		// Create a VolumeAttachment
 		va := &storagev1.VolumeAttachment{}
 		va.ObjectMeta.Name = fmt.Sprintf("va%d", i)

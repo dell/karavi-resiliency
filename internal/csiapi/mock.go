@@ -28,6 +28,8 @@ type CSIMock struct {
 		NodeUnstageVolume              bool
 		ValidateVolumeHostConnectivity bool
 		Close                          bool
+		NodeUnpublishNFSShareNotFound  bool
+		NodeUnstageNFSShareNotFound    bool
 	}
 	ValidateVolumeHostConnectivityResponse struct {
 		Connected     bool
@@ -63,6 +65,9 @@ func (mock *CSIMock) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpub
 	if mock.InducedErrors.NodeUnpublishVolume {
 		return rep, errors.New("NodeUnpublishedVolume induced error")
 	}
+	if mock.InducedErrors.NodeUnpublishNFSShareNotFound {
+		return rep, errors.New("NFS Share for filesystem not found")
+	}
 	return rep, nil
 }
 
@@ -71,6 +76,9 @@ func (mock *CSIMock) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstage
 	rep := &csi.NodeUnstageVolumeResponse{}
 	if mock.InducedErrors.NodeUnstageVolume {
 		return rep, errors.New("NodeUnstageedVolume induced error")
+	}
+	if mock.InducedErrors.NodeUnstageNFSShareNotFound {
+		return rep, errors.New("NFS Share for filesystem not found")
 	}
 	return rep, nil
 }

@@ -80,6 +80,8 @@ Feature: Controller Monitor
       | unity  | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "none"                | "none"                             |
       | unity  | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
       | unity  | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "NodeUnstageVolume"   | "Couldn't completely cleanup node" |
+      | unity  | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "NodeUnpublishNFSShareNotFound" | "none" |
+      | unity  | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "NodeUnstageNFSShareNotFound"   | "none" |
       # Multiple pod tests
       | vxflex | "node1"  | 3    | 2    | 1    | 3       | "none"     | "none"      | "none"         | "none"                | "none"                             |
       | vxflex | "node1"  | 3    | 2    | 1    | 2       | "none"     | "none"      | "none"         | "none"                | "Couldn't completely cleanup node" |

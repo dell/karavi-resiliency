@@ -39,10 +39,10 @@ import (
 
 //Client holds a reference to a Kubernetes client
 type Client struct {
-	Client        *kubernetes.Clientset
-	Lock          sync.Mutex
-	eventRecorder record.EventRecorder
-	volumeAttachmentCache	map[string]*storagev1.VolumeAttachment
+	Client                    *kubernetes.Clientset
+	Lock                      sync.Mutex
+	eventRecorder             record.EventRecorder
+	volumeAttachmentCache     map[string]*storagev1.VolumeAttachment
 	volumeAttachmentNameToKey map[string]string
 }
 
@@ -97,16 +97,17 @@ func (api *Client) GetPod(ctx context.Context, namespace, name string) (*v1.Pod,
 
 var vacachehit, vacachemiss int
 
-//GetCachedVolumeAttachment returns a cached VolumeAttachment if possible, otherwise 
+// GetCachedVolumeAttachment will try to load the volumeattachment select by the persistent volume name and node name.
+// If found it is returned from the cache. If not found, the cache is reloaded and the result returned from the reloaded data.
 func (api *Client) GetCachedVolumeAttachment(ctx context.Context, pvName, nodeName string) (*storagev1.VolumeAttachment, error) {
 	api.Lock.Lock()
 	defer api.Lock.Unlock()
 	key := fmt.Sprintf("%s/%s", pvName, nodeName)
-	log.Infof("Looking for volume attachment %s", key)
+	log.Debugf("Looking for volume attachment %s", key)
 	if api.volumeAttachmentCache != nil && api.volumeAttachmentCache[key] != nil {
 		// Cache hit - return cached VA.
 		vacachehit++
-		log.Infof("VA Cache Hit %d / Miss %d", vacachehit, vacachemiss)
+		log.Debugf("VA Cache Hit %d / Miss %d", vacachehit, vacachemiss)
 		return api.volumeAttachmentCache[key], nil
 	}
 	// Cache miss. Read all the volume attachments.
@@ -116,7 +117,7 @@ func (api *Client) GetCachedVolumeAttachment(ctx context.Context, pvName, nodeNa
 	}
 	// Rebuild the cache
 	vacachemiss++
-	log.Infof("VA Cache Miss %d / %d", vacachemiss, vacachehit)
+	log.Debugf("VA Cache Miss %d / %d", vacachemiss, vacachehit)
 	api.volumeAttachmentCache = make(map[string]*storagev1.VolumeAttachment)
 	api.volumeAttachmentNameToKey = make(map[string]string)
 	log.Infof("Rebuilding VA cache, hits %d misses %d", vacachehit, vacachemiss)
