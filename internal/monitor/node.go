@@ -326,7 +326,6 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 		return true
 	}
 	pm.PodKeyMap.Range(fn)
-	//time.Sleep(60 * time.Second)
 	log.Infof("pods skipped for cleanup because still present or container executing: %v", podKeysSkipped)
 	log.Infof("pods to be cleaned up: %v", podKeys)
 	for i := 0; i < len(podKeys); i++ {
