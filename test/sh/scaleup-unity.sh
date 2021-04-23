@@ -12,7 +12,7 @@
 CWD=$(pwd)
 NVOLUMES=2
 STORAGECLASS=unity-nfs
-MAXPODS=72
+MAXPODS=81
 
 # checks that all labeled pods are running, exits if not
 wait_on_running() {
@@ -64,7 +64,6 @@ wait_on_running
 sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 900
 fi
 
-BOUNCEIPTIME=720
 instances="72"
 if [ $instances -le $MAXPODS ]; then
 cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
@@ -72,7 +71,7 @@ wait_on_running
 sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
 fi
 
-BOUNCEIPTIME=850
+BOUNCEIPTIME=720
 instances="81"
 if [ $instances -le $MAXPODS ]; then
 cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
@@ -80,15 +79,13 @@ wait_on_running
 sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
 fi
 
-BOUNCEIPTIME=1200
 instances="90"
 if [ $instances -le $MAXPODS ]; then
 cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
 wait_on_running
-sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1500
+sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
 fi
 
-BOUNCEIPTIME=1200
 instances="99"
 if [ $instances -le $MAXPODS ]; then
 cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
