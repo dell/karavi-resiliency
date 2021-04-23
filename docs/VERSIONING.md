@@ -10,7 +10,7 @@ You may obtain a copy of the License at
 
 # Versioning
 
-Karavi Resiliency follows Semantic Versioning as defined on [http://semver.org/](http://semver.org), with the addition of the "v" prefix to match the accepted style of Golang projects.
+CSM for Resiliency follows Semantic Versioning as defined on [http://semver.org/](http://semver.org), with the addition of the "v" prefix to match the accepted style of Golang projects.
 
 Artifacts published must belong to one of the following categories:
   * "Releases", i.e. artifacts that have versions that follow the `vX.Y.Z` format,

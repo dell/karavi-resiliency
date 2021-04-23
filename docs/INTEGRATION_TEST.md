@@ -1,12 +1,12 @@
 # Integration test
-The Karavi Resiliency integration uses a [Gherkin](https://cucumber.io/docs/gherkin) feature file to define the integration test cases in BDD format. It uses [Godog](https://github.com/cucumber/godog) to run the defined tests. The integration tests, unlike the unit tests, are expected to work with a real Kubernetes cluster. The prerequisites are listed below. 
+The CSM for Resiliency integration uses a [Gherkin](https://cucumber.io/docs/gherkin) feature file to define the integration test cases in BDD format. It uses [Godog](https://github.com/cucumber/godog) to run the defined tests. The integration tests, unlike the unit tests, are expected to work with a real Kubernetes cluster. The prerequisites are listed below. 
 
 The tests will deploy [test pods](../test/podmontest) on the system and run the failure scenarios. These failure scenarios require that systems are accessible using username/password credentials. Also note, that the tests will bring down network interfaces and/or reboot any of the Kubernetes cluster's nodes.
 
 # Prerequisites
 
 You will need to have the following deployed in your Kubernetes cluster:
-* A Karavi Resiliency supported CSI Driver (see the appropriate documentation for the driver).
+* A CSM for Resiliency supported CSI Driver (see the appropriate documentation for the driver).
 * CSI Driver should have the podmon sidecar enabled (see [Getting Started Guide](./GETTING_STARTED_GUIDE.md)).
 * Storage classes created using the supported CSI Driver. Specific driver names are called out in the test scenarios.
 
@@ -21,9 +21,10 @@ These environmental variables need to be set:
 | RESILIENCY_INT_TEST | Yes |  This is a flag for running the test. Since the go test will run any _test.go file, we need a way for the integration test to be run only when specifically needed. This variable achieves this requirement. | "true" |
 | NODE_USER | Yes | The username to use for scp'ing failure test scripts and ssh'ing to invoke the failure scripts. _It is assumed all hosts can be accessible with the same username_ | _Appropriate value for your test hosts_ |
 | PASSWORD | Yes | The password to use for scp'ing failure test scripts and ssh'ing to invoke the failure scripts. _It is assumed all hosts can be accessible with the same password_ | _Appropriate value for your test hosts_ |
-| SCRIPTS_DIR | Yes | The full path to the Karavi Resiliency test scripts from the machine that you are invoking the integration test. | For example if you've cloned the karavi-resiliency repo to /workspace/karavi-resiliency, then this value should be _/workspace/karavi-resiliency/test/sh_ | 
+| SCRIPTS_DIR | Yes | The full path to the CSM for Resiliency test scripts from the machine that you are invoking the integration test. | For example if you've cloned the karavi-resiliency repo to /workspace/karavi-resiliency, then this value should be _/workspace/karavi-resiliency/test/sh_ | 
 | POLL_K8S | No |When enabled, will run a background poller that dumps status of the nodes and test pods.  | "true" |
 | RESILIENCY_INT_TEST_STOP_ON_FAILURE | No | By default the integration will be set to stop on any failure. Using this flag and setting it to 'false' will allow tests to continue on failure | default: "true", Set to "false" to disable |
+| OPENSHIFT_BASTION | If using Openshift - Yes, otherwise No | Name or IP address of the Openshift Bastion node. Openshift node failures will be invoked from this host. | Bastion node name/IP |
 
 # Running 
 
@@ -145,7 +146,7 @@ All the previous descriptions about the `Examples` apply, except that these are 
 
 * In case of any missing prerequisites, such as a required environmental variables or a driver dependencies, the test will fail with an appropriate message pointing to what it expected that was missing.
 
-* If you run into an error that points to a problem accessing a file or directory, check if the `SCRIPTS_DIR` is pointing the location of the Karavi Resiliency test scripts.
+* If you run into an error that points to a problem accessing a file or directory, check if the `SCRIPTS_DIR` is pointing the location of the CSM for Resiliency test scripts.
 
 * If you see early errors in the tests indicating that it failed to create a session, check if you have the right credentials.
 
