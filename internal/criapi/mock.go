@@ -8,6 +8,7 @@
  * http://www.apache.org/licenses/LICENSE-2.0
  *
  */
+
 package criapi
 
 import (
@@ -16,6 +17,7 @@ import (
 	"k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 )
 
+// MockClient is a mock client supporting the criapi.
 type MockClient struct {
 	InducedErrors struct {
 		GetContainerInfo bool
@@ -23,24 +25,27 @@ type MockClient struct {
 	MockContainerInfos map[string]*ContainerInfo
 }
 
+// Initialize initializes the MockClient.
 func (mock *MockClient) Initialize() {
 	mock.MockContainerInfos = make(map[string]*ContainerInfo)
 }
 
-
+// Connected returns true if connected.
 func (mock *MockClient) Connected() bool {
 	return true
 }
 
+// Close closes the mock client. This is unimplemented for the mock client.
 func (mock *MockClient) Close() error {
 	return errors.New("unimplemented")
 }
 
+// ListContainers would list individual containers but is not implemented for the mock client.
 func (mock *MockClient) ListContainers(ctx context.Context, req *v1alpha2.ListContainersRequest) (*v1alpha2.ListContainersResponse, error) {
 	return nil, errors.New("unimplemented")
 }
 
-// ChoseCRIPath chooses an appropriate unix domain socket path to the CRI interface.
+// ChooseCRIPath chooses an appropriate unix domain socket path to the CRI interface. This is unimplemented for the mock client.
 func (mock *MockClient) ChooseCRIPath() (string, error) {
 	return "", errors.New("unimplemented")
 }

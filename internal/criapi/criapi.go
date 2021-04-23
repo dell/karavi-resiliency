@@ -8,6 +8,7 @@
  * http://www.apache.org/licenses/LICENSE-2.0
  *
  */
+
 package criapi
 
 import (
@@ -21,20 +22,27 @@ import (
 	"time"
 )
 
+// Client represents the client grpc connection to the ContainerRuntimerInterface
 type Client struct {
 	CRIConn              *grpc.ClientConn              // A grpc client connection to CRI
 	RuntimeServiceClient v1alpha2.RuntimeServiceClient // A RuntimeService climent
 }
 
+// CRIClient is an intstance of the Client for the CRI connection
 var CRIClient Client
 
+// CRIClientDialRetry is the amount of time to wait before retrying
 var CRIClientDialRetry = 30 * time.Second
 
+// CRIMaxConnectionRetry is the maximum number of connection retries.
+var CRIMaxConnectionRetry = 3
+
+// NewCRIClient returns a new client connection to the ContainerRuntimeInterface or an error
 func NewCRIClient(criSock string, clientOpts ...grpc.DialOption) (*Client, error) {
 	var err error
-	for {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	for i := 0; i < CRIMaxConnectionRetry; i++ {
 		CRIClient.CRIConn, err = grpc.DialContext(ctx, criSock, grpc.WithInsecure())
 		if err != nil || CRIClient.CRIConn == nil {
 			var errMsg string
@@ -46,18 +54,20 @@ func NewCRIClient(criSock string, clientOpts ...grpc.DialOption) (*Client, error
 			log.Errorf("Waiting on connection to CRI socket: %s: %s", criSock, errMsg)
 			time.Sleep(CRIClientDialRetry)
 		} else {
-			break
+			log.Infof("Connected to CRI: %s", criSock)
+			CRIClient.RuntimeServiceClient = v1alpha2.NewRuntimeServiceClient(CRIClient.CRIConn)
+			return &CRIClient, nil
 		}
 	}
-	log.Infof("Connected to CRI: %s", criSock)
-	CRIClient.RuntimeServiceClient = v1alpha2.NewRuntimeServiceClient(CRIClient.CRIConn)
-	return &CRIClient, nil
+	return &CRIClient, err
 }
 
+// Connected returns true if the CRI connection is up.
 func (cri *Client) Connected() bool {
 	return cri.CRIConn != nil
 }
 
+// Close closes the connection to the CRI.
 func (cri *Client) Close() error {
 	if cri.Connected() {
 		if err := cri.CRIConn.Close(); err != nil {
@@ -69,13 +79,15 @@ func (cri *Client) Close() error {
 	return nil
 }
 
+// ListContainers lists all the containers in the Container Runtime.
 func (cri *Client) ListContainers(ctx context.Context, req *v1alpha2.ListContainersRequest) (*v1alpha2.ListContainersResponse, error) {
 	return CRIClient.RuntimeServiceClient.ListContainers(ctx, req)
 }
 
-var knownPaths [3]string  = [3]string{"/var/run/dockershim.sock", "/run/containerd/containerd.sock", "/run/crio/crio.sock" }
+var knownPaths [3]string = [3]string{"/var/run/dockershim.sock", "/run/containerd/containerd.sock", "/run/crio/crio.sock"}
 
-// ChoseCRIPath chooses an appropriate unix domain socket path to the CRI interface.
+// ChooseCRIPath chooses an appropriate unix domain socket path to the CRI interface.
+// This is done according to the ordering described for the crictl command.
 func (cri *Client) ChooseCRIPath() (string, error) {
 	for _, path := range knownPaths {
 		_, err := os.Stat(path)
@@ -91,7 +103,7 @@ func (cri *Client) ChooseCRIPath() (string, error) {
 // The result is a map of ID to a structure containing the ID, Name, and State.
 func (cri *Client) GetContainerInfo(ctx context.Context) (map[string]*ContainerInfo, error) {
 	result := make(map[string]*ContainerInfo)
-	
+
 	path, err := cri.ChooseCRIPath()
 	if err != nil {
 		return result, err
