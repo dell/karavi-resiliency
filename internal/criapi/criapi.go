@@ -37,10 +37,13 @@ var CRIClientDialRetry = 30 * time.Second
 // CRIMaxConnectionRetry is the maximum number of connection retries.
 var CRIMaxConnectionRetry = 3
 
+// CRINewClientTimeout is the timeout for making a new client.
+var CRINewClientTimeout = 90 * time.Second
+
 // NewCRIClient returns a new client connection to the ContainerRuntimeInterface or an error
 func NewCRIClient(criSock string, clientOpts ...grpc.DialOption) (*Client, error) {
 	var err error
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), CRINewClientTimeout)
 	defer cancel()
 	for i := 0; i < CRIMaxConnectionRetry; i++ {
 		CRIClient.CRIConn, err = grpc.DialContext(ctx, criSock, grpc.WithInsecure())

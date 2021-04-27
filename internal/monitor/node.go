@@ -352,7 +352,7 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 
 	log.Infof("pods skipped for cleanup because still present or container executing: %v", podKeysSkipped)
 	log.Infof("pods with cleanup errors: %v", podKeysWithError)
-	log.Info("Couldn't completely cleanup node- taint not removed- cleanup will be retried, or a manual reboot is advised advised")
+	log.Info("Couldn't completely cleanup node- taint not removed- cleanup will be retried, or a manual reboot is advised")
 	return false
 }
 
