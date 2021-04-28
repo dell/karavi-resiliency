@@ -14,7 +14,7 @@
 # The values below are default values. Many can be over-ridden by parameters.
 REBOOT=off
 COUNT=0
-# NODELIST1... NODELIST3 are space separated lists of nodes that will be failed as a unit.
+# NODELIST1... NODELIST10 are space separated lists of nodes that will be failed as a unit.
 NODELIST1=""
 NODELIST2=""
 NODELIST3=""
@@ -25,14 +25,23 @@ NODELIST7=""
 NODELIST8=""
 NODELIST9=""
 NODELIST10=""
+
 POLLTIME=5			# Poll time to print results
 BOUNCEIPSECONDS=240             # Bounce IP time in seconds for interface down
 TIMEOUT=600			# Maximum time in seconds to wait for a failure cycle (needs to be higher than EVACUATE_TIMEOUT)
 EVACUATE_TIMEOUT=$TIMEOUT       # Doesn't really matter if most of the time is spent in evacuation
 MAXITERATIONS=100		# Maximum number of failover iterations
+DRIVERNS=""				# Driver namespace
+
+rm -f stop			# Remove the stop file
 
 for param in $*; do
   case $param in
+  "--ns")
+    shift
+    DRIVERNS=$1
+    shift
+    ;;
   "--bounceipseconds")
     shift
     BOUNCEIPSECONDS=$1
@@ -50,17 +59,21 @@ for param in $*; do
     ;;
   "--help")
     shift
-    echo "parameters: [--bounceipseconds value] [--maxiterations value] [--timeoutseconds value]"
+    echo "parameters: --ns driver-namespace [--bounceipseconds value] [--maxiterations value] [--timeoutseconds value]"
     exit
+    ;;
   esac
 done
+
+[ "$DRIVERNS" = "" ] && echo "Required argument: --ns driver_namespace" && exit 2
+echo "Collecting logs driver namespace $DRIVERNS podmon label $podmon_label timeout $TIMEOUT"
 
 # check_timeout takes an argument $1 for how many seconds we've been running
 # and aborts if we exceed TIMEOUT
 check_timeout() {
 	if [ $1 -gt $TIMEOUT ]; then
 		echo "******************* timed out: " $1 "seconds ********************"
-		collect_logs.sh --ns vxflexos
+		collect_logs.sh --ns $DRIVERNS
 		exit 2
 	fi
 }
@@ -187,6 +200,10 @@ get_nodes_to_kill() {
 	do
 		podCount=$(get_pods_on_nodes $node)
 		if [ $podCount -gt 0 ]; then
+			outputlist="$outputlist $node"
+		fi
+		mastCount=$(kubectl get nodes | grep $node | grep control-plane,mast | wc -l)
+		if [ $mastCount -gt 0 ]; then
 			outputlist="$outputlist $node"
 		fi
 	done

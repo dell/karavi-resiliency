@@ -31,21 +31,21 @@ instances="4"
 if [ $instances -eq $MAXPODS ]; then
 cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
 wait_on_running
-sh ../sh/nway.sh --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
+sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
 fi
 
 instances="18"
 if [ $instances -le $MAXPODS ]; then
 cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
 wait_on_running
-sh ../sh/nway.sh --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
+sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
 fi
 
 instances="36"
 if [ $instances -le $MAXPODS ]; then
 cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
 wait_on_running
-sh ../sh/nway.sh --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
+sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
 fi
 
 BOUNCEIPTIME=480
@@ -53,7 +53,7 @@ instances="54"
 if [ $instances -le $MAXPODS ]; then
 cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
 wait_on_running
-sh ../sh/nway.sh --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 900
+sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 900
 fi
 
 BOUNCEIPTIME=720
@@ -61,7 +61,7 @@ instances="72"
 if [ $instances -le $MAXPODS ]; then
 cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
 wait_on_running
-sh ../sh/nway.sh --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
+sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
 fi
 
 BOUNCEIPTIME=850
@@ -69,7 +69,7 @@ instances="81"
 if [ $instances -le $MAXPODS ]; then
 cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
 wait_on_running
-sh ../sh/nway.sh --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
+sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
 fi
 
 BOUNCEIPTIME=1000
@@ -77,7 +77,7 @@ instances="90"
 if [ $instances -le $MAXPODS ]; then
 cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
 wait_on_running
-sh ../sh/nway.sh --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
+sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
 fi
 
 BOUNCEIPTIME=1200
@@ -85,7 +85,7 @@ instances="99"
 if [ $instances -le $MAXPODS ]; then
 cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
 wait_on_running
-sh ../sh/nway.sh --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1300
+sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1300
 fi
 
 date

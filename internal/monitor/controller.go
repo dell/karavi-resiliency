@@ -24,6 +24,7 @@ import (
 	csiext "github.com/dell/dell-csi-extensions/podmon"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	"podmon/internal/k8sapi"
 )
@@ -168,31 +169,37 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 	ctx, cancel := K8sAPI.GetContext(LongTimeout)
 	defer cancel()
 	// Get the volume attachments
-	volumeAttachmentList, err := K8sAPI.GetVolumeAttachments(ctx)
+
+	// Get the PVs associated with this pod.
+	pvlist, err := K8sAPI.GetPersistentVolumesInPod(ctx, pod)
 	if err != nil {
-		log.WithFields(fields).Errorf("Could not get volumeAttachments: %s", err)
+		log.WithFields(fields).Errorf("Could not get PersistentVolumes: %s", err)
 		return false
 	}
 
-	// Determine if all the volume attachments in pod namespace that are attached to the pod
-	// Also collect a list of the volumeIDs to be validated.
+	// Get the volume handles from the PVs
 	volIDs := make([]string, 0)
+	for _, pv := range pvlist {
+		pvsrc := pv.Spec.PersistentVolumeSource
+		if pvsrc.CSI != nil {
+			volIDs = append(volIDs, pvsrc.CSI.VolumeHandle)
+		}
+	}
+	if len(pvlist) != len(volIDs) {
+		log.WithFields(fields).Warnf("Could not get volume handles for every PV: pvs %d volIDs %d", len(pvlist), len(volIDs))
+	}
+
+	// Get the VolumeAttachments for each of the PVs.
+	valist := make([]*storagev1.VolumeAttachment, 0)
 	vaNamesToDelete := make([]string, 0)
-	for _, va := range volumeAttachmentList.Items {
-		vaCopy := va // To prevent gosec error: "G601 (CWE-118): Implicit memory aliasing in for loop"
-		podVA, err := K8sAPI.IsVolumeAttachmentToPod(ctx, &vaCopy, pod)
+	for _, pv := range pvlist {
+		va, err := K8sAPI.GetCachedVolumeAttachment(ctx, pv.ObjectMeta.Name, node.ObjectMeta.Name)
 		if err != nil {
-			log.WithFields(fields).Errorf("Aborting cleanup because could not determine if VA %s belongs to pod: %s", va.ObjectMeta.Name, err.Error())
+			log.WithFields(fields).Errorf("Could not get cached VolumeAttachment: %s", err)
 			return false
 		}
-		if podVA {
-			volID, err := K8sAPI.GetVolumeHandleFromVA(ctx, &vaCopy)
-			if err != nil {
-				log.WithFields(fields).Errorf("Aborting cleanup because could not getVolumeHandleFromVA: %v %s", va, err.Error())
-				return false
-			}
-			log.Debugf("VA %s attached to pod %s", va.ObjectMeta.Name, pod.ObjectMeta.Name)
-			volIDs = append(volIDs, volID)
+		if va != nil {
+			valist = append(valist, va)
 			vaNamesToDelete = append(vaNamesToDelete, va.ObjectMeta.Name)
 		}
 	}

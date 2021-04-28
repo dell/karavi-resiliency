@@ -21,7 +21,9 @@ import (
 	"io/ioutil"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/watch"
+	cri "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 	"os"
+	"podmon/internal/criapi"
 	"podmon/internal/k8sapi"
 	"podmon/internal/utils"
 	"strings"
@@ -39,6 +41,10 @@ var APICheckFirstTryTimeout = MediumTimeout
 
 //APIMonitorWait a function reference that can control the API monitor loop
 var APIMonitorWait = internalAPIMonitorWait
+
+// TaintCountDelay delays pod cleanup until at least TaintCountDelay iterations of the apiMonitorLoop have executed,
+// giving the node time to stabalize (e.g. kubelet reconcile with API server) before initiating cleanup.
+var TaintCountDelay = 4
 
 // StartAPIMonitor checks API connectivity by pinging the indicated (self) node
 func StartAPIMonitor(api k8sapi.K8sAPI, firstTimeout, retryTimeout, interval time.Duration, waitFor func(interval time.Duration) bool) error {
@@ -60,6 +66,7 @@ func StartAPIMonitor(api k8sapi.K8sAPI, firstTimeout, retryTimeout, interval tim
 
 func (pm *PodMonitorType) apiMonitorLoop(api k8sapi.K8sAPI, nodeName string, firstTimeout, retryTimeout, interval time.Duration, waitFor func(interval time.Duration) bool) {
 	pm.APIConnected = true
+	taintCount := 0
 	for {
 		// Retrieve our Node's state
 		node, err := api.GetNodeWithTimeout(firstTimeout, nodeName)
@@ -78,7 +85,7 @@ func (pm *PodMonitorType) apiMonitorLoop(api k8sapi.K8sAPI, nodeName string, fir
 				}
 				log.WithFields(f).Info("Lost API connectivity from node")
 				pm.APIConnected = false
-
+				taintCount = 0
 			}
 		} else {
 			// No Error - we are connected to APIService
@@ -92,7 +99,19 @@ func (pm *PodMonitorType) apiMonitorLoop(api k8sapi.K8sAPI, nodeName string, fir
 			}
 			// If our node is tainted, we need to clean it up
 			if nodeHasTaint(node, PodmonTaintKey, v1.TaintEffectNoSchedule) {
-				pm.nodeModeCleanupPods(node)
+				taintCount = taintCount + 1
+				// Delay the first few intervals if necessary to give the node time to stabalize
+				if taintCount >= TaintCountDelay {
+					if pm.nodeModeCleanupPods(node) {
+						taintCount = 0
+					}
+				} else {
+					log.Infof("Waiting on node to stabalize: %d", taintCount)
+				}
+			} else {
+				if taintCount > 0 {
+					log.Error("********** taint manually removed **********")
+				}
 			}
 		}
 		if stopLoop := waitFor(interval); stopLoop {
@@ -119,7 +138,8 @@ func (pm *PodMonitorType) nodeModePodHandler(pod *v1.Pod, eventType watch.EventT
 	fields["Namespace"] = pod.ObjectMeta.Namespace
 	fields["PodName"] = pod.ObjectMeta.Name
 	fields["PodUID"] = string(pod.ObjectMeta.UID)
-	fields["Node"] = nodeName
+	fields["Node"] = pod.Spec.NodeName
+	fields["EventType"] = eventType
 	log.WithFields(fields).Infof("nodeModePodHandler")
 	if nodeName == pod.Spec.NodeName {
 		if eventType == watch.Added || eventType == watch.Modified {
@@ -243,18 +263,47 @@ type NodePodInfo struct { // information we keep on hand about a pod
 }
 
 // nodeModeCleanupPods attempts cleanup of all the pods that were registered from the pod Watcher nodeModePodHandler
-func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) {
+// Returns true if taint was removed, false if taint should remain.
+func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
+	crictx, cricancel := K8sAPI.GetContext(ShortTimeout)
+	defer cricancel()
+	// Using CRI, get the pod information
+	containerInfos, err := getContainers(crictx)
+	if err != nil {
+		log.Errorf("Could not get container information: %s", err)
+	} else {
+		for _, value := range containerInfos {
+			log.Infof("ContainerInfo %+v\n", *value)
+		}
+	}
+	// Retrieve the podKeys we've been watching for our node
 	ctx, cancel := K8sAPI.GetContext(MediumTimeout)
 	defer cancel()
-	// Retrieve the podKeys we've been watching for our node
 	removeTaint := true
 	podKeys := make([]string, 0)
 	podKeysSkipped := make([]string, 0)
 	podKeysWithError := make([]string, 0)
 	podInfos := make([]*NodePodInfo, 0)
+	// This function executed for each registered pod to categorize it a) to be cleaned, or b) skipped because it is possibly executing
 	fn := func(key, value interface{}) bool {
 		podKey := key.(string)
 		podInfo := value.(*NodePodInfo)
+
+		// Check containers to make sure they're not running. This uses the containerInfos map obtained above.
+		pod := podInfo.Pod
+		for _, containerStatus := range pod.Status.ContainerStatuses {
+			containerID := containerStatus.ContainerID
+			cid := strings.Split(containerID, "//")
+			if len(cid) > 1 && containerInfos[cid[1]] != nil {
+				log.Debugf("cid %v", cid[1])
+				containerInfo := containerInfos[cid[1]]
+				if containerInfo.State == cri.ContainerState_CONTAINER_RUNNING || containerInfo.State == cri.ContainerState_CONTAINER_CREATED {
+					log.Infof("Skipping pod %s because container %v still executing", podKey, containerInfo)
+					podKeysSkipped = append(podKeysSkipped, podKey)
+					return true
+				}
+			}
+		}
 
 		// Check to make sure the pod has been deleted, or still exists
 		namespace, name := splitPodKey(podKey)
@@ -277,7 +326,7 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) {
 		return true
 	}
 	pm.PodKeyMap.Range(fn)
-	log.Infof("pods skipped for cleanup because still present: %v", podKeysSkipped)
+	log.Infof("pods skipped for cleanup because still present or container executing: %v", podKeysSkipped)
 	log.Infof("pods to be cleaned up: %v", podKeys)
 	for i := 0; i < len(podKeys); i++ {
 		err := pm.nodeModeCleanupPod(podKeys[i], podInfos[i])
@@ -295,14 +344,16 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) {
 	if removeTaint && len(podKeysSkipped) == 0 && len(podKeysWithError) == 0 {
 		if err := taintNode(node.ObjectMeta.Name, true); err != nil {
 			log.Errorf("Failed to remove taint against %s node: %v", node.ObjectMeta.Name, err)
-		} else {
-			log.Infof("Cleanup of pods complete: %v", podKeys)
+			return false
 		}
-	} else {
-		log.Infof("pods skipped for cleanup because still present: %v", podKeysSkipped)
-		log.Infof("pods with cleanup errors: %v", podKeysWithError)
-		log.Info("Couldn't completely cleanup node- taint not removed- cleanup will be retried, or a manual reboot is advised advised")
+		log.Infof("Cleanup of pods complete: %v", podKeys)
+		return true
 	}
+
+	log.Infof("pods skipped for cleanup because still present or container executing: %v", podKeysSkipped)
+	log.Infof("pods with cleanup errors: %v", podKeysWithError)
+	log.Info("Couldn't completely cleanup node- taint not removed- cleanup will be retried, or a manual reboot is advised")
+	return false
 }
 
 //RemoveDir reference to a function used to clean up directories
@@ -324,14 +375,14 @@ func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo
 		// TODO Add check if path exists, if not skip
 		// Call NodeUnpublish volume for mount
 		err := pm.callNodeUnpublishVolume(fields, mntInfo.Path, mntInfo.VolumeID)
-		if err != nil {
+		if err != nil && !Driver.NodeUnpublishExcludedError(err) {
 			log.WithFields(fields).Errorf("NodeUnpublishVolume failed: %s %s %s", mntInfo.Path, mntInfo.VolumeID, err)
 			returnErr = err
 		} else {
 			stagingDir := Driver.GetStagingMountDir(mntInfo.VolumeID, mntInfo.PVName)
 			if stagingDir != "" {
 				err = pm.callNodeUnstageVolume(fields, stagingDir, mntInfo.VolumeID)
-				if err != nil {
+				if err != nil && !Driver.NodeUnstageExcludedError(err) {
 					log.WithFields(fields).Errorf("NodeUnstageVolume failed: %s %s %s", mntInfo.Path, mntInfo.VolumeID, err)
 					returnErr = err
 				}
@@ -348,6 +399,12 @@ func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo
 				log.WithFields(fields).Errorf("Could not remove private target: %s because: %s", privTarget, err.Error())
 				returnErr = err
 			}
+			// Do final driver cleanup if any.
+			err = Driver.FinalCleanup(false, mntInfo.VolumeID, mntInfo.PVName, podUID)
+			if err != nil {
+				log.WithFields(fields).Errorf("FinalCleanup failed: %s", err)
+				returnErr = err
+			}
 		}
 	}
 
@@ -355,14 +412,14 @@ func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo
 	for _, devInfo := range podInfo.Devices {
 		// Call Node unpublish for block device
 		err := pm.callNodeUnpublishVolume(fields, devInfo.Path, devInfo.VolumeID)
-		if err != nil {
+		if err != nil && !Driver.NodeUnpublishExcludedError(err) {
 			log.WithFields(fields).Errorf("NodeUnpublishVolume failed: %s %s %s", devInfo.Path, devInfo.VolumeID, err)
 			returnErr = err
 		} else {
 			stagingDir := Driver.GetStagingBlockDir(devInfo.VolumeID, devInfo.PVName)
 			if stagingDir != "" {
 				err = pm.callNodeUnstageVolume(fields, stagingDir, devInfo.VolumeID)
-				if err != nil {
+				if err != nil && !Driver.NodeUnstageExcludedError(err) {
 					log.WithFields(fields).Errorf("NodeUnstageVolume failed: %s %s %s", devInfo.Path, devInfo.VolumeID, err)
 					returnErr = err
 				}
@@ -377,6 +434,12 @@ func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo
 			err = RemoveDev(privBlockDev)
 			if err != nil && !os.IsNotExist(err) {
 				log.WithFields(fields).Errorf("Could not remove block device: %s because: %s", privBlockDev, err.Error())
+				returnErr = err
+			}
+			// Do final driver cleanup if any.
+			err = Driver.FinalCleanup(true, devInfo.VolumeID, devInfo.PVName, podUID)
+			if err != nil {
+				log.WithFields(fields).Errorf("FinalCleanup failed: %s", err)
 				returnErr = err
 			}
 		}
@@ -438,3 +501,5 @@ func (pm *PodMonitorType) callNodeUnstageVolume(fields map[string]interface{}, t
 	}
 	return err
 }
+
+var getContainers = criapi.CRIClient.GetContainerInfo

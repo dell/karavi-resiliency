@@ -18,13 +18,11 @@ Feature: Controller Monitor
       | "node1" | 2    | "none"                           | "node1" | "true"    | "Successfully cleaned up pod"                        |
       | "node1" | 2    | "CSIExtensionsNotPresent"        | "node1" | "true"    | "Successfully cleaned up pod"                        |
       | "node1" | 2    | "GetVolumeAttachments"           | "node1" | "false"   | "induced GetVolumeAttachments error"                 |
-      | "node1" | 2    | "IsVolumeAttachmentToPod"        | "node1" | "false"   | "Aborting cleanup because could not determine if VA" |
-      | "node1" | 2    | "GetPersistentVolumeClaim"       | "node1" | "false"   | "Aborting cleanup because could not determine if VA" |
+      | "node1" | 2    | "GetPersistentVolumesInPod"      | "node1" | "false"   | "Could not get PersistentVolumes: induced"           |
       | "node1" | 2    | "DeleteVolumeAttachment"         | "node1" | "false"   | "Couldn't delete VolumeAttachment"                   |
       | "node1" | 2    | "DeletePod"                      | "node1" | "false"   | "Delete pod failed"                                  |
       | "node1" | 2    | "ControllerUnpublishVolume"      | "node1" | "false"   | "errors calling ControllerUnpublishVolume to fence"  |
       | "node1" | 2    | "ValidateVolumeHostConnectivity" | "node1" | "false"   | "Aborting pod cleanup because array still connected" |
-      | "node1" | 2    | "GetVolumeHandleFromVA"          | "node1" | "false"   | "could not getVolumeHandleFromVA"                    |
       | "node1" | 2    | "CreateEvent"                    | "node1" | "true"    | "Successfully cleaned up pod"                        |
 
   @controller-mode
