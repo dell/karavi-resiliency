@@ -39,9 +39,11 @@ import (
 
 //Client holds a reference to a Kubernetes client
 type Client struct {
-	Client        *kubernetes.Clientset
-	Lock          sync.Mutex
-	eventRecorder record.EventRecorder
+	Client                    *kubernetes.Clientset
+	Lock                      sync.Mutex
+	eventRecorder             record.EventRecorder
+	volumeAttachmentCache     map[string]*storagev1.VolumeAttachment
+	volumeAttachmentNameToKey map[string]string
 }
 
 const (
@@ -93,6 +95,44 @@ func (api *Client) GetPod(ctx context.Context, namespace, name string) (*v1.Pod,
 	return pod, err
 }
 
+var vacachehit, vacachemiss int
+
+// GetCachedVolumeAttachment will try to load the volumeattachment select by the persistent volume name and node name.
+// If found it is returned from the cache. If not found, the cache is reloaded and the result returned from the reloaded data.
+func (api *Client) GetCachedVolumeAttachment(ctx context.Context, pvName, nodeName string) (*storagev1.VolumeAttachment, error) {
+	api.Lock.Lock()
+	defer api.Lock.Unlock()
+	key := fmt.Sprintf("%s/%s", pvName, nodeName)
+	log.Debugf("Looking for volume attachment %s", key)
+	if api.volumeAttachmentCache != nil && api.volumeAttachmentCache[key] != nil {
+		// Cache hit - return cached VA.
+		vacachehit++
+		log.Debugf("VA Cache Hit %d / Miss %d", vacachehit, vacachemiss)
+		return api.volumeAttachmentCache[key], nil
+	}
+	// Cache miss. Read all the volume attachments.
+	volumeAttachmentList, err := api.GetVolumeAttachments(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// Rebuild the cache
+	vacachemiss++
+	log.Debugf("VA Cache Miss %d / %d", vacachemiss, vacachehit)
+	api.volumeAttachmentCache = make(map[string]*storagev1.VolumeAttachment)
+	api.volumeAttachmentNameToKey = make(map[string]string)
+	log.Infof("Rebuilding VA cache, hits %d misses %d", vacachehit, vacachemiss)
+	for _, va := range volumeAttachmentList.Items {
+		vaCopy := va.DeepCopy() // To prevent gosec error: "G601 (CWE-118): Implicit memory aliasing in for loop"
+		if va.Spec.Source.PersistentVolumeName != nil {
+			vaKey := fmt.Sprintf("%s/%s", *va.Spec.Source.PersistentVolumeName, va.Spec.NodeName)
+			api.volumeAttachmentCache[vaKey] = vaCopy
+			api.volumeAttachmentNameToKey[vaCopy.ObjectMeta.Name] = vaKey
+			log.Infof("Adding VA Cache %s %s", vaCopy.ObjectMeta.Name, vaKey)
+		}
+	}
+	return api.volumeAttachmentCache[key], nil
+}
+
 //GetVolumeAttachments retrieves all the volume attachments
 func (api *Client) GetVolumeAttachments(ctx context.Context) (*storagev1.VolumeAttachmentList, error) {
 	volumeAttachments, err := api.Client.StorageV1().VolumeAttachments().List(ctx, metav1.ListOptions{})
@@ -103,12 +143,23 @@ func (api *Client) GetVolumeAttachments(ctx context.Context) (*storagev1.VolumeA
 }
 
 // DeleteVolumeAttachment deletes a volume attachment by name.
-func (api *Client) DeleteVolumeAttachment(ctx context.Context, va string) error {
+func (api *Client) DeleteVolumeAttachment(ctx context.Context, vaname string) error {
 	deleteOptions := metav1.DeleteOptions{}
-	log.Infof("Deleting volume attachment: %s", va)
-	err := api.Client.StorageV1().VolumeAttachments().Delete(ctx, va, deleteOptions)
+	log.Infof("Deleting volume attachment: %s", vaname)
+	err := api.Client.StorageV1().VolumeAttachments().Delete(ctx, vaname, deleteOptions)
 	if err != nil {
-		log.Errorf("Couldn't delete VolumeAttachment %s: %s", va, err)
+		log.Errorf("Couldn't delete VolumeAttachment %s: %s", vaname, err)
+	}
+	api.Lock.Lock()
+	defer api.Lock.Unlock()
+	if api.volumeAttachmentNameToKey != nil {
+		// Look for and delete the name to delete.
+		vaKey := api.volumeAttachmentNameToKey[vaname]
+		if vaKey != "" {
+			log.Infof("Deleting VolumeAttachment from VA Cache %s %s", vaname, vaKey)
+			delete(api.volumeAttachmentCache, vaKey)
+			delete(api.volumeAttachmentNameToKey, vaname)
+		}
 	}
 	return err
 }
@@ -162,7 +213,7 @@ func (api *Client) GetPersistentVolumesInPod(ctx context.Context, pod *v1.Pod) (
 
 // IsVolumeAttachmentToPod returns true if va is attached to the specified pod.
 func (api *Client) IsVolumeAttachmentToPod(ctx context.Context, va *storagev1.VolumeAttachment, pod *v1.Pod) (bool, error) {
-	if pod.Spec.NodeName != va.Spec.NodeName || va.Spec.Source.PersistentVolumeName == nil {
+	if pod.Spec.NodeName != va.Spec.NodeName || *va.Spec.Source.PersistentVolumeName == "" {
 		return false, nil
 	}
 

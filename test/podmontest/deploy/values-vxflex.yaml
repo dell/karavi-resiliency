@@ -5,5 +5,7 @@ podmonTest:
   storageClassName: vxflexos-notopo
   nvolumes: 2
   ndevices: 2
+  # deploymentType can be "statefulset" or "deployment"
+  deploymentType: statefulset
   # zone will restrict node placement by matching node label failure-domain.beta.kubernetes.io/zone
   zone: ""

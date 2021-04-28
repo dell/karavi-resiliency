@@ -26,8 +26,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes/fake"
+	cri "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 	"os"
 	"path/filepath"
+	"podmon/internal/criapi"
 	"podmon/internal/csiapi"
 	"podmon/internal/k8sapi"
 	"podmon/internal/utils"
@@ -38,7 +40,8 @@ import (
 )
 
 const (
-	podns string = "podns"
+	podns       string = "podns"
+	containerID        = "1234"
 )
 
 type feature struct {
@@ -52,7 +55,9 @@ type feature struct {
 	// CSIMock
 	csiapiMock *csiapi.CSIMock
 	// K8SMock
-	k8sapiMock               *k8sapi.K8sMock
+	k8sapiMock *k8sapi.K8sMock
+	// CRI mock
+	criMock                  *criapi.MockClient
 	err                      error
 	success                  bool
 	podList                  []*v1.Pod   // For multi-pod tests
@@ -95,6 +100,9 @@ func (f *feature) aControllerMonitor(driver string) error {
 	K8sAPI = f.k8sapiMock
 	f.csiapiMock = new(csiapi.CSIMock)
 	CSIApi = f.csiapiMock
+	f.criMock = new(criapi.MockClient)
+	f.criMock.Initialize()
+	getContainers = f.criMock.GetContainerInfo
 	f.podmonMonitor = &PodMonitorType{}
 	f.podmonMonitor.CSIExtensionsPresent = true
 	f.podmonMonitor.DriverPathStr = "csi-vxflexos.dellemc.com"
@@ -239,6 +247,19 @@ func (f *feature) iInduceError(induced string) error {
 		gofsutil.GOFSMock.InduceUnmountError = true
 	case "CreateEvent":
 		f.k8sapiMock.InducedErrors.CreateEvent = true
+	case "GetContainerInfo":
+		f.criMock.InducedErrors.GetContainerInfo = true
+	case "ContainerRunning":
+		containerInfo := &criapi.ContainerInfo{
+			ID:    containerID,
+			Name:  "running-container",
+			State: cri.ContainerState_CONTAINER_RUNNING,
+		}
+		f.criMock.MockContainerInfos[containerID] = containerInfo
+	case "NodeUnpublishNFSShareNotFound":
+		f.csiapiMock.InducedErrors.NodeUnpublishNFSShareNotFound = true
+	case "NodeUnstageNFSShareNotFound":
+		f.csiapiMock.InducedErrors.NodeUnstageNFSShareNotFound = true
 	default:
 		return fmt.Errorf("Unknown induced error: %s", induced)
 	}
@@ -438,6 +459,17 @@ func (f *feature) createPod(node string, nvolumes int, condition string) *v1.Pod
 	pod.Spec.Volumes = make([]v1.Volume, 0)
 	pod.Status.Message = "pod updated"
 	pod.Status.Reason = "pod reason"
+	pod.Status.ContainerStatuses = make([]v1.ContainerStatus, 0)
+	containerStatus := v1.ContainerStatus{
+		ContainerID: "//" + containerID,
+	}
+	containerInfo := &criapi.ContainerInfo{
+		ID:    containerID,
+		Name:  "running-container",
+		State: cri.ContainerState_CONTAINER_EXITED,
+	}
+	f.criMock.MockContainerInfos["1234"] = containerInfo
+	pod.Status.ContainerStatuses = append(pod.Status.ContainerStatuses, containerStatus)
 	if pod.Status.Conditions == nil {
 		pod.Status.Conditions = make([]v1.PodCondition, 0)
 	}
@@ -508,6 +540,7 @@ func (f *feature) createPod(node string, nvolumes int, condition string) *v1.Pod
 		pvc.ObjectMeta.Namespace = podns
 		pvc.ObjectMeta.Name = fmt.Sprintf("pvc-%s-%d", f.podUID[podIndex], i)
 		pvc.Spec.VolumeName = pv.ObjectMeta.Name
+		pvc.Status.Phase = "Bound"
 		// Create a VolumeAttachment
 		va := &storagev1.VolumeAttachment{}
 		va.ObjectMeta.Name = fmt.Sprintf("va%d", i)
@@ -566,6 +599,7 @@ func (f *feature) initAPILoopVariables() {
 	APICheckInterval = 30 * time.Millisecond
 	APICheckRetryTimeout = 10 * time.Millisecond
 	APICheckFirstTryTimeout = 5 * time.Millisecond
+	TaintCountDelay = 0
 
 	loops := 0
 	APIMonitorWait = func(interval time.Duration) bool {
