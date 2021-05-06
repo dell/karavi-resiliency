@@ -97,6 +97,24 @@ Feature: Integration Test
       | ""         | "1-2"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 45       | 240        | 120     | 300           |
       | ""         | "1-2"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot"        | 45       | 240        | 120     | 300           |
 
+  @integration
+  Scenario Outline: Failover test that includes unlabelled pods
+    Given a kubernetes <kubeConfig>
+    And cluster is clean of test pods
+    And wait <nodeCleanSecs> to see there are no taints
+    And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
+    And <podsPerNode> unprotected pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
+    Then validate that all pods are running within <deploySecs> seconds
+    When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
+    Then validate that all pods are running within <runSecs> seconds
+    And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
+    Then finally cleanup everything
+
+    Examples:
+      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
+      | ""         | "1-1"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 120      | 240        | 300     | 600           |
+      | ""         | "1-1"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot"        | 120      | 240        | 300     | 600           |
+
   @short-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
     Given a kubernetes <kubeConfig>

@@ -40,7 +40,7 @@ type integration struct {
 	podCount            int
 	devCount            int
 	volCount            int
-	testNamespacePrefix string
+	testNamespacePrefix map[string]bool
 	scriptsDir          string
 	labeledPodsToNodes  map[string]string
 	nodesToTaints       map[string]string
@@ -87,6 +87,9 @@ const (
 	checkTickerInterval = 10
 	stopFilename        = "stop_test"
 	OpenshiftBastion    = "OPENSHIFT_BASTION"
+	UnprotectedPodsNS   = "unlabeled"
+	PowerflexNS         = "pmtv"
+	UnityNS             = "pmtu"
 )
 
 // Used for stopping the test from continuing
@@ -191,6 +194,9 @@ func (i *integration) givenKubernetes(configPath string) error {
 	nodesWithScriptsInitOnce.Do(func() {
 		nodesWithScripts = make(map[string]bool)
 	})
+
+	i.testNamespacePrefix = make(map[string]bool)
+
 	return nil
 }
 
@@ -342,7 +348,7 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 	return nil
 }
 
-func (i *integration) deployPods(podsPerNode, numVols, numDevs, driverType, storageClass string, wait int) error {
+func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, driverType, storageClass string, wait int) error {
 	podCount, err := i.selectFromRange(podsPerNode)
 	if err != nil {
 		return err
@@ -358,11 +364,30 @@ func (i *integration) deployPods(podsPerNode, numVols, numDevs, driverType, stor
 		return err
 	}
 
-	i.testNamespacePrefix = "pmtv"
-	deployScript := "insv.sh"
-	if driverType == "unity" {
-		i.testNamespacePrefix = "pmtu"
+	// Select the deployment script to use based on the driver type.
+	var deployScript string
+	switch driverType {
+	case "vxflexos":
+		deployScript = "insv.sh"
+	case "unity":
 		deployScript = "insu.sh"
+	}
+
+	// Set test namespace prefix is based on the driver type.
+	// If doing an unprotected pod, use a special prefix.
+	var prefix string
+	if protected {
+		switch driverType {
+		case "vxflexos":
+			i.testNamespacePrefix[PowerflexNS] = true
+			prefix = PowerflexNS
+		case "unity":
+			i.testNamespacePrefix[UnityNS] = true
+			prefix = PowerflexNS
+		}
+	} else {
+		i.testNamespacePrefix[UnprotectedPodsNS] = true
+		prefix = UnprotectedPodsNS
 	}
 
 	deployScriptPath := filepath.Join("..", "..", "test", "podmontest", deployScript)
@@ -373,8 +398,12 @@ func (i *integration) deployPods(podsPerNode, numVols, numDevs, driverType, stor
 		"--instances", strconv.Itoa(podCount),
 		"--ndevices", strconv.Itoa(volCount),
 		"--nvolumes", strconv.Itoa(devCount),
-		"--prefix", i.testNamespacePrefix,
+		"--prefix", prefix,
 		"--storage-class", storageClass,
+	}
+
+	if !protected {
+		args = append(args, "--label", "none")
 	}
 
 	command := exec.Command(script, args...)
@@ -435,7 +464,7 @@ func (i *integration) deployPods(podsPerNode, numVols, numDevs, driverType, stor
 
 	// For the test pods number of namespaces = podCount
 	for n := 1; n <= podCount; n++ {
-		ns := fmt.Sprintf("%s%d", i.testNamespacePrefix, n)
+		ns := fmt.Sprintf("%s%d", prefix, n)
 		nsErr := i.thereIsThisNamespaceInTheCluster(ns)
 		if nsErr != nil {
 			return nsErr
@@ -447,6 +476,14 @@ func (i *integration) deployPods(podsPerNode, numVols, numDevs, driverType, stor
 	}
 
 	return nil
+}
+
+func (i *integration) deployProtectedPods(podsPerNode, numVols, numDevs, driverType, storageClass string, wait int) error {
+	return i.deployPods(true, podsPerNode, numVols, numDevs, driverType, storageClass, wait)
+}
+
+func (i *integration) deployUnprotectedPods(podsPerNode, numVols, numDevs, driverType, storageClass string, wait int) error {
+	return i.deployPods(false, podsPerNode, numVols, numDevs, driverType, storageClass, wait)
 }
 
 func (i *integration) theTaintsForTheFailedNodesAreRemovedWithinSeconds(wait int) error {
@@ -535,10 +572,6 @@ func (i *integration) thereAreDriverPodsWithThisPrefix(namespace, prefix string)
 
 func (i *integration) finallyCleanupEverything() error {
 	uninstallScript := "uns.sh"
-	prefix := "pmtv"
-	if lastTestDriverType == "unity" {
-		prefix = "pmtu"
-	}
 
 	if lastTestDriverType == "" {
 		// Nothing to clean up
@@ -547,27 +580,29 @@ func (i *integration) finallyCleanupEverything() error {
 
 	log.Infof("Attempting to clean up everything for driverType '%s'", lastTestDriverType)
 
-	deployScriptPath := filepath.Join("..", "..", "test", "podmontest", uninstallScript)
+	scriptPath := filepath.Join("..", "..", "test", "podmontest", uninstallScript)
 	script := "bash"
 
-	args := []string{
-		deployScriptPath,
-		"--prefix", prefix,
-		"--all", lastTestDriverType,
-	}
-	command := exec.Command(script, args...)
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
+	for prefix := range i.testNamespacePrefix {
+		args := []string{
+			scriptPath,
+			"--prefix", prefix,
+			"--instances", strconv.Itoa(i.podCount),
+		}
+		command := exec.Command(script, args...)
+		command.Stdout = os.Stdout
+		command.Stderr = os.Stderr
 
-	log.Infof("Going to invoke uninstall script %v", command)
-	err := command.Start()
-	if err != nil {
-		return err
-	}
+		log.Infof("Going to invoke uninstall script %v", command)
+		err := command.Start()
+		if err != nil {
+			return err
+		}
 
-	err = command.Wait()
-	if err != nil {
-		return err
+		err = command.Wait()
+		if err != nil {
+			return err
+		}
 	}
 
 	// Cleaned up, so zero the podCount
@@ -857,6 +892,7 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 		numberToFail = int(count)
 	}
 
+	// Create a mapping of the node name to IP address
 	nameToIP := make(map[string]string)
 	for _, node := range nodes {
 		for _, addr := range node.Status.Addresses {
@@ -867,9 +903,32 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 		}
 	}
 
+	// Create a list of candidates. Prepend with the nodes that have labeled pods on them.
+	// This way, we will always have a chance to test fail over scenario.
+	candidates := make([]string, 0)
+	tracker := make(map[string]bool) // Used to prevent duplicates in 'candidate' list.
+	for _, name := range i.labeledPodsToNodes {
+		if !tracker[name] {
+			tracker[name] = true
+			candidates = append(candidates, name)
+		}
+	}
+
+	// Check if we have enough candidates to match the requested number to fail.
+	if len(candidates) < numberToFail {
+		// Need to add more to list of candidates, so add the remaining node names to the candidate list.
+		for name := range nameToIP {
+			if !tracker[name] {
+				tracker[name] = true
+				candidates = append(candidates, name)
+			}
+		}
+	}
+
 	failed := 0
-	for name, ip := range nameToIP {
+	for _, name := range candidates {
 		if failed < numberToFail {
+			ip := nameToIP[name]
 			if err = i.induceFailureOn(name, ip, failureType, wait); err != nil {
 				return failedNodes, err
 			}
@@ -1027,15 +1086,17 @@ func (i *integration) copyOverTestScriptsToOpenshift(address string) error {
 func (i *integration) allPodsInTestNamespacesAreRunning() (bool, error) {
 	allRunning := true
 	for podIdx := 1; podIdx <= i.podCount; podIdx++ {
-		namespace := fmt.Sprintf("%s%d", i.testNamespacePrefix, podIdx)
-		running, err := i.checkIfAllPodsRunning(namespace)
-		if err != nil {
-			return false, err
-		}
-		if !running {
-			log.Infof("Pods in %s namespace are not all running", namespace)
-			allRunning = false
-			// Don't break, we want to check all the namespaces so that we display which ones aren't running
+		for prefix := range i.testNamespacePrefix {
+			namespace := fmt.Sprintf("%s%d", prefix, podIdx)
+			running, err := i.checkIfAllPodsRunning(namespace)
+			if err != nil {
+				return false, err
+			}
+			if !running {
+				log.Infof("Pods in %s namespace are not all running", namespace)
+				allRunning = false
+				// Don't break, we want to check all the namespaces so that we display which ones aren't running
+			}
 		}
 	}
 	return allRunning, nil
@@ -1131,7 +1192,7 @@ func (i *integration) k8sPoll() {
 			}
 			log.Infof("k8sPoll: Node: %s Ready:%v Taints: %s", node.Name, nodeReady, strings.Join(taintKeys, ","))
 			if expectedTaints, ok := i.nodesToTaints[node.Name]; ok {
-				log.Infof("k8sPool: ^^^^^^^^^^^ is a failed node. Expecting taints: %s", expectedTaints)
+				log.Infof("k8sPoll: ^^^^^^^^^^^ is a failed node. Expecting taints: %s", expectedTaints)
 			}
 		}
 	} else {
@@ -1142,11 +1203,21 @@ func (i *integration) k8sPoll() {
 		pods, getPodsErr := i.listPodsByLabel(fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", i.driverType))
 		if getPodsErr == nil {
 			for _, pod := range pods.Items {
-				log.Infof("k8sPoll: %s %s/%s %s", pod.Spec.NodeName, pod.Namespace, pod.Name, pod.Status.Phase)
+				log.Infof("k8sPoll: %s [ PROTECTED   ] %s/%s %s", pod.Spec.NodeName, pod.Namespace, pod.Name, pod.Status.Phase)
 			}
 		} else {
 			log.Infof("k8sPoll: get pods failed: %s", getPodsErr)
 		}
+		// List unprotected pods
+		pods, getPodsErr = i.listPodsByLabel("podmon.dellemc.com/driver=none")
+		if getPodsErr == nil {
+			for _, pod := range pods.Items {
+				log.Infof("k8sPoll: %s [ UNPROTECTED ] %s/%s %s", pod.Spec.NodeName, pod.Namespace, pod.Name, pod.Status.Phase)
+			}
+		} else {
+			log.Infof("k8sPoll: get pods failed: %s", getPodsErr)
+		}
+
 	}
 }
 
@@ -1384,7 +1455,8 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^a kubernetes "([^"]*)"$`, i.givenKubernetes)
 	context.Step(`^validate that all pods are running within (\d+) seconds$`, i.allPodsAreRunningWithinSeconds)
 	context.Step(`^I fail "([^"]*)" worker nodes and "([^"]*)" primary nodes with "([^"]*)" failure for (\d+) seconds$`, i.failWorkerAndPrimaryNodes)
-	context.Step(`^"([^"]*)" pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployPods)
+	context.Step(`^"([^"]*)" pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployProtectedPods)
+	context.Step(`^"([^"]*)" unprotected pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployUnprotectedPods)
 	context.Step(`^the taints for the failed nodes are removed within (\d+) seconds$`, i.theTaintsForTheFailedNodesAreRemovedWithinSeconds)
 	context.Step(`^these CSI driver "([^"]*)" are configured on the system$`, i.theseCSIDriverAreConfiguredOnTheSystem)
 	context.Step(`^there is a "([^"]*)" in the cluster$`, i.thereIsThisNamespaceInTheCluster)
