@@ -20,7 +20,7 @@ integration-test:
 	RESILIENCY_TEST_CLEANUP="true" \
 	POLL_K8S="true" \
 	SCRIPTS_DIR="../../test/sh" \
-	go test -timeout 2h -test.v -test.run "^\QTestFirstCheck\E|\QTestIntegration\E"
+	go test -timeout 8h -test.v -test.run "^\QTestFirstCheck\E|\QTestIntegration\E"
 
 short-integration-test:
 	RESILIENCY_SHORT_INT_TEST="true" \

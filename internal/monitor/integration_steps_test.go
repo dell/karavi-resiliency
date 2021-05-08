@@ -1271,11 +1271,12 @@ func (i *integration) populateLabeledPodsToNodes() error {
 
 func (i *integration) isNodeFailed(node corev1.Node) bool {
 	isFailed := false
+	nodeIsNotReady := !nodeHasCondition(node, "Ready")
 	if i.nodeHadPodsRunning(node.Name) {
 		podmonTaint := fmt.Sprintf("%s.%s", lastTestDriverType, PodmonTaintKeySuffix)
-		isFailed = nodeHasTaint(&node, podmonTaint, corev1.TaintEffectNoSchedule)
+		hasTaint := nodeHasTaint(&node, podmonTaint, corev1.TaintEffectNoSchedule)
+		isFailed = nodeIsNotReady && hasTaint
 	} else {
-		nodeIsNotReady := !nodeHasCondition(node, "Ready")
 		isFailed = nodeIsNotReady
 	}
 	return isFailed
