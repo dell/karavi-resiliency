@@ -21,7 +21,7 @@ import (
 
 const enableShortIntTestVar = "RESILIENCY_SHORT_INT_TEST"
 
-func TestShortCheck(t *testing.T) {
+func TestPowerFlexShortCheck(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
 		log.Printf("Skipping short integration test. To enable short integration test: export %s=true", enableShortIntTestVar)
@@ -85,7 +85,7 @@ func TestUnityShortCheck(t *testing.T) {
 	log.Printf("Integration setup check finished")
 }
 
-func TestShortIntegration(t *testing.T) {
+func TestPowerFlexShortIntegration(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
 		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableShortIntTestVar)
