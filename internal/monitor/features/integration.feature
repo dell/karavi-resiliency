@@ -68,9 +68,9 @@ Feature: Integration Test
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
       # Small number of pods, increasing number of vols and devs
-      | ""         | "1-2"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 120      | 400        | 300     | 300           |
-      | ""         | "1-2"       | "2-2" | "2-2" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 120      | 400        | 300     | 300           |
-      | ""         | "1-2"       | "4-4" | "4-4" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 120      | 400        | 300     | 300           |
+      | ""         | "1-2"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 120      | 600        | 300     | 300           |
+      | ""         | "1-2"       | "2-2" | "2-2" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 120      | 600        | 300     | 300           |
+      | ""         | "1-2"       | "4-4" | "4-4" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 120      | 600        | 300     | 300           |
       # Slightly more pods, increasing number of vols and devs
       | ""         | "3-5"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 240      | 600        | 300     | 600           |
       | ""         | "3-5"       | "2-2" | "2-2" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 240      | 600        | 300     | 600           |
@@ -91,9 +91,9 @@ Feature: Integration Test
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
       # Small number of pods, increasing number of vols and devs
-      | ""         | "1-2"       | "1-1" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "interfacedown" | 120      | 400        | 300     | 300           |
-      | ""         | "1-2"       | "2-2" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "interfacedown" | 120      | 400        | 300     | 300           |
-      | ""         | "1-2"       | "4-4" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "interfacedown" | 120      | 400        | 300     | 300           |
+      | ""         | "1-2"       | "1-1" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "interfacedown" | 120      | 600        | 300     | 300           |
+      | ""         | "1-2"       | "2-2" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "interfacedown" | 120      | 600        | 300     | 300           |
+      | ""         | "1-2"       | "4-4" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "interfacedown" | 120      | 600        | 300     | 300           |
       # Slightly more pods, increasing number of vols and devs
       | ""         | "3-5"       | "1-1" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "interfacedown" | 240      | 600        | 300     | 600           |
       | ""         | "3-5"       | "2-2" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "interfacedown" | 240      | 600        | 300     | 600           |
@@ -137,13 +137,13 @@ Feature: Integration Test
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
       # Small number of pods, increasing number of vols and devs
-      | ""         | "1-2"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot" | 120      | 400        | 300     | 600           |
-      | ""         | "1-2"       | "2-2" | "2-2" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot" | 120      | 400        | 300     | 600           |
-      | ""         | "1-2"       | "4-4" | "4-4" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot" | 120      | 400        | 300     | 600           |
+      | ""         | "1-2"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot" | 120      | 600        | 600     | 600           |
+      | ""         | "1-2"       | "2-2" | "2-2" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot" | 120      | 600        | 600     | 600           |
+      | ""         | "1-2"       | "4-4" | "4-4" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot" | 120      | 600        | 600     | 600           |
       # Slightly more pods, increasing number of vols and devs
-      | ""         | "3-5"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot" | 240      | 1500       | 300     | 600           |
-      | ""         | "3-5"       | "2-2" | "2-2" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot" | 240      | 1500       | 300     | 600           |
-      | ""         | "3-5"       | "4-4" | "4-4" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot" | 240      | 1500       | 300     | 600           |
+      | ""         | "3-5"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot" | 240      | 1500       | 600     | 600           |
+      | ""         | "3-5"       | "2-2" | "2-2" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot" | 240      | 1500       | 600     | 600           |
+      | ""         | "3-5"       | "4-4" | "4-4" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot" | 240      | 1500       | 600     | 600           |
 
   @unity-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node slow reboots)
@@ -160,13 +160,13 @@ Feature: Integration Test
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
       # Small number of pods, increasing number of vols and devs
-      | ""         | "1-2"       | "1-1" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "reboot" | 120      | 400        | 300     | 600           |
-      | ""         | "1-2"       | "2-2" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "reboot" | 120      | 400        | 300     | 600           |
-      | ""         | "1-2"       | "4-4" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "reboot" | 120      | 400        | 300     | 600           |
+      | ""         | "1-2"       | "1-1" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "reboot" | 120      | 600        | 600     | 600           |
+      | ""         | "1-2"       | "2-2" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "reboot" | 120      | 600        | 600     | 600           |
+      | ""         | "1-2"       | "4-4" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "reboot" | 120      | 600        | 600     | 600           |
       # Slightly more pods, increasing number of vols and devs
-      | ""         | "3-5"       | "1-1" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "reboot" | 240      | 1500       | 300     | 600           |
-      | ""         | "3-5"       | "2-2" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "reboot" | 240      | 1500       | 300     | 600           |
-      | ""         | "3-5"       | "4-4" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "reboot" | 240      | 1500       | 300     | 900           |
+      | ""         | "3-5"       | "1-1" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "reboot" | 240      | 1500       | 600     | 600           |
+      | ""         | "3-5"       | "2-2" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "reboot" | 240      | 1500       | 600     | 600           |
+      | ""         | "3-5"       | "4-4" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "reboot" | 240      | 1500       | 600     | 900           |
 
 
   @powerflex-integration
@@ -252,8 +252,8 @@ Feature: Integration Test
     Then finally cleanup everything
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass    | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-2"       | "1-1" | "1-1" | "unity"    | "unity-iscsi"   | "one-third" | "zero"  | "interfacedown" | 45       | 240        | 120     | 300           |
-      | ""         | "1-2"       | "1-1" | "1-1" | "unity"    | "unity-iscsi"   | "one-third" | "zero"  | "reboot"        | 45       | 240        | 120     | 300           |
+      | ""         | "1-2"       | "1-1" | "1-1" | "unity"    | "unity-iscsi"   | "one-third" | "zero"  | "interfacedown" | 45       | 600        | 300     | 300           |
+      | ""         | "1-2"       | "1-1" | "1-1" | "unity"    | "unity-iscsi"   | "one-third" | "zero"  | "reboot"        | 45       | 600        | 300     | 300           |
 
   @unity-integration
   Scenario Outline: Short failure window tests
@@ -268,8 +268,8 @@ Feature: Integration Test
     Then finally cleanup everything
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-2"       | "1-1" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "interfacedown" | 45       | 240        | 120     | 300           |
-      | ""         | "1-2"       | "1-1" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "reboot"        | 45       | 240        | 120     | 300           |
+      | ""         | "1-2"       | "1-1" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "interfacedown" | 45       | 600        | 300     | 300           |
+      | ""         | "1-2"       | "1-1" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "reboot"        | 45       | 600        | 300     | 300           |
 
   @powerflex-short-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
@@ -302,10 +302,10 @@ Feature: Integration Test
 
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-1"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 120      | 240        | 300     | 300           |
-      | ""         | "2-2"       | "2-2" | "2-2" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 120      | 300        | 300     | 600           |
-      | ""         | "1-1"       | "1-1" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "interfacedown" | 120      | 240        | 300     | 300           |
-      | ""         | "2-2"       | "2-2" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "interfacedown" | 120      | 300        | 300     | 600           |
+      | ""         | "1-1"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 120      | 600        | 300     | 300           |
+      | ""         | "2-2"       | "2-2" | "2-2" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 120      | 600        | 300     | 600           |
+      | ""         | "1-1"       | "1-1" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "interfacedown" | 120      | 600        | 300     | 300           |
+      | ""         | "2-2"       | "2-2" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "interfacedown" | 120      | 600        | 300     | 600           |
 
   @powerflex-short-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node slow reboots)
@@ -338,7 +338,7 @@ Feature: Integration Test
 
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-1"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot" | 120      | 240        | 300     | 600           |
-      | ""         | "2-2"       | "2-2" | "2-2" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot" | 120      | 300        | 300     | 600           |
-      | ""         | "1-1"       | "1-1" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "reboot" | 120      | 240        | 300     | 600           |
-      | ""         | "2-2"       | "2-2" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "reboot" | 120      | 300        | 300     | 600           |
+      | ""         | "1-1"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot" | 120      | 600        | 300     | 600           |
+      | ""         | "2-2"       | "2-2" | "2-2" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot" | 120      | 600        | 300     | 600           |
+      | ""         | "1-1"       | "1-1" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "reboot" | 120      | 600        | 300     | 600           |
+      | ""         | "2-2"       | "2-2" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "reboot" | 120      | 600        | 300     | 600           |
