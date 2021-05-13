@@ -268,6 +268,9 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 		return err
 	}
 
+	// Allow a little extra for node failure to be detected than just the node down time.
+	// This proved necessary for the really short failure times (45 sec.) to be reliable.
+	wait = wait + wait
 	log.Infof("Requested nodes to fail. Waiting up to %d seconds to see if they show up as failed.", wait)
 	timeoutDuration := time.Duration(wait) * time.Second
 	timeout := time.NewTimer(timeoutDuration)
@@ -371,8 +374,8 @@ func (i *integration) deployPods(podsPerNode, numVols, numDevs, driverType, stor
 	args := []string{
 		deployScriptPath,
 		"--instances", strconv.Itoa(podCount),
-		"--ndevices", strconv.Itoa(volCount),
-		"--nvolumes", strconv.Itoa(devCount),
+		"--nvolumes", strconv.Itoa(volCount),
+		"--ndevices", strconv.Itoa(devCount),
 		"--prefix", i.testNamespacePrefix,
 		"--storage-class", storageClass,
 	}
@@ -799,8 +802,8 @@ func (i *integration) selectFromRange(rangeValue string) (int, error) {
 		return -1, fmt.Errorf("invalid range. Minimum is less than 1 (%d)", min)
 	}
 
-	if max < 1 {
-		return -1, fmt.Errorf("invalid range. Maximum is less than 1 (%d)", max)
+	if max < 0 {
+		return -1, fmt.Errorf("invalid range. Maximum is less than 0 (%d)", max)
 	}
 
 	if min > max {
@@ -1064,7 +1067,7 @@ func (i *integration) induceFailureOn(name string, ip, failureType string, wait 
 		Timeout:    sshTimeout,
 	}
 
-	log.Infof("Attempting to induce the %s failure on %s/%s and waiting %d seconds", failureType, name, ip, wait)
+	log.Infof("Attempting to induce the %s failure on %s/%s for %d seconds", failureType, name, ip, wait)
 	scriptToUse, ok := failureToScriptMap[failureType]
 	if !ok {
 		return fmt.Errorf("no mapping for failureType %s", failureType)
