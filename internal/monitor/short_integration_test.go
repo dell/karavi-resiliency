@@ -21,7 +21,7 @@ import (
 
 const enableShortIntTestVar = "RESILIENCY_SHORT_INT_TEST"
 
-func TestShortCheck(t *testing.T) {
+func TestPowerFlexShortCheck(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
 		log.Printf("Skipping short integration test. To enable short integration test: export %s=true", enableShortIntTestVar)
@@ -37,7 +37,7 @@ func TestShortCheck(t *testing.T) {
 	godogOptions := godog.Options{
 		Format:        "pretty",
 		Paths:         []string{"features"},
-		Tags:          "int-setup-check",
+		Tags:          "powerflex-int-setup-check",
 		StopOnFailure: stopOnFailure,
 	}
 	status := godog.TestSuite{
@@ -53,7 +53,39 @@ func TestShortCheck(t *testing.T) {
 	log.Printf("Integration setup check finished")
 }
 
-func TestShortIntegration(t *testing.T) {
+func TestUnityShortCheck(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping short integration test. To enable short integration test: export %s=true", enableShortIntTestVar)
+		return
+	}
+
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
+	godogOptions := godog.Options{
+		Format:        "pretty",
+		Paths:         []string{"features"},
+		Tags:          "unity-int-setup-check",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "integration",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Skip("Integration setup check failed")
+	} else {
+		setupIsGood = true
+	}
+	log.Printf("Integration setup check finished")
+}
+
+func TestPowerFlexShortIntegration(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
 		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableShortIntTestVar)
@@ -77,7 +109,45 @@ func TestShortIntegration(t *testing.T) {
 	godogOptions := godog.Options{
 		Format:        "pretty",
 		Paths:         []string{"features"},
-		Tags:          "short-integration",
+		Tags:          "powerflex-short-integration",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "integration",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Error("There were failed integration tests")
+	}
+	log.Printf("Integration test finished")
+}
+
+func TestUnityShortIntegration(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableShortIntTestVar)
+		return
+	}
+
+	if !setupIsGood {
+		message := "The setup check failed. Tests skipped"
+		log.Printf(message)
+		t.Errorf(message)
+		return
+	}
+
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
+	log.Printf("Starting integration test")
+	godogOptions := godog.Options{
+		Format:        "pretty",
+		Paths:         []string{"features"},
+		Tags:          "unity-short-integration",
 		StopOnFailure: stopOnFailure,
 	}
 	status := godog.TestSuite{

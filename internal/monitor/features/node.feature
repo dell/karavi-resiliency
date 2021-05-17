@@ -46,7 +46,6 @@ Feature: Controller Monitor
       | "node1"  | 1    | "node1" | "DELETED"  | 0       | "none"                | "none"                      |
 
   @node-mode
-  @wip
   Scenario Outline: Testing monitor.nodeModeCleanupPods
     Given a controller monitor <driver>
     And node <nodeName> env vars set
