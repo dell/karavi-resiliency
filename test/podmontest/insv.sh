@@ -19,6 +19,7 @@ storageClassName=${storageClassName:-vxflexos-retain}
 image="$REGISTRY_HOST:$REGISTRY_PORT/podmontest:v0.0.54"
 prefix="pmtv"
 deploymentType="statefulset"
+driverLabel="csi-vxflexos"
 
 if [ "$DEBUG"x != "x" ]; then
   DEBUG="--dry-run --debug"
@@ -56,6 +57,11 @@ do
           deploymentType="deployment"
           shift
           ;;
+       "--label")
+          shift
+          driverLabel=$1
+          shift
+          ;;
     esac
 done
 
@@ -74,6 +80,7 @@ while [ $i -le $instances ]; do
               --set podmonTest.nvolumes=$nvolumes \
               --set podmonTest.deploymentType=$deploymentType \
               --set podmonTest.image="$image" \
-              --set podmonTest.zone="$zone"
+              --set podmonTest.zone="$zone" \
+              --set podmonTest.driverLabel="$driverLabel"
   i=$((i + 1))
 done

@@ -18,27 +18,27 @@ gocover:
 powerflex-integration-test:
 	RESILIENCY_INT_TEST="true" \
 	RESILIENCY_TEST_CLEANUP="true" \
-	K8S_POLL="true" \
+	POLL_K8S="true" \
 	SCRIPTS_DIR="../../test/sh" \
-	go test -timeout 2h -test.v -test.run "^\QTestPowerFlexFirstCheck\E|\QTestPowerFlexIntegration\E"
+	go test -timeout 6h -test.v -test.run "^\QTestPowerFlexFirstCheck\E|\QTestPowerFlexIntegration\E"
 
 unity-integration-test:
 	RESILIENCY_INT_TEST="true" \
 	RESILIENCY_TEST_CLEANUP="true" \
-	K8S_POLL="true" \
+	POLL_K8S="true" \
 	SCRIPTS_DIR="../../test/sh" \
 	go test -timeout 6h -test.v -test.run "^\QTestUnityFirstCheck\E|\QTestUnityIntegration\E"
 
 powerflex-short-integration-test:
 	RESILIENCY_SHORT_INT_TEST="true" \
 	RESILIENCY_TEST_CLEANUP="true" \
-	K8S_POLL="true" \
+	POLL_K8S="true" \
 	SCRIPTS_DIR="../../test/sh" \
-	go test -timeout 2h -test.v -test.run "^\QTestPowerFlexShortCheck\E|\QTestPowerFlexShortIntegration\E"
+	go test -timeout 6h -test.v -test.run "^\QTestPowerFlexShortCheck\E|\QTestPowerFlexShortIntegration\E"
 
 unity-short-integration-test:
 	RESILIENCY_SHORT_INT_TEST="true" \
 	RESILIENCY_TEST_CLEANUP="true" \
-	K8S_POLL="true" \
+	POLL_K8S="true" \
 	SCRIPTS_DIR="../../test/sh" \
-	go test -timeout 2h -test.v -test.run "^\QTestUnityShortCheck\E|\QTestUnityShortIntegration\E"
+	go test -timeout 6h -test.v -test.run "^\QTestUnityShortCheck\E|\QTestUnityShortIntegration\E"
