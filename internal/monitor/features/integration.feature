@@ -392,9 +392,9 @@ Feature: Integration Test
     Then finally cleanup everything
 
     Examples:
-      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure                | taints                             | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-1"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown:ens192" | "vxflexos.podmon.storage.dell.com" | 120      | 240        | 300     | 300           |
-      | ""         | "1-1"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot:ens192"        | "vxflexos.podmon.storage.dell.com" | 120      | 240        | 300     | 300           |
+      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure                     | taints                             | failSecs | deploySecs | runSecs | nodeCleanSecs |
+      | ""         | "1-1"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown:INTERFACE_A" | "vxflexos.podmon.storage.dell.com" | 120      | 240        | 300     | 300           |
+      | ""         | "1-1"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot:INTERFACE_A"        | "vxflexos.podmon.storage.dell.com" | 120      | 240        | 300     | 300           |
 
   @unity-array-interface
   Scenario Outline: Multi networked nodes with a failure against the array interface network
@@ -409,8 +409,8 @@ Feature: Integration Test
     Then finally cleanup everything
 
     Examples:
-      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure                | taints                          | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-1"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown:ens192" | "unity.podmon.storage.dell.com" | 120      | 240        | 300     | 300           |
-      | ""         | "1-1"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot:ens192"        | "unity.podmon.storage.dell.com" | 120      | 240        | 300     | 300           |
-      | ""         | "1-1"       | "1-1" | "1-1" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "interfacedown:ens192" | "unity.podmon.storage.dell.com" | 120      | 240        | 300     | 300           |
-      | ""         | "1-1"       | "1-1" | "1-1" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "reboot:ens192"        | "unity.podmon.storage.dell.com" | 120      | 240        | 300     | 300           |
+      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure                     | taints                          | failSecs | deploySecs | runSecs | nodeCleanSecs |
+      | ""         | "1-1"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown:INTERFACE_A" | "unity.podmon.storage.dell.com" | 120      | 240        | 300     | 300           |
+      | ""         | "1-1"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot:INTERFACE_A"        | "unity.podmon.storage.dell.com" | 120      | 240        | 300     | 300           |
+      | ""         | "1-1"       | "1-1" | "1-1" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "interfacedown:INTERFACE_B" | "unity.podmon.storage.dell.com" | 120      | 240        | 300     | 300           |
+      | ""         | "1-1"       | "1-1" | "1-1" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "reboot:INTERFACE_B"        | "unity.podmon.storage.dell.com" | 120      | 240        | 300     | 300           |

@@ -1161,9 +1161,13 @@ func (i *integration) induceFailureOn(name string, ip, failureType string, wait 
 
 	if (failureType == "interfacedown" || failureType == "reboot") && hasOptions {
 		// If there are options specified for these tests, then use those as specific interface names
-		specificInterface := failureTypeSplit[1]
-		log.Infof("Specific interface '%s' will be affected", specificInterface)
-		invokeFailCmd = fmt.Sprintf("%s %s --seconds %d --interfaces %s", invokerScript, failureScript, wait, specificInterface)
+		interfaceEnvVarName := failureTypeSplit[1]
+		specificInterfaces := os.Getenv(interfaceEnvVarName)
+		if specificInterfaces == "" {
+			return fmt.Errorf("test case %s failure type is expecting a %s environmental variable, but it does not exist", failureType, interfaceEnvVarName)
+		}
+		log.Infof("Specific interfaces '%s' will be affected", specificInterfaces)
+		invokeFailCmd = fmt.Sprintf("%s %s --seconds %d --interfaces %s", invokerScript, failureScript, wait, specificInterfaces)
 	}
 
 	if i.isOpenshift {

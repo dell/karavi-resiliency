@@ -48,6 +48,7 @@ powerflex-array-interface-test:
 	RESILIENCY_TEST_CLEANUP="true" \
 	POLL_K8S="true" \
 	SCRIPTS_DIR="../../test/sh" \
+	INTERFACE_A=${INTERFACE1} \
 	go test -timeout 6h -test.v -test.run "^\QTestPowerFlexFirstCheck\E|\QTestPowerflexArrayInterfaceDown\E"
 
 unity-array-interface-test:
@@ -55,4 +56,6 @@ unity-array-interface-test:
 	RESILIENCY_TEST_CLEANUP="true" \
 	POLL_K8S="true" \
 	SCRIPTS_DIR="../../test/sh" \
+	INTERFACE_A=${INTERFACE1} \
+	INTERFACE_B=${INTERFACE2} \
 	go test -timeout 6h -test.v -test.run "^\QTestUnityFirstCheck\E|\QTestUnityArrayInterfaceDown\E"
