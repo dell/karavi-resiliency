@@ -395,3 +395,22 @@ Feature: Integration Test
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure                | taints                             | failSecs | deploySecs | runSecs | nodeCleanSecs |
       | ""         | "1-1"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown:ens192" | "vxflexos.podmon.storage.dell.com" | 120      | 240        | 300     | 300           |
       | ""         | "1-1"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot:ens192"        | "vxflexos.podmon.storage.dell.com" | 120      | 240        | 300     | 300           |
+
+  @unity-array-interface
+  Scenario Outline: Multi networked nodes with a failure against the array interface network
+    Given a kubernetes <kubeConfig>
+    And cluster is clean of test pods
+    And wait <nodeCleanSecs> to see there are no taints
+    And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
+    Then validate that all pods are running within <deploySecs> seconds
+    When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> and I expect these taints <taints>
+    Then validate that all pods are running within <runSecs> seconds
+    And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
+    Then finally cleanup everything
+
+    Examples:
+      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure                | taints                          | failSecs | deploySecs | runSecs | nodeCleanSecs |
+      | ""         | "1-1"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown:ens192" | "unity.podmon.storage.dell.com" | 120      | 240        | 300     | 300           |
+      | ""         | "1-1"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot:ens192"        | "unity.podmon.storage.dell.com" | 120      | 240        | 300     | 300           |
+      | ""         | "1-1"       | "1-1" | "1-1" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "interfacedown:ens192" | "unity.podmon.storage.dell.com" | 120      | 240        | 300     | 300           |
+      | ""         | "1-1"       | "1-1" | "1-1" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "reboot:ens192"        | "unity.podmon.storage.dell.com" | 120      | 240        | 300     | 300           |
