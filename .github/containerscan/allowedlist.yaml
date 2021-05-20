@@ -3,3 +3,4 @@ general:
     # No fixes for these at this time
     - CVE-2019-25013
     - CVE-2019-5827
+    - CVE-2021-27219

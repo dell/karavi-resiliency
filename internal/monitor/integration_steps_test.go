@@ -46,6 +46,7 @@ type integration struct {
 	nodesToTaints       map[string]string
 	isOpenshift         bool
 	bastionNode         string
+	customTaints        string
 }
 
 // Used for keeping of track of the last test that was
@@ -98,6 +99,7 @@ var stopTestRequested bool
 // Workaround for non-inclusive word scan
 var primary = []byte{'m', 'a', 's', 't', 'e', 'r'}
 var primaryLabelKey = fmt.Sprintf("node-role.kubernetes.io/%s", string(primary))
+var controlPlane = "node-role.kubernetes.io/controlplane"
 
 // These are for tracking to which nodes the tests upload scripts.
 // With multiple scenarios, we want to do this only once.
@@ -115,22 +117,14 @@ var isWorkerNode = func(node corev1.Node) bool {
 	// exist against the node, then it's consider a worker.
 
 	// Check if there's a primary label associated with the node
-	hasPrimaryLabel := false
-	for label := range node.Labels {
-		if label == primaryLabelKey {
-			hasPrimaryLabel = true
-			break
-		}
-	}
-
-	return !hasPrimaryLabel
+	return !isPrimaryNode(node)
 }
 
 // isPrimaryNode is a filter function for searching for nodes that look to be primary nodes
 var isPrimaryNode = func(node corev1.Node) bool {
 	hasPrimaryLabel := false
 	for label := range node.Labels {
-		if label == primaryLabelKey {
+		if label == primaryLabelKey || label == controlPlane {
 			hasPrimaryLabel = true
 			break
 		}
@@ -252,6 +246,21 @@ func (i *integration) allPodsAreRunningWithinSeconds(wait int) error {
 }
 
 func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure string, wait int) error {
+	return i.internalFailWorkerAndPrimaryNodes(numNodes, numPrimary, failure, "", wait)
+}
+
+func (i *integration) failAndExpectingTaints(numNodes, numPrimary, failure string, wait int, expectedTaints string) error {
+	return i.internalFailWorkerAndPrimaryNodes(numNodes, numPrimary, failure, expectedTaints, wait)
+}
+
+// internalFailWorkerAndPrimaryNodes will do the work of failing the number of primary and worker nodes in the cluster.
+// If expectedTaints is non-empty, then these specific taints will be checked against the node as an indication of
+// node failure.
+func (i *integration) internalFailWorkerAndPrimaryNodes(numNodes, numPrimary, failure, expectedTaints string, wait int) error {
+	if expectedTaints != "" {
+		i.customTaints = expectedTaints
+	}
+
 	workersToFail, err := i.parseRatioOrCount(numNodes)
 	if err != nil {
 		return err
@@ -288,7 +297,7 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 	requestedWorkersAndFailed := func(node corev1.Node) bool {
 		found := false
 		for _, worker := range failedWorkers {
-			if node.Name == worker && i.isNodeFailed(node) {
+			if node.Name == worker && i.isNodeFailed(node, expectedTaints) {
 				found = true
 				break
 			}
@@ -300,7 +309,7 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 	requestedPrimaryAndFailed := func(node corev1.Node) bool {
 		found := false
 		for _, primaryNode := range failedPrimary {
-			if node.Name == primaryNode && i.isNodeFailed(node) {
+			if node.Name == primaryNode && i.isNodeFailed(node, expectedTaints) {
 				found = true
 				break
 			}
@@ -1128,6 +1137,12 @@ func (i *integration) induceFailureOn(name string, ip, failureType string, wait 
 		Timeout:    sshTimeout,
 	}
 
+	// Split the failureType by ':' character. If specified, the first part is the key,
+	// the second parts are some extra parameters.
+	failureTypeSplit := strings.Split(failureType, ":")
+	failureType = failureTypeSplit[0]
+	hasOptions := len(failureTypeSplit) > 1
+
 	log.Infof("Attempting to induce the %s failure on %s/%s for %d seconds", failureType, name, ip, wait)
 	scriptToUse, ok := failureToScriptMap[failureType]
 	if !ok {
@@ -1143,6 +1158,18 @@ func (i *integration) induceFailureOn(name string, ip, failureType string, wait 
 	invokerScript := fmt.Sprintf("%s/invoke.sh", dirToUse)
 	failureScript := fmt.Sprintf("%s/%s", dirToUse, scriptToUse)
 	invokeFailCmd := fmt.Sprintf("%s %s --seconds %d", invokerScript, failureScript, wait)
+
+	if (failureType == "interfacedown" || failureType == "reboot") && hasOptions {
+		// If there are options specified for these tests, then use those as specific interface names
+		interfaceEnvVarName := failureTypeSplit[1]
+		specificInterfaces := os.Getenv(interfaceEnvVarName)
+		if specificInterfaces == "" {
+			return fmt.Errorf("test case %s failure type is expecting a %s environmental variable, but it does not exist", failureType, interfaceEnvVarName)
+		}
+		log.Infof("Specific interfaces '%s' will be affected", specificInterfaces)
+		invokeFailCmd = fmt.Sprintf("%s %s --seconds %d --interfaces %s", invokerScript, failureScript, wait, specificInterfaces)
+	}
+
 	if i.isOpenshift {
 		// For Openshift, failure script invocation is done from the Bastion node to the Openshift node
 		invokeFailCmd = fmt.Sprintf("ssh core@%s sudo %s", ip, invokeFailCmd)
@@ -1272,10 +1299,21 @@ func (i *integration) populateLabeledPodsToNodes() error {
 	return nil
 }
 
-func (i *integration) isNodeFailed(node corev1.Node) bool {
+func (i *integration) isNodeFailed(node corev1.Node, expectingTheseTaints string) bool {
 	isFailed := false
 	nodeIsNotReady := !nodeHasCondition(node, "Ready")
-	if i.nodeHadPodsRunning(node.Name) {
+	if expectingTheseTaints != "" {
+		// Only check if these specific taints are showing up as an indication of node failure
+		taintCount := 0
+		expected := strings.Split(expectingTheseTaints, ",")
+		for _, taint := range expected {
+			if nodeHasTaint(&node, taint, corev1.TaintEffectNoSchedule) {
+				taintCount++
+			}
+		}
+		// Fail only if all the expected taints show up
+		isFailed = taintCount == len(expected)
+	} else if i.nodeHadPodsRunning(node.Name) {
 		podmonTaint := fmt.Sprintf("%s.%s", lastTestDriverType, PodmonTaintKeySuffix)
 		hasTaint := nodeHasTaint(&node, podmonTaint, corev1.TaintEffectNoSchedule)
 		isFailed = nodeIsNotReady && hasTaint
@@ -1395,6 +1433,10 @@ func (i *integration) waitOnTaintRemoval(wait int) error {
 // supposing that it had been failed by the test. Note, this does not necessarily mean
 // that the node was actually failed by the test.
 func (i *integration) getExpectedTaints(nodeName string) string {
+	// If the test requires a specific set of taints, return that
+	if i.customTaints != "" {
+		return i.customTaints
+	}
 	// Should minimally expect to the the Kubernetes unreachable taint on the failed node
 	theseTaints := "node.kubernetes.io/unreachable"
 	if i.nodeHadPodsRunning(nodeName) {
@@ -1459,6 +1501,7 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^a kubernetes "([^"]*)"$`, i.givenKubernetes)
 	context.Step(`^validate that all pods are running within (\d+) seconds$`, i.allPodsAreRunningWithinSeconds)
 	context.Step(`^I fail "([^"]*)" worker nodes and "([^"]*)" primary nodes with "([^"]*)" failure for (\d+) seconds$`, i.failWorkerAndPrimaryNodes)
+	context.Step(`^I fail "([^"]*)" worker nodes and "([^"]*)" primary nodes with "([^"]*)" failure for (\d+) and I expect these taints "([^"]*)"$`, i.failAndExpectingTaints)
 	context.Step(`^"([^"]*)" pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployProtectedPods)
 	context.Step(`^"([^"]*)" unprotected pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployUnprotectedPods)
 	context.Step(`^the taints for the failed nodes are removed within (\d+) seconds$`, i.theTaintsForTheFailedNodesAreRemovedWithinSeconds)
