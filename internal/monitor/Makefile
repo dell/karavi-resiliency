@@ -42,3 +42,20 @@ unity-short-integration-test:
 	POLL_K8S="true" \
 	SCRIPTS_DIR="../../test/sh" \
 	go test -timeout 6h -test.v -test.run "^\QTestUnityShortCheck\E|\QTestUnityShortIntegration\E"
+
+powerflex-array-interface-test:
+	RESILIENCY_INT_TEST="true" \
+	RESILIENCY_TEST_CLEANUP="true" \
+	POLL_K8S="true" \
+	SCRIPTS_DIR="../../test/sh" \
+	INTERFACE_A=${INTERFACE1} \
+	go test -timeout 6h -test.v -test.run "^\QTestPowerFlexFirstCheck\E|\QTestPowerflexArrayInterfaceDown\E"
+
+unity-array-interface-test:
+	RESILIENCY_INT_TEST="true" \
+	RESILIENCY_TEST_CLEANUP="true" \
+	POLL_K8S="true" \
+	SCRIPTS_DIR="../../test/sh" \
+	INTERFACE_A=${INTERFACE1} \
+	INTERFACE_B=${INTERFACE2} \
+	go test -timeout 6h -test.v -test.run "^\QTestUnityFirstCheck\E|\QTestUnityArrayInterfaceDown\E"

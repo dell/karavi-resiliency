@@ -10,7 +10,8 @@
 #
 #
 
-interfaces="ens192 ens224 ens256"
+# By default, get all 'ensNNN' interfaces
+interfaces=$(ifconfig -a | perl -nle 'print $1 if(m#(ens\d+):#);')
 seconds=240
 
 for param in $*; do
@@ -28,6 +29,7 @@ for param in $*; do
   esac
 done
 
+echo "$(date +"%Y-%m-%d %H:%M:%S")" "-- invoking with seconds=$seconds interfaces=$interfaces" >>/root/bounce.ip.out
 for iface in $interfaces; do
   ifconfig $iface down
   date >>/root/bounce.ip.out

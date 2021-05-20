@@ -11,7 +11,8 @@
 #
 
 OUTPUT_FILE="/root/reboot.out"
-interfaces="ens192 ens224 ens256"
+# By default - all 'ensNNN' interfaces
+interfaces=$(ifconfig -a | perl -nle 'print $1 if(m#(ens\d+):#);')
 seconds=0
 
 for param in $*; do
@@ -21,9 +22,15 @@ for param in $*; do
     seconds=$1
     shift
     ;;
+  "--interfaces")
+    shift
+    interfaces=$1
+    shift
+    ;;
   esac
 done
 
+echo "$(date +"%Y-%m-%d %H:%M:%S")" "-- invoking with seconds=$seconds interfaces=$interfaces" >>"$OUTPUT_FILE"
 # If seconds was specified, then we want to bring down the interfaces,
 # wait that number of seconds, then reboot. This is to simulate a long
 # reboot time or a long recovery from a reboot.
