@@ -44,7 +44,7 @@ var APIMonitorWait = internalAPIMonitorWait
 
 // TaintCountDelay delays pod cleanup until at least TaintCountDelay iterations of the apiMonitorLoop have executed,
 // giving the node time to stabalize (e.g. kubelet reconcile with API server) before initiating cleanup.
-var TaintCountDelay = 4
+var TaintCountDelay = 2
 
 // StartAPIMonitor checks API connectivity by pinging the indicated (self) node
 func StartAPIMonitor(api k8sapi.K8sAPI, firstTimeout, retryTimeout, interval time.Duration, waitFor func(interval time.Duration) bool) error {
