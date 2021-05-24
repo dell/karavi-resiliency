@@ -395,7 +395,7 @@ func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, 
 			prefix = PowerflexNS
 		case "unity":
 			i.testNamespacePrefix[UnityNS] = true
-			prefix = PowerflexNS
+			prefix = UnityNS
 		}
 	} else {
 		i.testNamespacePrefix[UnprotectedPodsNS] = true
