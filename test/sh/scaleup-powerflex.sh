@@ -12,7 +12,7 @@
 CWD=$(pwd)
 NVOLUMES=2
 STORAGECLASS=vxflexos
-MAXPODS=90
+MAXPODS=81
 
 # checks that all labeled pods are running, exits if not
 wait_on_running() {
@@ -85,7 +85,15 @@ instances="99"
 if [ $instances -le $MAXPODS ]; then
 cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
 wait_on_running
-sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1300
+sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500
+fi
+
+BOUNCEIPTIME=1200
+instances="108"
+if [ $instances -le $MAXPODS ]; then
+cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
+wait_on_running
+sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500
 fi
 
 date
