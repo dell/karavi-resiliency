@@ -13,10 +13,24 @@
 # Fails a list of nodes passed in as arguments.
 # Assumes that bounce.ip is installed an appropriately configured on each node.
 
-nodelist=$*
-echo failing nodes: $nodelist
+nodelist=""
+seconds=240
+
+for param in $*; do
+  case $param in
+  "--seconds")
+    shift
+    seconds=$1
+    shift
+    ;;
+  *)
+    nodelist="$nodelist $1"
+    shift
+  esac
+done
+
 for node in $nodelist
 do
-	echo bouncing $node $COUNT
-	ssh $node nohup sh /root/bounce.ip &
+	echo bounce.ip  --seconds $seconds $node
+	ssh $node nohup sh /root/bounce.ip --seconds $seconds &
 done
