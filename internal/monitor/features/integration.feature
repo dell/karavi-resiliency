@@ -145,7 +145,7 @@ Feature: Integration Test
       | ""         | "3-5"       | "2-2" | "2-2" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot" | 240      | 1500       | 600     | 600           |
       | ""         | "3-5"       | "4-4" | "4-4" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot" | 240      | 1500       | 600     | 600           |
 
-  @XXXunity-integration
+  @unity-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node slow reboots)
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
