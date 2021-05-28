@@ -338,9 +338,7 @@ Feature: Integration Test
 
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-1"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 120      | 600        | 300     | 300           |
       | ""         | "2-2"       | "2-2" | "2-2" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 120      | 600        | 300     | 600           |
-      | ""         | "1-1"       | "1-1" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "interfacedown" | 120      | 600        | 300     | 300           |
       | ""         | "2-2"       | "2-2" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "interfacedown" | 120      | 600        | 300     | 600           |
 
   @powerflex-short-integration
@@ -374,9 +372,7 @@ Feature: Integration Test
 
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-1"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot" | 120      | 600        | 300     | 600           |
       | ""         | "2-2"       | "2-2" | "2-2" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot" | 120      | 600        | 300     | 600           |
-      | ""         | "1-1"       | "1-1" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "reboot" | 120      | 600        | 300     | 600           |
       | ""         | "2-2"       | "2-2" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "reboot" | 120      | 600        | 300     | 600           |
 
   @powerflex-array-interface
