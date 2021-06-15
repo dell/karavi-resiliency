@@ -20,7 +20,7 @@ The following provisioning types are supported and have been tested:
 * Dynamic PVC/PVs of accessModes "ReadWriteOnce" and volumeMode "Block".
 * Use of the above volumes with Pods created by StatefulSets.
 * Up to 12 or so protected pods on a given node.
-* Failing up to 3 nodes at a time in 9 worker node clusters, or failing 1 node at a time in smaller clusters. Application recovery times are dependent on the number of pods that need to be moved as a result of the failure. See the section on "Testing and Performance" for some of the details. The scale testing was done almost exclusively on PowerFlex volumes.
+* Failing up to 3 nodes at a time in 9 worker node clusters, or failing 1 node at a time in smaller clusters. Application recovery times are dependent on the number of pods that need to be moved as a result of the failure. See the section on "Testing and Performance" for some of the details.
 
 ## Not Tested But Assumed to Work
 

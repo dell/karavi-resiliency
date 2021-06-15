@@ -14,31 +14,11 @@ CSM for Resiliency is deployed as part of the CSI driver deployment. The drivers
 
 For information on the PowerFlex CSI driver, see (PowerFlex CSI Driver)[https://github.com/dell/csi-powerflex].
 
+For information on the Unity CSI driver, see (Unity CSI Driver) [https://github.com/dell/csi-unity]
+
 Configure all the helm chart parameters described below before deploying the drivers.
 
 ## Helm Chart Installation
-
-These installation instructions apply to the helm chart in the (PowerFlex CSI Driver)[https://github.com/dell/csi-powerflex] repository
-version v1.4.0.  There was a change
-identified after the PowerFlex driver release that needs to be made to the helm chart, specifically to the file helm/csi-vxflexos/templates/node.yaml. It is a simple two line addition to the podmon container section of the chart. Please make this change before deploying podmon.
-
-The diff is as follows:
-
-```
-@@ -113,8 +113,10 @@ spec:
-           volumeMounts:
-             - name: kubelet-pods
-               mountPath: /var/lib/kubelet/pods
-+              mountPropagation: "Bidirectional"
-             - name: driver-path
-               mountPath: /var/lib/kubelet/plugins/vxflexos.emc.dell.com
-+              mountPropagation: "Bidirectional"
-             - name: usr-bin
-               mountPath: /usr-bin
-```
-
-
-For reference, the entire node.yaml file with the change applied is available here: [node.yaml](node.yaml).
 
 The drivers that support Helm chart deployment allow CSM for Resiliency to be _optionally_ deployed by variables in the chart. There is a _podmon_ block specified in the _values.yaml_ file of the chart that will look similar the text below by default:
 
@@ -90,7 +70,7 @@ Here is a typical deployment used for testing:
 
 ```
 podmon:
-  image: image_repository_host_ip:5000/podmon:v0.0.54
+  image: dellemc/podmon
   enabled: true
   controller:
     args:
@@ -105,5 +85,29 @@ podmon:
       - "-labelvalue=csi-vxflexos"
       - "-mode=node"
       - "-leaderelection=false"
+
+```
+
+## Unity Specific Recommendations
+
+Here is a typical deployment used for testing:
+
+```
+podmon:
+   image: dellemc/podmon
+   enabled: true
+   controller:
+     args:
+       - "-csisock=unix:/var/run/csi/csi.sock"
+       - "-labelvalue=csi-unity"
+       - "-driverPath=csi-unity.dellemc.com"
+       - "-mode=controller"
+   node:
+     args:
+       - "-csisock=unix:/var/lib/kubelet/plugins/unity.emc.dell.com/csi_sock"
+       - "-labelvalue=csi-unity"
+       - "-driverPath=csi-unity.dellemc.com"
+       - "-mode=node"
+       - "-leaderelection=false"
 
 ```
