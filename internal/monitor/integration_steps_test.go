@@ -731,6 +731,37 @@ func (i *integration) theseStorageClassesExistInTheCluster(storageClassList stri
 	return nil
 }
 
+// labeledPodsChangedNodes examines the current assignment of labeled pods to nodes and compares it
+// with what was populated upon initial deployment in i.labeledPodsToNodes. Expectation is that the
+// nodes will have changed (assuming that the failure condition was detected and handled).
+func (i *integration) labeledPodsChangedNodes() error {
+	currentPodToNodeMap := make(map[string]string)
+	pods, getPodsErr := i.listPodsByLabel(fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", i.driverType))
+	if getPodsErr == nil {
+		for _, pod := range pods.Items {
+			nsPodName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+			currentPodToNodeMap[nsPodName] = pod.Spec.NodeName
+		}
+	} else {
+		return getPodsErr
+	}
+
+	// Search through the labeled pod map and verify node change
+	for podName, initialNode := range i.labeledPodsToNodes {
+		currentNode, ok := currentPodToNodeMap[podName]
+		if !ok {
+			return fmt.Errorf("expected %s pod to be assigned to a node, but no association was found", podName)
+		}
+		if currentNode == initialNode {
+			return AssertExpectedAndActual(assert.Equal, true, currentNode == initialNode,
+				fmt.Sprintf("Expected %s pod to be migrated to a healthy node. Currently '%s', initially '%s'",
+					podName, currentNode, initialNode))
+		}
+	}
+
+	return nil
+}
+
 /* -- Helper functions -- */
 
 func (i *integration) dumpNodeInfo() error {
@@ -1233,7 +1264,13 @@ func (i *integration) k8sPoll() {
 		pods, getPodsErr := i.listPodsByLabel(fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", i.driverType))
 		if getPodsErr == nil {
 			for _, pod := range pods.Items {
-				log.Infof("k8sPoll: %s [ PROTECTED   ] %s/%s %s", pod.Spec.NodeName, pod.Namespace, pod.Name, pod.Status.Phase)
+				nodeSpec := pod.Spec.NodeName
+				// Display the initial and the current nodes (if changed)
+				nsPodName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+				if initialNode, ok := i.labeledPodsToNodes[nsPodName]; ok && initialNode != pod.Spec.NodeName {
+					nodeSpec = fmt.Sprintf("%s --> %s", initialNode, pod.Spec.NodeName)
+				}
+				log.Infof("k8sPoll: %s [ PROTECTED   ] %s/%s %s", nodeSpec, pod.Namespace, pod.Name, pod.Status.Phase)
 			}
 		} else {
 			log.Infof("k8sPoll: get pods failed: %s", getPodsErr)
@@ -1514,4 +1551,5 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^can logon to nodes and drop test scripts$`, i.canLogonToNodesAndDropTestScripts)
 	context.Step(`^these storageClasses "([^"]*)" exist in the cluster$`, i.theseStorageClassesExistInTheCluster)
 	context.Step(`^wait (\d+) to see there are no taints$`, i.theTaintsForTheFailedNodesAreRemovedWithinSeconds)
+	context.Step(`^labeled pods are on a different node$`, i.labeledPodsChangedNodes)
 }

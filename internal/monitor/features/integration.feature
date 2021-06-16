@@ -39,6 +39,7 @@ Feature: Integration Test
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
     Then validate that all pods are running within <runSecs> seconds
+    And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
 
@@ -62,6 +63,7 @@ Feature: Integration Test
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
     Then validate that all pods are running within <runSecs> seconds
+    And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
 
@@ -85,6 +87,7 @@ Feature: Integration Test
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
     Then validate that all pods are running within <runSecs> seconds
+    And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
 
@@ -108,6 +111,7 @@ Feature: Integration Test
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
     Then validate that all pods are running within <runSecs> seconds
+    And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
 
@@ -131,6 +135,7 @@ Feature: Integration Test
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
     Then validate that all pods are running within <runSecs> seconds
+    And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
 
@@ -154,6 +159,7 @@ Feature: Integration Test
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
     Then validate that all pods are running within <runSecs> seconds
+    And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
 
@@ -232,6 +238,7 @@ Feature: Integration Test
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
     Then validate that all pods are running within <runSecs> seconds
+    And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
     Examples:
@@ -249,6 +256,7 @@ Feature: Integration Test
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
     Then validate that all pods are running within <runSecs> seconds
+    And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
 
@@ -267,6 +275,7 @@ Feature: Integration Test
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
     Then validate that all pods are running within <runSecs> seconds
+    And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
 
@@ -284,6 +293,7 @@ Feature: Integration Test
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
     Then validate that all pods are running within <runSecs> seconds
+    And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
     Examples:
@@ -300,6 +310,7 @@ Feature: Integration Test
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
     Then validate that all pods are running within <runSecs> seconds
+    And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
     Examples:
@@ -316,6 +327,7 @@ Feature: Integration Test
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
     Then validate that all pods are running within <runSecs> seconds
+    And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
 
@@ -333,6 +345,7 @@ Feature: Integration Test
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
     Then validate that all pods are running within <runSecs> seconds
+    And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
 
@@ -350,6 +363,7 @@ Feature: Integration Test
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
     Then validate that all pods are running within <runSecs> seconds
+    And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
 
@@ -367,6 +381,7 @@ Feature: Integration Test
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> and I expect these taints <taints>
     Then validate that all pods are running within <runSecs> seconds
+    And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
 
@@ -384,6 +399,7 @@ Feature: Integration Test
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> and I expect these taints <taints>
     Then validate that all pods are running within <runSecs> seconds
+    And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
 
