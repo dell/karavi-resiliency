@@ -24,7 +24,7 @@ _CSM for Resiliency_ is a project designed to make Kubernetes Applications, incl
 
 Some of the methods CSM for Resiliency invokes in the driver are standard CSI methods, such as NodeUnpublishVolume, NodeUnstageVolume, and ControllerUnpublishVolume. CSM for Resiliency also uses proprietary calls that are not part of the standard CSI specification. Currently, there is only one, ValidateVolumeHostConnectivity that returns information on whether a host is connected to the storage system and/or whether any I/O activity has happened in the recent past from a list of specified volumes. This allows CSM for Resiliency to make more accurate determinations about the state of the system and its persistent volumes.
 
-Accordingly, CSM for Resiliency is adapted to, and qualified with each CSI driver it is to be used with. Different storage systems have different nuances and characteristics that CSM for Resiliency must take into account.
+Accordingly, CSM for Resiliency is adapted to, and qualified with each CSI driver with which it is to be used. Different storage systems have different nuances and characteristics that CSM for Resiliency must take into account.
 
 CSM for Resiliency is currently in a _Technical Preview Phase_, and should be considered _alpha_ software. We are actively seeking feedback from users about its features, effectiveness, and reliability. Please provide feedback using the karavi@dell.com email alias. We will take that input, along with our own results from doing extensive testing, and incrementally improve the software. We do ***not*** recommend or support it for production use at this time.
 
