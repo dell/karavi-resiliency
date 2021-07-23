@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Copyright (c) 2021. Dell Inc., or its subsidiaries. All Rights Reserved.
 #
@@ -9,33 +9,52 @@
 # http://www.apache.org/licenses/LICENSE-2.0
 #
 #
+source int_test_params.sh
 
 ITERATIONS=100
 RESILIENCY=../..
+SLEEP_TIME=${SLEEP_TIME:-300}
+
+# Function to run the e2e test. Does some initial cleanup and captures logs.
+function run_e2e_test() {
+  storage_type=$1
+  driver_namespace=$2
+  tester_prefix=$3
+
+  # Clean up any left over test pods
+  echo "Clean up any remaining $tester_prefix test pods"
+  sh $RESILIENCY/test/podmontest/uns.sh --prefix "$tester_prefix" --instances 18
+  sleep "$SLEEP_TIME"
+  sh $RESILIENCY/tools/mon.sh --once
+
+  # Run the e2e
+  echo "****************** Execute the $storage_type E2E test *****************"
+  make "${storage_type}-integration-test"
+  RC=$?
+  echo "E2E test for $storage_type had return code: " $RC
+
+  date
+  sh $RESILIENCY/tools/mon.sh --once
+
+  # Collect logs
+  echo "Collecting driver logs from $driver_namespace namespace"
+  sh $RESILIENCY/tools/collect_logs.sh --driver_namespace "$driver_namespace"
+}
 
 ITER=1
 while [ $ITER -le $ITERATIONS ]; do
-	date
-	echo "Iteration: " $ITER
-	echo "Clean up any remaing pods"
-	sh $RESILIENCY/test/podmontest/uns.sh --prefix pmtv --instances 18
-	sleep 360
-	sh $RESILIENCY/tools/mon.sh --once
+  date
+  echo "Iteration: " $ITER
 
-	echo "****************** Execute the integration test ***********************************************"
-	source int_test_params.sh
-	make integration-test
-	RC=$?
-	echo "Return code: " $RC
+  run_e2e_test "powerstore" "vxflexos" "pmtv"
+  run_e2e_test "unity" "unity" "pmtu"
 
-	date
-	sh $RESILIENCY/tools/mon.sh --once
-	echo "Collecting logs"
-	sh $RESILIENCY/tools/collect_logs.sh --ns vxflexos
-	sleep 300
-	sh $RESILIENCY/tools/mon.sh --once
+  sleep "$SLEEP_TIME"
+  sh $RESILIENCY/tools/mon.sh --once
 
-	ITER=$((ITER + 1))
-	if [ -e stop ]; then echo "exiting due to stop file"; exit 0; fi
+  ITER=$((ITER + 1))
+  if [ -e stop ]; then
+    echo "****************** Exiting due to stop file ******************"
+    exit 0
+  fi
 done
-
