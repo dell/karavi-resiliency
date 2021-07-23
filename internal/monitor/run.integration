@@ -46,7 +46,7 @@ while [ $ITER -le $ITERATIONS ]; do
   date
   echo "Iteration: " $ITER
 
-  run_e2e_test "powerstore" "vxflexos" "pmtv"
+  run_e2e_test "powerflex" "vxflexos" "pmtv"
   run_e2e_test "unity" "unity" "pmtu"
 
   sleep "$SLEEP_TIME"
