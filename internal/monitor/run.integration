@@ -38,7 +38,7 @@ run_e2e_test() {
 
   # Collect logs
   echo "Collecting driver logs from $driver_namespace namespace"
-  sh $RESILIENCY/tools/collect_logs.sh --driver_namespace "$driver_namespace"
+  sh $RESILIENCY/tools/collect_logs.sh --ns "$driver_namespace"
 }
 
 ITER=1
