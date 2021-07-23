@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # Copyright (c) 2021. Dell Inc., or its subsidiaries. All Rights Reserved.
 #
@@ -16,7 +16,7 @@ RESILIENCY=../..
 SLEEP_TIME=${SLEEP_TIME:-300}
 
 # Function to run the e2e test. Does some initial cleanup and captures logs.
-function run_e2e_test() {
+run_e2e_test() {
   storage_type=$1
   driver_namespace=$2
   tester_prefix=$3
