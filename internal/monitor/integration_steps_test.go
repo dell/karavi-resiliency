@@ -78,8 +78,10 @@ var failureToScriptMap = map[string]string{
 }
 
 const (
+	// SSH timeout value
+	sshTimeoutValue = 120
 	// Timeout for the SSH client
-	sshTimeout = 10 * time.Second
+	sshTimeoutDuration = sshTimeoutValue * time.Second
 	// Directory where test scripts will be dropped
 	remoteScriptDir = "/root/karavi-resiliency-tests"
 	// Directory on Openshift nodes where the scripts will be dropped
@@ -109,6 +111,9 @@ var nodesWithScriptsInitOnce sync.Once
 // Parameters for use with the background poller
 var k8sPollInterval = 2 * time.Second
 var pollTick *time.Ticker
+
+// sshOptions used in SSH cli commands to K8s nodes
+var sshOptions = fmt.Sprintf("-o 'ConnectTimeout=%d' -o 'UserKnownHostsFile /dev/null' -o 'StrictHostKeyChecking no'", sshTimeoutValue)
 
 // isWorkerNode is a filter function for searching for nodes that look to be worker nodes
 var isWorkerNode = func(node corev1.Node) bool {
@@ -1030,7 +1035,7 @@ func (i *integration) copyOverTestScriptsToNode(address string) error {
 	client := ssh.CommandExecution{
 		AccessInfo: &info,
 		SSHWrapper: wrapper,
-		Timeout:    sshTimeout,
+		Timeout:    sshTimeoutDuration,
 	}
 
 	log.Infof("Attempting to scp scripts from %s to %s:%s", i.scriptsDir, address, remoteScriptDir)
@@ -1088,12 +1093,11 @@ func (i *integration) copyOverTestScriptsToOpenshift(address string) error {
 	client := ssh.CommandExecution{
 		AccessInfo: &info,
 		SSHWrapper: wrapper,
-		Timeout:    sshTimeout,
+		Timeout:    sshTimeoutDuration,
 	}
 
 	log.Infof("Attempting to scp scripts from Bastion node %s to %s:%s", i.bastionNode, address, openShiftRemoteScriptDir)
-
-	mkDirCmd := fmt.Sprintf("ssh core@%s 'date; rm -rf %s; mkdir -p %s'", address, openShiftRemoteScriptDir, openShiftRemoteScriptDir)
+	mkDirCmd := fmt.Sprintf("ssh %s core@%s 'date; rm -rf %s; mkdir -p %s'", sshOptions, address, openShiftRemoteScriptDir, openShiftRemoteScriptDir)
 	log.Info(mkDirCmd)
 	if mkDirErr := client.Run(mkDirCmd); mkDirErr == nil {
 		for _, out := range client.GetOutput() {
@@ -1112,7 +1116,7 @@ func (i *integration) copyOverTestScriptsToOpenshift(address string) error {
 	}
 
 	// After copying the files, add execute permissions and list the directory
-	lsDirCmd := fmt.Sprintf("ssh core@%s 'sudo chmod +x %s/* ; sudo ls -ltr %s'", address, openShiftRemoteScriptDir, openShiftRemoteScriptDir)
+	lsDirCmd := fmt.Sprintf("ssh %s core@%s 'sudo chmod +x %s/* ; sudo ls -ltr %s'", sshOptions, address, openShiftRemoteScriptDir, openShiftRemoteScriptDir)
 	log.Info(lsDirCmd)
 	if lsErr := client.Run(lsDirCmd); lsErr == nil {
 		for _, out := range client.GetOutput() {
@@ -1165,7 +1169,7 @@ func (i *integration) induceFailureOn(name string, ip, failureType string, wait 
 	client := ssh.CommandExecution{
 		AccessInfo: &info,
 		SSHWrapper: wrapper,
-		Timeout:    sshTimeout,
+		Timeout:    sshTimeoutDuration,
 	}
 
 	// Split the failureType by ':' character. If specified, the first part is the key,
@@ -1203,7 +1207,7 @@ func (i *integration) induceFailureOn(name string, ip, failureType string, wait 
 
 	if i.isOpenshift {
 		// For Openshift, failure script invocation is done from the Bastion node to the Openshift node
-		invokeFailCmd = fmt.Sprintf("ssh core@%s sudo %s", ip, invokeFailCmd)
+		invokeFailCmd = fmt.Sprintf("ssh %s core@%s sudo %s", sshOptions, ip, invokeFailCmd)
 	}
 	log.Infof("Command to invoke: %s", invokeFailCmd)
 	if invokeErr := client.SendRequest(invokeFailCmd); invokeErr == nil {
