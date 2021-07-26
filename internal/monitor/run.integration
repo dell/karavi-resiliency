@@ -31,7 +31,7 @@ run_e2e_test() {
   echo "****************** Execute the $storage_type E2E test *****************"
   make "${storage_type}-integration-test"
   RC=$?
-  echo "E2E test for $storage_type had return code: " $RC
+  echo "E2E test for $storage_type had Return code: " $RC
 
   date
   sh $RESILIENCY/tools/mon.sh --once
