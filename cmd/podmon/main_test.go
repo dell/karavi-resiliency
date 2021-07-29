@@ -19,6 +19,8 @@ import (
 	"testing"
 )
 
+const outputFormatVar = "GODOG_OPT_FORMAT"
+
 func TestMain(m *testing.M) {
 	status := 0
 	if st := m.Run(); st > status {
@@ -29,9 +31,15 @@ func TestMain(m *testing.M) {
 }
 
 func TestMainFunc(t *testing.T) {
+	outputFormat := os.Getenv(outputFormatVar)
+	if outputFormat == "" {
+		// Default output is Cucumber format
+		outputFormat = "cucumber"
+	}
+
 	log.Printf("Starting main-func test")
 	godogOptions := godog.Options{
-		Format: "pretty",
+		Format: outputFormat,
 		Paths:  []string{"features"},
 	}
 	status := godog.TestSuite{

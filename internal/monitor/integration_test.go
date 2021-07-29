@@ -21,6 +21,7 @@ import (
 
 const enableIntTestVar = "RESILIENCY_INT_TEST"
 const enableStopOnFailure = "RESILIENCY_INT_TEST_STOP_ON_FAILURE"
+const outputFormatVar = "GODOG_OPT_FORMAT"
 
 var setupIsGood = false
 
@@ -92,6 +93,12 @@ func TestUnityFirstCheck(t *testing.T) {
 }
 
 func TestPowerFlexIntegration(t *testing.T) {
+	outputFormat := os.Getenv(outputFormatVar)
+	if outputFormat == "" {
+		// Default output is Cucumber format
+		outputFormat = "cucumber"
+	}
+
 	intTestEnvVarStr := os.Getenv(enableIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
 		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableIntTestVar)
@@ -113,7 +120,7 @@ func TestPowerFlexIntegration(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        "pretty",
+		Format:        outputFormat,
 		Paths:         []string{"features"},
 		Tags:          "powerflex-integration",
 		StopOnFailure: stopOnFailure,
@@ -130,6 +137,12 @@ func TestPowerFlexIntegration(t *testing.T) {
 }
 
 func TestUnityIntegration(t *testing.T) {
+	outputFormat := os.Getenv(outputFormatVar)
+	if outputFormat == "" {
+		// Default output is Cucumber format
+		outputFormat = "cucumber"
+	}
+
 	intTestEnvVarStr := os.Getenv(enableIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
 		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableIntTestVar)
@@ -151,7 +164,7 @@ func TestUnityIntegration(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        "pretty",
+		Format:        outputFormat,
 		Paths:         []string{"features"},
 		Tags:          "unity-integration",
 		StopOnFailure: stopOnFailure,
@@ -168,6 +181,12 @@ func TestUnityIntegration(t *testing.T) {
 }
 
 func TestPowerflexArrayInterfaceDown(t *testing.T) {
+	outputFormat := os.Getenv(outputFormatVar)
+	if outputFormat == "" {
+		// Default output is Cucumber format
+		outputFormat = "cucumber"
+	}
+
 	intTestEnvVarStr := os.Getenv(enableIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
 		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableIntTestVar)
@@ -189,7 +208,7 @@ func TestPowerflexArrayInterfaceDown(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        "pretty",
+		Format:        outputFormat,
 		Paths:         []string{"features"},
 		Tags:          "powerflex-array-interface",
 		StopOnFailure: stopOnFailure,
@@ -206,6 +225,12 @@ func TestPowerflexArrayInterfaceDown(t *testing.T) {
 }
 
 func TestUnityArrayInterfaceDown(t *testing.T) {
+	outputFormat := os.Getenv(outputFormatVar)
+	if outputFormat == "" {
+		// Default output is Cucumber format
+		outputFormat = "cucumber"
+	}
+
 	intTestEnvVarStr := os.Getenv(enableIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
 		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableIntTestVar)
@@ -227,7 +252,7 @@ func TestUnityArrayInterfaceDown(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        "pretty",
+		Format:        outputFormat,
 		Paths:         []string{"features"},
 		Tags:          "unity-array-interface",
 		StopOnFailure: stopOnFailure,
