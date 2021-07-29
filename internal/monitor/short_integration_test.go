@@ -54,6 +54,12 @@ func TestPowerFlexShortCheck(t *testing.T) {
 }
 
 func TestUnityShortCheck(t *testing.T) {
+	outputFormat := os.Getenv(outputFormatVar)
+	if outputFormat == "" {
+		// Default output is Cucumber format
+		outputFormat = "cucumber"
+	}
+
 	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
 		log.Printf("Skipping short integration test. To enable short integration test: export %s=true", enableShortIntTestVar)
@@ -67,7 +73,7 @@ func TestUnityShortCheck(t *testing.T) {
 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
 
 	godogOptions := godog.Options{
-		Format:        "pretty",
+		Format:        outputFormat,
 		Paths:         []string{"features"},
 		Tags:          "unity-int-setup-check",
 		StopOnFailure: stopOnFailure,
@@ -86,6 +92,12 @@ func TestUnityShortCheck(t *testing.T) {
 }
 
 func TestPowerFlexShortIntegration(t *testing.T) {
+	outputFormat := os.Getenv(outputFormatVar)
+	if outputFormat == "" {
+		// Default output is Cucumber format
+		outputFormat = "cucumber"
+	}
+
 	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
 		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableShortIntTestVar)
@@ -107,7 +119,7 @@ func TestPowerFlexShortIntegration(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        "pretty",
+		Format:        outputFormat,
 		Paths:         []string{"features"},
 		Tags:          "powerflex-short-integration",
 		StopOnFailure: stopOnFailure,
@@ -124,6 +136,12 @@ func TestPowerFlexShortIntegration(t *testing.T) {
 }
 
 func TestUnityShortIntegration(t *testing.T) {
+	outputFormat := os.Getenv(outputFormatVar)
+	if outputFormat == "" {
+		// Default output is Cucumber format
+		outputFormat = "cucumber"
+	}
+
 	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
 		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableShortIntTestVar)
@@ -145,7 +163,7 @@ func TestUnityShortIntegration(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        "pretty",
+		Format:        outputFormat,
 		Paths:         []string{"features"},
 		Tags:          "unity-short-integration",
 		StopOnFailure: stopOnFailure,
