@@ -96,7 +96,7 @@ func TestPowerFlexIntegration(t *testing.T) {
 	outputFormat := os.Getenv(outputFormatVar)
 	if outputFormat == "" {
 		// Default output is Cucumber format
-		outputFormat = "cucumber"
+		outputFormat = "pretty"
 	}
 
 	intTestEnvVarStr := os.Getenv(enableIntTestVar)
@@ -140,7 +140,7 @@ func TestUnityIntegration(t *testing.T) {
 	outputFormat := os.Getenv(outputFormatVar)
 	if outputFormat == "" {
 		// Default output is Cucumber format
-		outputFormat = "cucumber"
+		outputFormat = "pretty"
 	}
 
 	intTestEnvVarStr := os.Getenv(enableIntTestVar)
@@ -184,7 +184,7 @@ func TestPowerflexArrayInterfaceDown(t *testing.T) {
 	outputFormat := os.Getenv(outputFormatVar)
 	if outputFormat == "" {
 		// Default output is Cucumber format
-		outputFormat = "cucumber"
+		outputFormat = "pretty"
 	}
 
 	intTestEnvVarStr := os.Getenv(enableIntTestVar)
@@ -228,7 +228,7 @@ func TestUnityArrayInterfaceDown(t *testing.T) {
 	outputFormat := os.Getenv(outputFormatVar)
 	if outputFormat == "" {
 		// Default output is Cucumber format
-		outputFormat = "cucumber"
+		outputFormat = "pretty"
 	}
 
 	intTestEnvVarStr := os.Getenv(enableIntTestVar)

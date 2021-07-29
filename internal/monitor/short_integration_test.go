@@ -57,7 +57,7 @@ func TestUnityShortCheck(t *testing.T) {
 	outputFormat := os.Getenv(outputFormatVar)
 	if outputFormat == "" {
 		// Default output is Cucumber format
-		outputFormat = "cucumber"
+		outputFormat = "pretty"
 	}
 
 	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
@@ -95,7 +95,7 @@ func TestPowerFlexShortIntegration(t *testing.T) {
 	outputFormat := os.Getenv(outputFormatVar)
 	if outputFormat == "" {
 		// Default output is Cucumber format
-		outputFormat = "cucumber"
+		outputFormat = "pretty"
 	}
 
 	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
@@ -139,7 +139,7 @@ func TestUnityShortIntegration(t *testing.T) {
 	outputFormat := os.Getenv(outputFormatVar)
 	if outputFormat == "" {
 		// Default output is Cucumber format
-		outputFormat = "cucumber"
+		outputFormat = "pretty"
 	}
 
 	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)

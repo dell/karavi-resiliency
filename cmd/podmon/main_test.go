@@ -34,7 +34,7 @@ func TestMainFunc(t *testing.T) {
 	outputFormat := os.Getenv(outputFormatVar)
 	if outputFormat == "" {
 		// Default output is Cucumber format
-		outputFormat = "cucumber"
+		outputFormat = "pretty"
 	}
 
 	log.Printf("Starting main-func test")

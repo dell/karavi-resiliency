@@ -32,7 +32,7 @@ func TestMonitor(t *testing.T) {
 	outputFormat := os.Getenv(outputFormatVar)
 	if outputFormat == "" {
 		// Default output is Cucumber format
-		outputFormat = "cucumber"
+		outputFormat = "pretty"
 	}
 
 	log.Printf("Starting monitor test")
@@ -56,7 +56,7 @@ func TestControllerMode(t *testing.T) {
 	outputFormat := os.Getenv(outputFormatVar)
 	if outputFormat == "" {
 		// Default output is Cucumber format
-		outputFormat = "cucumber"
+		outputFormat = "pretty"
 	}
 
 	log.Printf("Starting controller-mode test")
@@ -80,7 +80,7 @@ func TestNodeMode(t *testing.T) {
 	outputFormat := os.Getenv(outputFormatVar)
 	if outputFormat == "" {
 		// Default output is Cucumber format
-		outputFormat = "cucumber"
+		outputFormat = "pretty"
 	}
 
 	log.Printf("Starting node-mode test")
