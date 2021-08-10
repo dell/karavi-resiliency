@@ -277,6 +277,20 @@ func setupDynamicConfigUpdate() error {
 // updateConfiguration is the function for reading from a ConfigMap object, extracting parameters and
 // setting the appropriate Resiliency parameters. Returns error in case of issues.
 func updateConfiguration(vc *viper.Viper) error {
+	defer func() {
+		message := "parameter value after config file processing"
+		// Dump the values of the parameters at the end
+		if *args.mode == "controller" {
+			log.WithField(podmonControllerLogLevel, log.GetLevel()).Info(message)
+		}
+		if *args.mode == "node" {
+			log.WithField(podmonNodeLogLevel, log.GetLevel()).Info(message)
+		}
+		log.WithField("monitor.ArrayConnectivityPollRate", monitor.ArrayConnectivityPollRate).Info(message)
+		log.WithField("monitor.ArrayConnectivityConnectionLossThreshold", monitor.ArrayConnectivityConnectionLossThreshold).Info(message)
+		log.WithField("monitor.PodMonitor.SkipArrayConnectionValidation", monitor.PodMonitor.SkipArrayConnectionValidation).Info(message)
+	}()
+
 	if *args.mode == "controller" {
 		if err := setLoggingParameters(vc, podmonControllerLogFormat, podmonControllerLogLevel); err != nil {
 			return err
