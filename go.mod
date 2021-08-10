@@ -8,14 +8,15 @@ require (
 	github.com/cucumber/godog v0.10.0
 	github.com/dell/dell-csi-extensions/podmon v0.1.0
 	github.com/dell/gofsutil v1.3.0
+	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/golang/mock v1.5.0
 	github.com/kubernetes-csi/csi-lib-utils v0.7.0
 	github.com/sirupsen/logrus v1.6.0
-	github.com/stretchr/testify v1.6.1
+	github.com/spf13/viper v1.8.1
+	github.com/stretchr/testify v1.7.0
 	golang.org/x/crypto v0.0.0-20201216223049-8b5274cf687f
-	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d // indirect
 	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e // indirect
-	google.golang.org/grpc v1.33.2
+	google.golang.org/grpc v1.38.0
 	k8s.io/api v0.18.6
 	k8s.io/apimachinery v0.18.6
 	k8s.io/client-go v0.18.6

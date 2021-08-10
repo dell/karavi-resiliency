@@ -16,12 +16,15 @@ import (
 	"flag"
 	"fmt"
 	csiext "github.com/dell/dell-csi-extensions/podmon"
+	"github.com/fsnotify/fsnotify"
 	"github.com/kubernetes-csi/csi-lib-utils/leaderelection"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 	"podmon/internal/csiapi"
 	"podmon/internal/k8sapi"
 	"podmon/internal/monitor"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -43,7 +46,16 @@ const (
 	mode                                     = "controller"
 	skipArrayConnectionValidation            = false
 	driverPath                               = "csi-vxflexos.dellemc.com"
-	logLevel                                 = "INFO"
+	driverConfigParamsDefault                = "resources/driver-config-params.yaml"
+	// -- Below are constants for dynamic configuration --
+	defaultLogLevel                                = log.DebugLevel
+	podmonArrayConnectivityPollRate                = "PODMON_ARRAY_CONNECTIVITY_POLL_RATE"
+	podmonArrayConnectivityConnectionLossThreshold = "PODMON_ARRAY_CONNECTIVITY_CONNECTION_LOSS_THRESHOLD"
+	podmonControllerLogFormat                      = "PODMON_CONTROLLER_LOG_FORMAT"
+	podmonControllerLogLevel                       = "PODMON_CONTROLLER_LOG_LEVEL"
+	podmonNodeLogFormat                            = "PODMON_NODE_LOG_FORMAT"
+	podmonNodeLogLevel                             = "PODMON_NODE_LOG_LEVEL"
+	podmonSkipArrayConnectionValidation            = "PODMON_SKIP_ARRAY_CONNECTION_VALIDATION"
 )
 
 //K8sAPI is reference to the internal Kubernetes wrapper client
@@ -78,13 +90,12 @@ func main() {
 		TimestampFormat: time.RFC1123,
 	})
 	getArgs()
-	if ll, err := log.ParseLevel(*args.logLevel); err == nil {
-		log.Infof("Setting log level to %v", ll)
-		log.SetLevel(ll)
-	} else {
-		log.Errorf("An invalid log level provided: %s", *args.logLevel)
+
+	if err := setupDynamicConfigUpdate(); err != nil {
+		// There was some error with setting up the configuration update, so exit now.
 		return
 	}
+
 	switch *args.mode {
 	case "controller":
 		monitor.PodMonitor.Mode = *args.mode
@@ -123,8 +134,7 @@ func main() {
 		log.Infof("Attempting driver connection at: %s", *args.csisock)
 		monitor.CSIApi, err = GetCSIClient(*args.csisock, clientOpts...)
 		defer monitor.CSIApi.Close()
-		if *args.skipArrayConnectionValidation {
-			monitor.PodMonitor.SkipArrayConnectionValidation = true
+		if monitor.PodMonitor.SkipArrayConnectionValidation {
 			log.Infof("Skipping array connection validation")
 		}
 		// Check if CSI Extensions are present
@@ -185,7 +195,7 @@ type PodmonArgs struct {
 	mode                                     *string // running mode, either "controller" for controller sidecar, "node" node sidecar, "standalone"
 	skipArrayConnectionValidation            *bool   // skip the validation that array connectivity has been lost
 	driverPath                               *string // driverPath to use for parsing csi.volume.kubernetes.io/nodeid annotation
-	logLevel                                 *string // Set the log level for the podmon sidecar
+	driverConfigParamsFile                   *string // Set the location of the driver ConfigMap
 }
 
 var args PodmonArgs
@@ -203,7 +213,7 @@ func getArgs() {
 		args.mode = flag.String("mode", mode, "operating mode: controller (default), node, or standalone")
 		args.skipArrayConnectionValidation = flag.Bool("skipArrayConnectionValidation", skipArrayConnectionValidation, "skip validation of array connectivity loss before killing pod")
 		args.driverPath = flag.String("driverPath", driverPath, "driverPath to use for parsing csi.volume.kubernetes.io/nodeid annotation")
-		args.logLevel = flag.String("logLevel", logLevel, "set a log output level")
+		args.driverConfigParamsFile = flag.String("driver-config-params", driverConfigParamsDefault, "Full path to the YAML file containing the driver ConfigMap")
 	})
 
 	// -- For testing purposes. Re-default the values since main will be called multiple times --
@@ -217,7 +227,7 @@ func getArgs() {
 	*args.mode = mode
 	*args.skipArrayConnectionValidation = skipArrayConnectionValidation
 	*args.driverPath = driverPath
-	*args.logLevel = logLevel
+	*args.driverConfigParamsFile = driverConfigParamsDefault
 	flag.Parse()
 }
 
@@ -228,4 +238,133 @@ func k8sLeaderElection(runFunc func(ctx context.Context)) leaderElection {
 func podMonWait() bool {
 	time.Sleep(10 * time.Minute)
 	return false
+}
+
+// setupDynamicConfigUpdate will read the driver parameter file contain the ConfigMap. It will extract
+// parameters to be set for Resiliency. It will also set up a watch against the file, so that updates
+// to the file will trigger dynamic updates to Resiliency parameters.
+func setupDynamicConfigUpdate() error {
+	if *args.driverConfigParamsFile == "" {
+		message := "--driver-config-params cannot be empty"
+		log.Error(message)
+		return fmt.Errorf(message)
+	}
+
+	vc := viper.New()
+	vc.AutomaticEnv()
+	vc.SetConfigFile(*args.driverConfigParamsFile)
+	if err := vc.ReadInConfig(); err != nil {
+		log.WithError(err).Errorf("unable to read driver config file: %s", *args.driverConfigParamsFile)
+		return err
+	}
+
+	if err := updateConfiguration(vc); err != nil {
+		log.WithError(err).Errorf("error with configuration parameters")
+		return err
+	}
+
+	vc.WatchConfig()
+	vc.OnConfigChange(func(in fsnotify.Event) {
+		log.WithField("file", *args.driverConfigParamsFile).Infof("configuration file has changed")
+		if err := updateConfiguration(vc); err != nil {
+			log.Warn(err)
+		}
+	})
+
+	return nil
+}
+
+// updateConfiguration is the function for reading from a ConfigMap object, extracting parameters and
+// setting the appropriate Resiliency parameters. Returns error in case of issues.
+func updateConfiguration(vc *viper.Viper) error {
+	if *args.mode == "controller" {
+		if err := setLoggingParameters(vc, podmonControllerLogFormat, podmonControllerLogLevel); err != nil {
+			return err
+		}
+	}
+
+	if *args.mode == "node" {
+		if err := setLoggingParameters(vc, podmonNodeLogFormat, podmonNodeLogLevel); err != nil {
+			return err
+		}
+	}
+
+	pollRate := *args.arrayConnectivityPollRate
+	if vc.IsSet(podmonArrayConnectivityPollRate) {
+		pollRateStr := vc.GetString(podmonArrayConnectivityPollRate)
+		value, err := strconv.Atoi(pollRateStr)
+		if err != nil {
+			return fmt.Errorf("parsing %s failed: value was %s", podmonArrayConnectivityPollRate,
+				pollRateStr)
+		}
+		pollRate = value
+		log.WithField(podmonArrayConnectivityPollRate, pollRate).Infof("configuration has been set.")
+	}
+	monitor.ArrayConnectivityPollRate = time.Duration(pollRate) * time.Second
+
+	lossThreshold := *args.arrayConnectivityConnectionLossThreshold
+	if vc.IsSet(podmonArrayConnectivityConnectionLossThreshold) {
+		lossThresholdStr := vc.GetString(podmonArrayConnectivityConnectionLossThreshold)
+		value, err := strconv.Atoi(lossThresholdStr)
+		if err != nil {
+			return fmt.Errorf("parsing %s failed: value was %s", podmonArrayConnectivityConnectionLossThreshold,
+				lossThresholdStr)
+		}
+		lossThreshold = value
+		log.WithField(podmonArrayConnectivityConnectionLossThreshold, lossThreshold).Info("configuration has been set.")
+	}
+	monitor.ArrayConnectivityConnectionLossThreshold = lossThreshold
+
+	skipArrayConnectionCheck := *args.skipArrayConnectionValidation
+	if vc.IsSet(podmonSkipArrayConnectionValidation) {
+		skipArrayConnectionCheckStr := vc.GetString(podmonSkipArrayConnectionValidation)
+		value, err := strconv.ParseBool(skipArrayConnectionCheckStr)
+		if err != nil {
+			return fmt.Errorf("parsing %s failed: value was %s", podmonSkipArrayConnectionValidation,
+				skipArrayConnectionCheckStr)
+		}
+		skipArrayConnectionCheck = value
+		log.WithField(podmonSkipArrayConnectionValidation, skipArrayConnectionCheck).Info("configuration has been set.")
+	}
+	monitor.PodMonitor.SkipArrayConnectionValidation = skipArrayConnectionCheck
+
+	return nil
+}
+
+// setLoggingParameters is generic function for extracting logging parameters. The podmon sidecar can run in
+// two different environments, controller or node mode. There are different parameters names for each
+// mode, so this is a generic way to read from a parameters and set the log level and format.
+func setLoggingParameters(vc *viper.Viper, formatParam, logLevelParam string) error {
+	if vc.IsSet(formatParam) {
+		logFormat := vc.GetString(formatParam)
+		log.WithField("format", logFormat).Infof("Read %s from log configuration file", formatParam)
+		if strings.EqualFold(logFormat, "json") {
+			log.SetFormatter(&log.JSONFormatter{})
+		} else {
+			if !strings.EqualFold(logFormat, "text") {
+				log.WithField("format", logFormat).Warnf("Unexpected format %s for %s. Using text format instead.", logFormat, formatParam)
+			}
+			log.SetFormatter(&log.TextFormatter{})
+		}
+	}
+
+	level := defaultLogLevel
+	if vc.IsSet(logLevelParam) {
+		logLevel := vc.GetString(logLevelParam)
+		if logLevel != "" {
+			logLevel = strings.ToLower(logLevel)
+			log.WithField("level", logLevel).Infof("Read %s from log configuration file", logLevelParam)
+			var err error
+			level, err = log.ParseLevel(logLevel)
+			if err != nil {
+				log.WithError(err).Errorf("%s %s value not recognized, setting to debug error: %s ",
+					logLevelParam, logLevel, err.Error())
+				log.SetLevel(defaultLogLevel)
+				return fmt.Errorf("input log level %q is not valid", logLevel)
+			}
+		}
+	}
+	log.SetLevel(level)
+
+	return nil
 }
