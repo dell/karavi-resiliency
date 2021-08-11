@@ -311,6 +311,9 @@ func updateConfiguration(vc *viper.Viper) error {
 			return fmt.Errorf("parsing %s failed: value was %s", podmonArrayConnectivityPollRate,
 				pollRateStr)
 		}
+		if value <= 0 {
+			return fmt.Errorf("%s should be greater than zero, but was %d", podmonArrayConnectivityPollRate, value)
+		}
 		pollRate = value
 		log.WithField(podmonArrayConnectivityPollRate, pollRate).Infof("configuration has been set.")
 	}
@@ -323,6 +326,9 @@ func updateConfiguration(vc *viper.Viper) error {
 		if err != nil {
 			return fmt.Errorf("parsing %s failed: value was %s", podmonArrayConnectivityConnectionLossThreshold,
 				lossThresholdStr)
+		}
+		if value <= 0 {
+			return fmt.Errorf("%s should be greater than zero, but was %d", podmonArrayConnectivityConnectionLossThreshold, value)
 		}
 		lossThreshold = value
 		log.WithField(podmonArrayConnectivityConnectionLossThreshold, lossThreshold).Info("configuration has been set.")

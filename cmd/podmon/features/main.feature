@@ -125,3 +125,5 @@ Feature: Podmon Main
       | "localhost"  | "1234"  | "--driver-config-params=resources/driver-config-params-bad-value1.yaml"             | "error with configuration parameters"    |
       | "localhost"  | "1234"  | "--driver-config-params=resources/driver-config-params-bad-value2.yaml"             | "error with configuration parameters"    |
       | "localhost"  | "1234"  | "--driver-config-params=resources/driver-config-params-bad-value3.yaml"             | "error with configuration parameters"    |
+      | "localhost"  | "1234"  | "--driver-config-params=resources/driver-config-params-bad-value4.yaml"             | "error with configuration parameters"    |
+      | "localhost"  | "1234"  | "--driver-config-params=resources/driver-config-params-bad-value5.yaml"             | "error with configuration parameters"    |
