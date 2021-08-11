@@ -8,7 +8,7 @@ require (
 	github.com/cucumber/godog v0.10.0
 	github.com/dell/dell-csi-extensions/podmon v0.1.0
 	github.com/dell/gofsutil v1.3.0
-	github.com/fsnotify/fsnotify v1.4.9 // indirect
+	github.com/fsnotify/fsnotify v1.4.9
 	github.com/golang/mock v1.5.0
 	github.com/kubernetes-csi/csi-lib-utils v0.7.0
 	github.com/sirupsen/logrus v1.6.0
