@@ -65,7 +65,6 @@ This section contains information how we tested _CSM for Resiliency_ and the res
     - [Contributing Guide](./docs/CONTRIBUTING.md)
     - [Getting Started Guide](./docs/GETTING_STARTED_GUIDE.md)
 - [List of Adopters](./ADOPTERS.md)
-- [Release Notes](./docs/RELEASE_NOTES.md)
 - [Support](#support)
 - [About](#about)
 

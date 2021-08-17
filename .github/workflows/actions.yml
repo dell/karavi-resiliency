@@ -86,7 +86,9 @@ jobs:
       - name: Install Mockgen
         run: go get github.com/golang/mock/mockgen@v1.4.4
       - name: Get dependencies
-        run:  go mod download
+        run: go mod download
+      - name: Mod tidy
+        run: go mod tidy
       - name: Build podmon Docker Image
         run: cd cmd/podmon ; make clean build; docker build -t podmon .
       - name: Image scanner

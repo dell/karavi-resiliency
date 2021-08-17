@@ -101,17 +101,29 @@ Feature: Podmon Main
       | "localhost"  | "1234"  | "--driverPath=unity"    | "leader election: true" |
       | "localhost"  | "1234"  | "--driverPath=vxflexos" | "leader election: true" |
 
-  Scenario Outline: Test logging levels
+  Scenario Outline: Test using driver ConfigMap
     Given a podmon instance
     And Podmon env vars set to <k8sHostValue>:<k8sPort>
     And I invoke main with arguments <args>
     Then the last log message contains <message>
 
     Examples:
-      | k8sHostValue | k8sPort | args               | message                               |
-      | "localhost"  | "1234"  | "--logLevel=fake"  | "An invalid log level provided: fake" |
-      | "localhost"  | "1234"  | "--logLevel=warn"  | "Setting log level to warn"           |
-      # We set the log level to warning in the previous test, we'll set to info to get output
-      | "localhost"  | "1234"  | "--logLevel=info"  | "leader election: true"                                |
-      | "localhost"  | "1234"  | "--logLevel=WaRn"  | "Setting log level to warning"        |
-      | "localhost"  | "1234"  | "--logLevel=DeBug" | "leader election: true"               |
+      | k8sHostValue | k8sPort | args                                                                                | message                                  |
+      # Use a default for testing
+      | "localhost"  | "1234"  | ""                                                                                  | "leader election: true"                  |
+      | "localhost"  | "1234"  | "-driver-config-params=resources/driver-config-params2.yaml"                        | "leader election: true"                  |
+      | "localhost"  | "1234"  | "--mode=node"                                                                       | "leader election: true"                  |
+      | "localhost"  | "1234"  | "--mode=node -driver-config-params=resources/driver-config-params2.yaml"            | "leader election: true"                  |
+      # Error cases
+      | "localhost"  | "1234"  | "--driver-config-params= "                                                          | "--driver-config-params cannot be empty" |
+      | "localhost"  | "1234"  | "--driver-config-params=fake"                                                       | "unable to read driver config file"      |
+      # Bad data in ConfigMaps
+      | "localhost"  | "1234"  | "--driver-config-params=resources/driver-config-params-bad-format1.yaml"            | "leader election: true"                  |
+      | "localhost"  | "1234"  | "--driver-config-params=resources/driver-config-params-bad-format2.yaml"            | "leader election: true"                  |
+      | "localhost"  | "1234"  | "--driver-config-params=resources/driver-config-params-bad-level1.yaml"             | "error with configuration parameters"    |
+      | "localhost"  | "1234"  | "--mode=node --driver-config-params=resources/driver-config-params-bad-level2.yaml" | "error with configuration parameters"    |
+      | "localhost"  | "1234"  | "--driver-config-params=resources/driver-config-params-bad-value1.yaml"             | "error with configuration parameters"    |
+      | "localhost"  | "1234"  | "--driver-config-params=resources/driver-config-params-bad-value2.yaml"             | "error with configuration parameters"    |
+      | "localhost"  | "1234"  | "--driver-config-params=resources/driver-config-params-bad-value3.yaml"             | "error with configuration parameters"    |
+      | "localhost"  | "1234"  | "--driver-config-params=resources/driver-config-params-bad-value4.yaml"             | "error with configuration parameters"    |
+      | "localhost"  | "1234"  | "--driver-config-params=resources/driver-config-params-bad-value5.yaml"             | "error with configuration parameters"    |
