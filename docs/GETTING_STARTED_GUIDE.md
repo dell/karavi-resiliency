@@ -9,12 +9,12 @@ You may obtain a copy of the License at
 -->
 
 # Getting Started Guidelines
-This document steps through the deployment and configuration of the new project
+This document steps through the deployment and configuration of a new project.
 
 ## Prerequisites
 
 
-## Building New Project
+## Building a New Project
 To build the source using the Makefile in the root directory, run:
 ```
 make [all]
@@ -73,14 +73,14 @@ podmon:
       - "--driver-config-params=/csi-driver-config-params/driver-config-params.yaml"
 ```
 
-_NB: The above is generic example. The parameters are not necessarily correct for running with a real DellEMC CSI driver._
+_NB: The above is a generic example. The parameters are not necessarily correct for running with a real DellEMC CSI driver._
 _See a CSM for Resiliency supported DellEMC CSI Driver for a better example._
 
 ### Dynamic parameters
 
 CSM for Resiliency has configuration parameters that can be updated dynamically, such as the logging level and format. This can be 
 done by editing the DellEMC CSI Driver's parameters ConfigMap. The ConfigMap can be queried using kubectl. 
-For example, the DellEMC Powerflex CSI Driver ConfigMaps can be found like so: `kubectl get -n vxflexos configmap`. 
+For example, the DellEMC Powerflex CSI Driver ConfigMaps can be found using the following command: `kubectl get -n vxflexos configmap`. 
 The ConfigMap to edit will have this pattern: <storage>-config-params (e.g., `vxflexos-config-params`).
 
 To update or add parameters, you can use the `kubectl edit` command. For example, `kubectl edit -n vxflexos configmap vxflexos-config-params`.
