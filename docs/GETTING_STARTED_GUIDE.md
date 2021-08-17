@@ -11,9 +11,6 @@ You may obtain a copy of the License at
 # Getting Started Guidelines
 This document steps through the deployment and configuration of a new project.
 
-## Prerequisites
-
-
 ## Building a New Project
 To build the source using the Makefile in the root directory, run:
 ```
@@ -48,7 +45,39 @@ Restart docker service:
 service docker restart
 ```
 
-## Deploying New Project
+## Building image 
+
+Before building the image, set up some environmental variables:
+```shell
+export REGISTRY_HOST=your.registry.hostname
+export REGISTRY_PORT=port
+export VERSION=vX.Y.Z
+```
+
+Use make to build and push the image to a repo:
+```shell
+cd cmd/podmon
+make docker 
+make push
+```
+
+## Testing New Project
+Clone the source:
+```shell
+git clone https://github.com/dell/karavi-resiliency.git
+```
+
+Change dir to cmd/podmon
+```shell
+cd cmd/podmon
+```
+
+Run test using make
+```shell
+make godog
+```
+
+## Deploying
 CSM for Resiliency is deployed as a side-car to DellEMC CSI Drivers. A reference to the CSM for Resiliency image 
 to use should be specified in the DellEMC CSI Driver values.yaml file. An example of that specification:
 
@@ -97,24 +126,15 @@ This is a list of parameters that can be adjusted for CSM for Resiliency:
 | PODMON_ARRAY_CONNECTIVITY_CONNECTION_LOSS_THRESHOLD | Integer (>0) | 3 |A value representing the number of failed connection poll intervals before marking the array connectivity as lost |
 | PODMON_SKIP_ARRAY_CONNECTION_VALIDATION | Boolean | false |Flag to disable the array connectivity check |
 
-Before building the image, set up some environmental variables:
-```shell
-export REGISTRY_HOST=your.registry.hostname
-export REGISTRY_PORT=port
-export VERSION=vX.Y.Z
-```
-
-Use make to build and push the image to a repo:
-```shell
-cd cmd/podmon
-make docker 
-make push
-```
-
-## Testing New Project
-Clone the source:
-```shell
-git clone https://github.com/dell/karavi-resiliency.git
+Here is an example of the parameters:
+```yaml
+    PODMON_CONTROLLER_LOG_FORMAT: "json"
+    PODMON_CONTROLLER_LOG_LEVEL: "error"
+    PODMON_NODE_LOG_FORMAT: "text"
+    PODMON_NODE_LOG_LEVEL: "debug"
+    PODMON_ARRAY_CONNECTIVITY_POLL_RATE: 20
+    PODMON_ARRAY_CONNECTIVITY_CONNECTION_LOSS_THRESHOLD: 2
+    PODMON_SKIP_ARRAY_CONNECTION_VALIDATION: true
 ```
 
 Change dir to cmd/podmon
