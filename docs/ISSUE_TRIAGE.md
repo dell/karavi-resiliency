@@ -134,7 +134,7 @@ The following section describes the various issue templates and the expected con
 
 #### Bug reports
 
-Should explain what happened, what was expected and how to reproduce it together with any additional information that may help to give a complete picture of what happened such as screenshots, output and any environment related information that's applicable and/or maybe related to the reported problem:
+Should explain what happened, what was expected and how to reproduce it. Provide any additional information that may help to give a complete picture of what happened such as screenshots, output and any environment related information that's applicable and/or maybe related to the reported problem:
 - CSM for Resiliency version
 - Platform & OS CSM for Resiliency is installed on
 
@@ -148,10 +148,10 @@ In general, if the issue description and title is perceived as a question no mor
 
 ### Good practices
 
-To make it easier for everyone to understand and find issues they're searching for it's suggested as a general rule of thumbs to:
+To make it easier for everyone to understand and find issues they're searching for, the following rules should be followed:
 
 - Make sure that issue titles are named to explain the subject of the issue, has a correct spelling and doesn't include irrelevant information and/or sensitive information.
-- Make sure that issue descriptions doesn't include irrelevant information.
+- Make sure that issue descriptions do not include irrelevant information.
 - Make sure that issues do not contain sensitive information.
 - Make sure that issues have all relevant fields filled in.
 - Do your best effort to change title and description or request suggested changes by adding a comment.
@@ -160,9 +160,9 @@ To make it easier for everyone to understand and find issues they're searching f
 
 ### Do you have all the information needed to categorize an issue?
 
-Depending on the issue, you might not feel all this information is needed. Use your best judgement. If you cannot triage an issue using what its author provided, explain kindly to the author that they must provide the above information to clarify the problem. Label issue with `triage/needs-information`.
+Depending on the issue, you might not feel all this information is needed. Use your best judgement. If you cannot triage an issue using what its author provided, explain kindly to the author that they must provide the above information to clarify the problem. Label the issue with `triage/needs-information`.
 
-If the author provides the standard information, but you are still unable to triage the issue, request additional information. Do this kindly and politely because you are asking for more of the author's time.  Label issue with `triage/needs-information`.
+If the author provides the standard information, but you are still unable to triage the issue, request additional information. Do this kindly and politely because you are asking for more of the author's time.  Label the issue with `triage/needs-information`.
 
 If the author does not respond to the requested information within the timespan of a week, close the issue with a kind note stating that the author can request for the issue to be reopened when the necessary information is provided.
 
@@ -200,7 +200,7 @@ If it's not perfectly clear that it's an actual bug, quickly try to reproduce it
 
 ### Feature request?
 
-1. If the feature request does not align with the product vision, add a comment indicating so, remove the `needs-triage` label and close the issue
+1. If the feature request does not align with the product vision, add a comment indicating so, remove the `needs-triage` label and close the issue.
 2. Otherwise, move on to [prioritizing the issue](#4-prioritization-of-issues).  Assign the appropriate priority label to the issue, add the appropriate comments to the issue, and remove the `needs-triage` label.
 
 ## 4. Prioritization of issues
@@ -266,9 +266,9 @@ Even if you don't have the time or knowledge to investigate an issue we highly r
 
 ## External PRs
 
-Part of issue triage should also be triaging of external PRs. Main goal should be to make sure PRs from external contributors have an owner/reviewer and are not forgotten.
+Part of issue triage should also be triaging of external PRs. The main goal should be to ensure PRs from external contributors have an owner/reviewer and are not forgotten.
 
 1. Check new external PRs which do not have a reviewer.
-1. Check if there is a link to an existing issue.
-1. If not and you know which issue it is solving, add the link yourself, otherwise ask the author to link the issue or create one.
-1. Assign a reviewer based on who was handling the linked issue or what code or feature does the PR touches (look at who was the last to make changes there if all else fails).
+2. Check if there is a link to an existing issue.
+3. If not and you know which issue it is solving, add the link yourself, otherwise ask the author to link the issue or create one.
+4. Assign a reviewer based on who was handling the linked issue or what code or feature does the PR touch (look at who was the last to make changes there if all else fails).

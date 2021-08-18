@@ -28,7 +28,7 @@ These environmental variables need to be set:
 
 # Running 
 
-Before running, make sure no test pods are running in the cluster. For example, if you rerun the test, the test would not know about test pods that may have been left over from a previous run. So, check for any before starting, example command:
+Before running, make sure no test pods are running in the cluster. For example, if you rerun the test, the test would not know about test pods that may have been left over from a previous run. Ensure you check for any test pods before starting. The following is an example of the command:
 
 ```shell
  kubectl get pods -l podmon.dellemc.com/driver=csi-vxflexos -A -o wide

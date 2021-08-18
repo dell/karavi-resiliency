@@ -10,7 +10,7 @@ You may obtain a copy of the License at
 
 # CSM for Resiliency Design
 
-This section covers CSM for Resiliency's design in sufficient detail that you should be able to understand what CSM for Resiliency is designed to do in various situations and how it works. CSM for Resiliency is deployed as a sidecar named _podmon_ with a CSI driver in both the controller pods and node pods. These are referred to as controller-podmon and node-podmon respectively.
+This section covers CSM for Resiliency's design.  The detail is sufficient that you should be able to understand what CSM for Resiliency is designed to do in various situations and how it works. CSM for Resiliency is deployed as a sidecar named _podmon_ with a CSI driver in both the controller pods and node pods. These are referred to as controller-podmon and node-podmon respectively.
 
 Generally controller-podmon and the driver controller pods are deployed using a Deployment. 
 The Deployments support one or multiple replicas for High Availability, and use a standard K8S leader election protocol so that only one controller
