@@ -10,7 +10,7 @@ You may obtain a copy of the License at
 
 # Security Policy
 
-Documentation of the measures taken to inspect for security vulnerabilities in the repository. This documentation should also, at least, include ways the issues detected are handled.
+The security Policy Documents the measures taken to inspect for security vulnerabilities in the repository. This documentation should include ways the issues detected are handled.
 ## Supported Versions
 
 | Version | Supported          |
