@@ -12,7 +12,7 @@ build:
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64  go build -a -ldflags '-w' ./...
 
 docker:
-	docker build  -t "$(REGISTRY):$(VERSION)" --label commit=$(shell git log --max-count 1 --format="%H") .
+	docker build --no-cache -t "$(REGISTRY):$(VERSION)" --label commit=$(shell git log --max-count 1 --format="%H") .
 
 push:
 	docker push "$(REGISTRY):$(VERSION)"
