@@ -29,15 +29,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestMonitor(t *testing.T) {
-	outputFormat := os.Getenv(outputFormatVar)
-	if outputFormat == "" {
-		// Default output is Cucumber format
-		outputFormat = "pretty"
-	}
-
 	log.Printf("Starting monitor test")
 	godogOptions := godog.Options{
-		Format: outputFormat,
+		Format: "pretty,cucumber:monitor-cucumber-report.json",
 		Paths:  []string{"features"},
 		Tags:   "monitor",
 	}
@@ -53,15 +47,9 @@ func TestMonitor(t *testing.T) {
 }
 
 func TestControllerMode(t *testing.T) {
-	outputFormat := os.Getenv(outputFormatVar)
-	if outputFormat == "" {
-		// Default output is Cucumber format
-		outputFormat = "pretty"
-	}
-
 	log.Printf("Starting controller-mode test")
 	godogOptions := godog.Options{
-		Format: outputFormat,
+		Format: "pretty,cucumber:controller-mode-cucumber-report.json",
 		Paths:  []string{"features"},
 		Tags:   "controller-mode",
 	}
@@ -77,15 +65,9 @@ func TestControllerMode(t *testing.T) {
 }
 
 func TestNodeMode(t *testing.T) {
-	outputFormat := os.Getenv(outputFormatVar)
-	if outputFormat == "" {
-		// Default output is Cucumber format
-		outputFormat = "pretty"
-	}
-
 	log.Printf("Starting node-mode test")
 	godogOptions := godog.Options{
-		Format: outputFormat,
+		Format: "pretty,cucumber:node-mode-cucumber-report.json",
 		Paths:  []string{"features"},
 		Tags:   "node-mode",
 	}
