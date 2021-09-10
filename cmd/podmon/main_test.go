@@ -31,7 +31,7 @@ func TestMain(m *testing.M) {
 func TestMainFunc(t *testing.T) {
 	log.Printf("Starting main-func test")
 	godogOptions := godog.Options{
-        Format: "pretty,cucumber:main-func-cucumber-report.json",
+		Format: "pretty,cucumber:main-func-cucumber-report.json",
 		Paths:  []string{"features"},
 	}
 	status := godog.TestSuite{
