@@ -42,7 +42,7 @@ func TestPowerFlexFirstCheck(t *testing.T) {
 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
 
 	godogOptions := godog.Options{
-		Format:        "pretty",
+		Format:        "pretty,cucumber:powerflex-first-check-cucumber-report.json",
 		Paths:         []string{"features"},
 		Tags:          "powerflex-int-setup-check",
 		StopOnFailure: stopOnFailure,
@@ -74,7 +74,7 @@ func TestUnityFirstCheck(t *testing.T) {
 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
 
 	godogOptions := godog.Options{
-		Format:        "pretty",
+		Format:        "pretty,cucumber:unity-first-check-cucumber-report.json",
 		Paths:         []string{"features"},
 		Tags:          "unity-int-setup-check",
 		StopOnFailure: stopOnFailure,
@@ -93,12 +93,6 @@ func TestUnityFirstCheck(t *testing.T) {
 }
 
 func TestPowerFlexIntegration(t *testing.T) {
-	outputFormat := os.Getenv(outputFormatVar)
-	if outputFormat == "" {
-		// Default output is Cucumber format
-		outputFormat = "pretty"
-	}
-
 	intTestEnvVarStr := os.Getenv(enableIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
 		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableIntTestVar)
@@ -120,7 +114,7 @@ func TestPowerFlexIntegration(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        outputFormat,
+		Format:        "pretty,cucumber:powerflex-integration-cucumber-report.json",
 		Paths:         []string{"features"},
 		Tags:          "powerflex-integration",
 		StopOnFailure: stopOnFailure,
@@ -137,12 +131,6 @@ func TestPowerFlexIntegration(t *testing.T) {
 }
 
 func TestUnityIntegration(t *testing.T) {
-	outputFormat := os.Getenv(outputFormatVar)
-	if outputFormat == "" {
-		// Default output is Cucumber format
-		outputFormat = "pretty"
-	}
-
 	intTestEnvVarStr := os.Getenv(enableIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
 		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableIntTestVar)
@@ -164,7 +152,7 @@ func TestUnityIntegration(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        outputFormat,
+		Format:        "pretty,cucumber:unity-integration-cucumber-report.json",
 		Paths:         []string{"features"},
 		Tags:          "unity-integration",
 		StopOnFailure: stopOnFailure,
@@ -181,12 +169,6 @@ func TestUnityIntegration(t *testing.T) {
 }
 
 func TestPowerflexArrayInterfaceDown(t *testing.T) {
-	outputFormat := os.Getenv(outputFormatVar)
-	if outputFormat == "" {
-		// Default output is Cucumber format
-		outputFormat = "pretty"
-	}
-
 	intTestEnvVarStr := os.Getenv(enableIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
 		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableIntTestVar)
@@ -208,7 +190,7 @@ func TestPowerflexArrayInterfaceDown(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        outputFormat,
+		Format:        "pretty,cucumber:powerflex-interface-down-cucumber-report.json",
 		Paths:         []string{"features"},
 		Tags:          "powerflex-array-interface",
 		StopOnFailure: stopOnFailure,
@@ -225,12 +207,6 @@ func TestPowerflexArrayInterfaceDown(t *testing.T) {
 }
 
 func TestUnityArrayInterfaceDown(t *testing.T) {
-	outputFormat := os.Getenv(outputFormatVar)
-	if outputFormat == "" {
-		// Default output is Cucumber format
-		outputFormat = "pretty"
-	}
-
 	intTestEnvVarStr := os.Getenv(enableIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
 		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableIntTestVar)
@@ -252,7 +228,7 @@ func TestUnityArrayInterfaceDown(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        outputFormat,
+		Format:        "pretty,cucumber:unity-interface-down-cucumber-report.json",
 		Paths:         []string{"features"},
 		Tags:          "unity-array-interface",
 		StopOnFailure: stopOnFailure,
