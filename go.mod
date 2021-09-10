@@ -8,7 +8,7 @@ require (
 	github.com/cucumber/gherkin-go/v11 v11.0.0 // indirect
 	github.com/cucumber/godog v0.12.1
 	github.com/cucumber/messages-go/v10 v10.0.3 // indirect
-	github.com/dell/dell-csi-extensions/podmon v0.1.0
+	github.com/dell/dell-csi-extensions/podmon v1.0.0
 	github.com/dell/gofsutil v1.3.0
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/golang/mock v1.5.0
