@@ -37,12 +37,6 @@ For documentation, please visit [Container Storage Modules documentation](https:
 - [Security](https://github.com/dell/csm/blob/main/docs/SECURITY.md)
 - [About](#about)
 
-## Support
-
-For all your support needs or to follow the latest ongoing discussions and updates, join our Slack group. Click [Here](http://del.ly/Slack_request) to request your invite.
-
-You can also interact with us on [GitHub](https://github.com/dell/csm) by creating a [GitHub Issue](https://github.com/dell/csm/issues).
-
 ## Versioning
 
 This project is adhering to [Semantic Versioning](https://semver.org/).
