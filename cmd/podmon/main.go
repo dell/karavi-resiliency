@@ -116,7 +116,7 @@ func main() {
 		monitor.Driver = new(monitor.VxflexDriver)
 	}
 	monitor.PodmonTaintKey = fmt.Sprintf("%s.%s", monitor.Driver.GetDriverName(), monitor.PodmonTaintKeySuffix)
-	monitor.ArrayConnectivityPollRate = time.Duration(*args.arrayConnectivityPollRate) * time.Second
+	monitor.SetArrayConnectivityPollRate(time.Duration(*args.arrayConnectivityPollRate) * time.Second)
 	monitor.ArrayConnectivityConnectionLossThreshold = *args.arrayConnectivityConnectionLossThreshold
 	err := K8sAPI.Connect(args.kubeconfig)
 	if err != nil {
@@ -286,7 +286,7 @@ func updateConfiguration(vc *viper.Viper) error {
 		if *args.mode == "node" {
 			log.WithField(podmonNodeLogLevel, log.GetLevel()).Info(message)
 		}
-		log.WithField("monitor.ArrayConnectivityPollRate", monitor.ArrayConnectivityPollRate).Info(message)
+		log.WithField("monitor.ArrayConnectivityPollRate", monitor.GetArrayConnectivityPollRate()).Info(message)
 		log.WithField("monitor.ArrayConnectivityConnectionLossThreshold", monitor.ArrayConnectivityConnectionLossThreshold).Info(message)
 		log.WithField("monitor.PodMonitor.SkipArrayConnectionValidation", monitor.PodMonitor.SkipArrayConnectionValidation).Info(message)
 	}()
@@ -317,7 +317,7 @@ func updateConfiguration(vc *viper.Viper) error {
 		pollRate = value
 		log.WithField(podmonArrayConnectivityPollRate, pollRate).Infof("configuration has been set.")
 	}
-	monitor.ArrayConnectivityPollRate = time.Duration(pollRate) * time.Second
+	monitor.SetArrayConnectivityPollRate(time.Duration(pollRate) * time.Second)
 
 	lossThreshold := *args.arrayConnectivityConnectionLossThreshold
 	if vc.IsSet(podmonArrayConnectivityConnectionLossThreshold) {
