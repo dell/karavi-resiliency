@@ -157,7 +157,7 @@ func main() {
 			}
 		} else if *args.mode == "controller" {
 			if monitor.PodMonitor.CSIExtensionsPresent {
-				go ArrayConnMonitorFc(monitor.ArrayConnectivityPollRate)
+				go ArrayConnMonitorFc()
 			}
 			// monitor all the nodes with no label required
 			go StartNodeMonitorFn(K8sAPI, k8sapi.K8sClient.Client, "", "", monitor.MonitorRestartTimeDelay)
