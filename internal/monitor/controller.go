@@ -350,13 +350,10 @@ func (cm *PodMonitorType) podToArrayIDs(pod *v1.Pod) ([]string, error) {
 	return arrayIDs, nil
 }
 
-// ArrayConnectivityPollRate is the rate it polls to check array connectivity to nodes.
-var ArrayConnectivityPollRate = ShortTimeout
-
 // ArrayConnectivityMonitor -- periodically checks array connectivity to all the nodes using it.
 // If connectivity is lost, will initiate cleanup of the pods.
 // This is a never ending function, intended to be called as Go routine.
-func (cm *PodMonitorType) ArrayConnectivityMonitor(pollRate time.Duration) {
+func (cm *PodMonitorType) ArrayConnectivityMonitor() {
 	// Loop through all the monitored Pods making sure they still have array access
 	for {
 		// Clear the connectivity cache so it will sample again.
@@ -397,6 +394,7 @@ func (cm *PodMonitorType) ArrayConnectivityMonitor(pollRate time.Duration) {
 			return true
 		}
 		cm.PodKeyToControllerPodInfo.Range(fnPodKeyToControllerPodInfo)
+		pollRate := GetArrayConnectivityPollRate()
 		time.Sleep(pollRate)
 		if pollRate < 10*time.Millisecond {
 			// disabled or unit testing exit
