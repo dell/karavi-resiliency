@@ -389,8 +389,8 @@ func (f *feature) thePodIsCleaned(boolean string) error {
 
 func (f *feature) iCallArrayConnectivityMonitor() error {
 	ArrayConnectivityConnectionLossThreshold = 1
-	ArrayConnectivityPollRate = 1 * time.Millisecond
-	f.podmonMonitor.ArrayConnectivityMonitor(ArrayConnectivityPollRate)
+	SetArrayConnectivityPollRate(1 * time.Millisecond)
+	f.podmonMonitor.ArrayConnectivityMonitor()
 	return nil
 }
 
