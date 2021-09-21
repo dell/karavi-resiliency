@@ -18,7 +18,7 @@ push:
 	docker push "$(REGISTRY):$(VERSION)"
 
 unit-test:
-	go test -v -coverprofile=c.out ./...
+	go test -race -v -coverprofile=c.out ./...
 
 godog:
 	go clean -cache

@@ -116,7 +116,7 @@ func main() {
 		monitor.Driver = new(monitor.VxflexDriver)
 	}
 	monitor.PodmonTaintKey = fmt.Sprintf("%s.%s", monitor.Driver.GetDriverName(), monitor.PodmonTaintKeySuffix)
-	monitor.ArrayConnectivityPollRate = time.Duration(*args.arrayConnectivityPollRate) * time.Second
+	monitor.SetArrayConnectivityPollRate(time.Duration(*args.arrayConnectivityPollRate) * time.Second)
 	monitor.ArrayConnectivityConnectionLossThreshold = *args.arrayConnectivityConnectionLossThreshold
 	err := K8sAPI.Connect(args.kubeconfig)
 	if err != nil {
@@ -157,7 +157,7 @@ func main() {
 			}
 		} else if *args.mode == "controller" {
 			if monitor.PodMonitor.CSIExtensionsPresent {
-				go ArrayConnMonitorFc(monitor.ArrayConnectivityPollRate)
+				go ArrayConnMonitorFc()
 			}
 			// monitor all the nodes with no label required
 			go StartNodeMonitorFn(K8sAPI, k8sapi.K8sClient.Client, "", "", monitor.MonitorRestartTimeDelay)
@@ -286,7 +286,7 @@ func updateConfiguration(vc *viper.Viper) error {
 		if *args.mode == "node" {
 			log.WithField(podmonNodeLogLevel, log.GetLevel()).Info(message)
 		}
-		log.WithField("monitor.ArrayConnectivityPollRate", monitor.ArrayConnectivityPollRate).Info(message)
+		log.WithField("monitor.ArrayConnectivityPollRate", monitor.GetArrayConnectivityPollRate()).Info(message)
 		log.WithField("monitor.ArrayConnectivityConnectionLossThreshold", monitor.ArrayConnectivityConnectionLossThreshold).Info(message)
 		log.WithField("monitor.PodMonitor.SkipArrayConnectionValidation", monitor.PodMonitor.SkipArrayConnectionValidation).Info(message)
 	}()
@@ -317,7 +317,7 @@ func updateConfiguration(vc *viper.Viper) error {
 		pollRate = value
 		log.WithField(podmonArrayConnectivityPollRate, pollRate).Infof("configuration has been set.")
 	}
-	monitor.ArrayConnectivityPollRate = time.Duration(pollRate) * time.Second
+	monitor.SetArrayConnectivityPollRate(time.Duration(pollRate) * time.Second)
 
 	lossThreshold := *args.arrayConnectivityConnectionLossThreshold
 	if vc.IsSet(podmonArrayConnectivityConnectionLossThreshold) {

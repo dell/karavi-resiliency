@@ -56,7 +56,25 @@ var (
 	MonitorRestartTimeDelay = 10 * time.Second
 	//LockSleepTimeDelay wait for lock retry
 	LockSleepTimeDelay = 1 * time.Second
+	// dynamicConfigUpdateMutex protects concurrently running threads that could be affected by dynamic configuration parameters.
+	dynamicConfigUpdateMutex sync.Mutex
+	// arrayConnectivityPollRate is the rate it polls to check array connectivity to nodes.
+	arrayConnectivityPollRate = ShortTimeout
 )
+
+// GetArrayConnectivityPollRate returns the array connectivity poll rate.
+func GetArrayConnectivityPollRate() time.Duration {
+	dynamicConfigUpdateMutex.Lock()
+	defer dynamicConfigUpdateMutex.Unlock()
+	return arrayConnectivityPollRate
+}
+
+// SetArrayConnectivityPollRate sets the array connectivity poll rate.
+func SetArrayConnectivityPollRate(rate time.Duration) {
+	dynamicConfigUpdateMutex.Lock()
+	defer dynamicConfigUpdateMutex.Unlock()
+	arrayConnectivityPollRate = rate
+}
 
 //PodMonitorType structure is tracking data for the pod monitor
 type PodMonitorType struct {
