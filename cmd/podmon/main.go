@@ -160,7 +160,7 @@ func main() {
 				go ArrayConnMonitorFc()
 			}
 			// monitor all the nodes with no label required
-			go StartNodeMonitorFn(K8sAPI, k8sapi.K8sClient.Client, "", "", monitor.MonitorRestartTimeDelay)
+			// XXX go StartNodeMonitorFn(K8sAPI, k8sapi.K8sClient.Client, "", "", monitor.MonitorRestartTimeDelay)
 		}
 
 		// monitor the pods with the designated label key/value

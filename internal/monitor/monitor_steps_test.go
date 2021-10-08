@@ -15,18 +15,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/cucumber/godog"
-	"github.com/dell/gofsutil"
-	log "github.com/sirupsen/logrus"
-	logtest "github.com/sirupsen/logrus/hooks/test"
-	"github.com/stretchr/testify/assert"
-	v1 "k8s.io/api/core/v1"
-	storagev1 "k8s.io/api/storage/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/uuid"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/kubernetes/fake"
-	cri "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 	"os"
 	"path/filepath"
 	"podmon/internal/criapi"
@@ -37,6 +25,20 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/cucumber/godog"
+	"github.com/dell/gofsutil"
+	log "github.com/sirupsen/logrus"
+	logtest "github.com/sirupsen/logrus/hooks/test"
+	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/uuid"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes/fake"
+	cri "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 )
 
 const (
@@ -49,6 +51,7 @@ type feature struct {
 	loghook *logtest.Hook
 	// Kubernetes objects
 	pod  *v1.Pod
+	pod2 *v1.Pod
 	node *v1.Node
 	// PodmonMonitorType
 	podmonMonitor *PodMonitorType
@@ -109,6 +112,7 @@ func (f *feature) aControllerMonitor(driver string) error {
 	gofsutil.UseMockFS()
 	RemoveDir = f.mockRemoveDir
 	f.badWatchObject = false
+	f.pod2 = nil
 	return nil
 }
 
@@ -120,9 +124,23 @@ func (f *feature) mockRemoveDir(_ string) error {
 }
 
 func (f *feature) aPodForNodeWithVolumesCondition(node string, nvolumes int, condition string) error {
-	pod := f.createPod(node, nvolumes, condition)
+	pod := f.createPod(node, nvolumes, condition, "false")
 	f.pod = pod
 	f.k8sapiMock.AddPod(pod)
+	return nil
+}
+
+func (f *feature) aPodForNodeWithVolumesConditionAffinity(node string, nvolumes int, condition, affinity string) error {
+	pod := f.createPod(node, nvolumes, condition, affinity)
+	f.pod = pod
+	f.k8sapiMock.AddPod(pod)
+	// If affinity, create a second pod with affinity to the first
+	if affinity == "true" {
+		f.pod2 = f.createPod(node, nvolumes, condition, affinity)
+		f.pod2.ObjectMeta.Name = "affinityPod"
+		f.k8sapiMock.AddPod(f.pod2)
+		fmt.Printf("Added affinitPod\n")
+	}
 	return nil
 }
 
@@ -136,7 +154,7 @@ func (f *feature) iHaveAPodsForNodeWithVolumesDevicesCondition(nPods int, nodeNa
 		}
 	}()
 	for i := 0; i < nPods; i++ {
-		pod := f.createPod(nodeName, nvolumes, condition)
+		pod := f.createPod(nodeName, nvolumes, condition, "false")
 		f.k8sapiMock.AddPod(pod)
 		f.podList[i] = pod
 
@@ -179,7 +197,7 @@ func (f *feature) iHaveAPodsForNodeWithVolumesDevicesCondition(nPods int, nodeNa
 func (f *feature) iCallControllerCleanupPodForNode(nodeName string) error {
 	node, _ := f.k8sapiMock.GetNode(context.Background(), nodeName)
 	f.node = node
-	f.success = f.podmonMonitor.controllerCleanupPod(f.pod, node, "Unit Test", false)
+	f.success = f.podmonMonitor.controllerCleanupPod(f.pod, node, "Unit Test", false, false)
 	return nil
 }
 
@@ -363,6 +381,9 @@ func (f *feature) iCallControllerModePodHandlerWithEvent(event string) error {
 		eventType = watch.Error
 	}
 	f.err = f.podmonMonitor.controllerModePodHandler(f.pod, eventType)
+	if f.pod2 != nil {
+		f.podmonMonitor.controllerModePodHandler(f.pod2, eventType)
+	}
 
 	// Wait on the go routine to finish
 	time.Sleep(100 * time.Millisecond)
@@ -376,6 +397,9 @@ func (f *feature) thePodIsCleaned(boolean string) error {
 	lastentry := f.loghook.LastEntry()
 	switch boolean {
 	case "true":
+		if strings.Contains(lastentry.Message, "End Processing pods with affinity map") && f.pod2 != nil {
+			return nil
+		}
 		if !strings.Contains(lastentry.Message, "Successfully cleaned up pod") {
 			return fmt.Errorf("Expected pod to be cleaned up but it was not, last message: %s", lastentry.Message)
 		}
@@ -444,7 +468,7 @@ func (f *feature) iCallNodeModeCleanupPodsForNode(nodeName string) error {
 	return nil
 }
 
-func (f *feature) createPod(node string, nvolumes int, condition string) *v1.Pod {
+func (f *feature) createPod(node string, nvolumes int, condition, affinity string) *v1.Pod {
 	pod := &v1.Pod{}
 	pod.ObjectMeta.UID = uuid.NewUUID()
 	if len(f.podUID) == 0 {
@@ -457,6 +481,9 @@ func (f *feature) createPod(node string, nvolumes int, condition string) *v1.Pod
 	pod.ObjectMeta.Name = fmt.Sprintf("podname-%s", pod.ObjectMeta.UID)
 	pod.Spec.NodeName = node
 	pod.Spec.Volumes = make([]v1.Volume, 0)
+	if affinity == "true" {
+		f.addAffinityToPod(pod)
+	}
 	pod.Status.Message = "pod updated"
 	pod.Status.Reason = "pod reason"
 	pod.Status.ContainerStatuses = make([]v1.ContainerStatus, 0)
@@ -563,10 +590,45 @@ func (f *feature) createPod(node string, nvolumes int, condition string) *v1.Pod
 	return pod
 }
 
+// Adds a pod affinity specification based on hostname to the pod
+func (f *feature) addAffinityToPod(pod *v1.Pod) {
+	matchLabels := make(map[string]string)
+	matchLabels["affinityLabel1"] = "affinityLabelValue1"
+	values := make([]string, 1)
+	values[0] = "affinityValue1"
+	matchExpr := metav1.LabelSelectorRequirement{
+		Operator: "In",
+		Key:      "affinityLabel2",
+		Values:   values,
+	}
+	matchExprs := make([]metav1.LabelSelectorRequirement, 1)
+	matchExprs[0] = matchExpr
+	labelSelector := metav1.LabelSelector{
+		MatchLabels:      matchLabels,
+		MatchExpressions: matchExprs,
+	}
+	namespaces := make([]string, 1)
+	namespaces[0] = podns
+	podAffinityTerm := v1.PodAffinityTerm{
+		LabelSelector: &labelSelector,
+		Namespaces:    namespaces,
+		TopologyKey:   hostNameTopologyKey,
+	}
+	podAffinityTerms := make([]v1.PodAffinityTerm, 1)
+	podAffinityTerms[0] = podAffinityTerm
+	podAffinity := v1.PodAffinity{
+		RequiredDuringSchedulingIgnoredDuringExecution: podAffinityTerms,
+	}
+	affinity := v1.Affinity{
+		PodAffinity: &podAffinity,
+	}
+	pod.Spec.Affinity = &affinity
+}
+
 func (f *feature) theControllerCleanedUpPodsForNode(cleanedUpCount int, nodeName string) error {
 	node, _ := f.k8sapiMock.GetNode(context.Background(), nodeName)
 	for i := 0; i < cleanedUpCount; i++ {
-		if success := f.podmonMonitor.controllerCleanupPod(f.podList[i], node, "Unit Test", false); !success {
+		if success := f.podmonMonitor.controllerCleanupPod(f.podList[i], node, "Unit Test", false, false); !success {
 			return fmt.Errorf("controllerCleanPod was not successful")
 		}
 	}
@@ -748,12 +810,227 @@ func (f *feature) iCallTestLockAndGetPodKey() error {
 	return nil
 }
 
+func (f *feature) createPodErrorCase(node string, nvolumes int, condition, affinity string, errorcase string) *v1.Pod {
+	pod := &v1.Pod{}
+	pod.ObjectMeta.UID = uuid.NewUUID()
+	if len(f.podUID) == 0 {
+		f.podUID = make([]types.UID, 0)
+	}
+	f.podCount++
+	f.podUID = append(f.podUID, pod.ObjectMeta.UID)
+	podIndex := f.podCount - 1
+	pod.ObjectMeta.Namespace = podns
+	pod.ObjectMeta.Name = fmt.Sprintf("podname-%s", pod.ObjectMeta.UID)
+	pod.Spec.NodeName = node
+	pod.Spec.Volumes = make([]v1.Volume, 0)
+	if affinity == "true" {
+		f.addAffinityToPodErrorCase(pod, errorcase)
+	}
+	pod.Status.Message = "pod updated"
+	pod.Status.Reason = "pod reason"
+	pod.Status.ContainerStatuses = make([]v1.ContainerStatus, 0)
+	containerStatus := v1.ContainerStatus{
+		ContainerID: "//" + containerID,
+	}
+	containerInfo := &criapi.ContainerInfo{
+		ID:    containerID,
+		Name:  "running-container",
+		State: cri.ContainerState_CONTAINER_EXITED,
+	}
+	f.criMock.MockContainerInfos["1234"] = containerInfo
+	pod.Status.ContainerStatuses = append(pod.Status.ContainerStatuses, containerStatus)
+	if pod.Status.Conditions == nil {
+		pod.Status.Conditions = make([]v1.PodCondition, 0)
+	}
+	switch condition {
+	case "Ready":
+		condition := v1.PodCondition{
+			Type:    "Ready",
+			Status:  "True",
+			Reason:  condition,
+			Message: condition,
+		}
+		pod.Status.Conditions = append(pod.Status.Conditions, condition)
+	case "NotReady":
+		condition := v1.PodCondition{
+			Type:    "Ready",
+			Status:  "False",
+			Reason:  condition,
+			Message: condition,
+		}
+		pod.Status.Conditions = append(pod.Status.Conditions, condition)
+	case "Initialized":
+		condition := v1.PodCondition{
+			Type:    "Initialized",
+			Status:  "True",
+			Reason:  condition,
+			Message: condition,
+		}
+		pod.Status.Conditions = append(pod.Status.Conditions, condition)
+	case "CrashLoop":
+		waiting := &v1.ContainerStateWaiting{
+			Reason:  crashLoopBackOffReason,
+			Message: "unit test condition",
+		}
+		state := v1.ContainerState{
+			Waiting: waiting,
+		}
+		containerStatus := v1.ContainerStatus{
+			State: state,
+		}
+		pod.Status.ContainerStatuses = append(pod.Status.ContainerStatuses, containerStatus)
+		// PodCondition is Ready=false
+		condition := v1.PodCondition{
+			Type:    "Ready",
+			Status:  "False",
+			Reason:  condition,
+			Message: condition,
+		}
+		pod.Status.Conditions = append(pod.Status.Conditions, condition)
+	}
+	// add a number of volumes to the pod
+	for i := 0; i < nvolumes; i++ {
+		// Create a PV
+		pv := &v1.PersistentVolume{}
+		pv.ObjectMeta.Name = fmt.Sprintf("pv-%s-%d", f.podUID[podIndex], i)
+		f.pvNames = append(f.pvNames, pv.ObjectMeta.Name)
+		claimRef := &v1.ObjectReference{}
+		claimRef.Kind = "PersistentVolumeClaim"
+		claimRef.Namespace = podns
+		claimRef.Name = fmt.Sprintf("pvc-%s-%d", f.podUID[podIndex], i)
+		pv.Spec.ClaimRef = claimRef
+		log.Infof("claimRef completed")
+		csiPVSource := &v1.CSIPersistentVolumeSource{}
+		csiPVSource.Driver = "csi-vxflexos.dellemc.com"
+		csiPVSource.VolumeHandle = fmt.Sprintf("vhandle%d", i)
+		pv.Spec.CSI = csiPVSource
+		// Create a PVC
+		pvc := &v1.PersistentVolumeClaim{}
+		pvc.ObjectMeta.Namespace = podns
+		pvc.ObjectMeta.Name = fmt.Sprintf("pvc-%s-%d", f.podUID[podIndex], i)
+		pvc.Spec.VolumeName = pv.ObjectMeta.Name
+		pvc.Status.Phase = "Bound"
+		// Create a VolumeAttachment
+		va := &storagev1.VolumeAttachment{}
+		va.ObjectMeta.Name = fmt.Sprintf("va%d", i)
+		va.Spec.NodeName = node
+		va.Spec.Source.PersistentVolumeName = &pv.ObjectMeta.Name
+		// Add the objects to the mock engine.
+		f.k8sapiMock.AddPV(pv)
+		f.k8sapiMock.AddPVC(pvc)
+		f.k8sapiMock.AddVA(va)
+		// Add a volume to the pod
+		vol := v1.Volume{}
+		vol.Name = fmt.Sprintf("pv-%s-%d", f.podUID[podIndex], i)
+		pvcSource := &v1.PersistentVolumeClaimVolumeSource{}
+		pvcSource.ClaimName = pvc.ObjectMeta.Name
+		volSource := v1.VolumeSource{}
+		volSource.PersistentVolumeClaim = pvcSource
+		vol.VolumeSource = volSource
+		pod.Spec.Volumes = append(pod.Spec.Volumes, vol)
+	}
+	return pod
+}
+
+// Adds a pod affinity specification based on error condition
+func (f *feature) addAffinityToPodErrorCase(pod *v1.Pod, errorcase string) {
+	matchLabels := make(map[string]string)
+	matchLabels["affinityLabel1"] = "affinityLabelValue1"
+	values := make([]string, 1)
+	values[0] = "affinityValue1"
+	matchExpr := metav1.LabelSelectorRequirement{
+		Operator: "In",
+		Key:      "affinityLabel2",
+		Values:   values,
+	}
+	if errorcase == "operator" {
+		matchExpr.Operator = "Out"
+	}
+	matchExprs := make([]metav1.LabelSelectorRequirement, 1)
+	matchExprs[0] = matchExpr
+	labelSelector := metav1.LabelSelector{
+		MatchLabels:      matchLabels,
+		MatchExpressions: matchExprs,
+	}
+	namespaces := make([]string, 1)
+	namespaces[0] = podns
+	podAffinityTerm := v1.PodAffinityTerm{
+		LabelSelector: &labelSelector,
+		Namespaces:    namespaces,
+		TopologyKey:   hostNameTopologyKey,
+	}
+	if errorcase == "topology" {
+		podAffinityTerm.TopologyKey = "unknown/hostname"
+	}
+	if errorcase == "labelselector" {
+		podAffinityTerm.LabelSelector = nil
+	}
+	podAffinityTerms := make([]v1.PodAffinityTerm, 1)
+	podAffinityTerms[0] = podAffinityTerm
+	podAffinity := v1.PodAffinity{
+		RequiredDuringSchedulingIgnoredDuringExecution: podAffinityTerms,
+	}
+	if errorcase == "required" {
+		podAffinity.RequiredDuringSchedulingIgnoredDuringExecution = nil
+	}
+	affinity := v1.Affinity{
+		PodAffinity: &podAffinity,
+	}
+
+	if errorcase == "podaffinity" {
+		affinity.PodAffinity = nil
+	}
+	pod.Spec.Affinity = &affinity
+}
+
+func (f *feature) aControllerPodWithPodaffinitylabels() error {
+	if f.loghook == nil {
+		f.loghook = logtest.NewGlobal()
+	} else {
+		fmt.Printf("loghook last-entry %+v\n", f.loghook.LastEntry())
+	}
+	// This test is for error condition of func getPodAffinityLabels
+	// testing only for VxflexosDriver
+	Driver = new(VxflexDriver)
+
+	f.k8sapiMock = new(k8sapi.K8sMock)
+	f.k8sapiMock.Initialize()
+	K8sAPI = f.k8sapiMock
+	f.csiapiMock = new(csiapi.CSIMock)
+	CSIApi = f.csiapiMock
+	f.criMock = new(criapi.MockClient)
+	f.criMock.Initialize()
+	getContainers = f.criMock.GetContainerInfo
+	f.podmonMonitor = &PodMonitorType{}
+	f.podmonMonitor.CSIExtensionsPresent = true
+	f.podmonMonitor.DriverPathStr = "csi-vxflexos.dellemc.com"
+	gofsutil.UseMockFS()
+	RemoveDir = f.mockRemoveDir
+	f.badWatchObject = false
+	f.pod2 = nil
+	return nil
+}
+
+func (f *feature) createAPodForNodeWithVolumesConditionAffinityErrorcase(node string, nvolumes int, condition, affinity, errorcase string) error {
+	pod := f.createPodErrorCase(node, nvolumes, condition, affinity, errorcase)
+	f.pod = pod
+	f.k8sapiMock.AddPod(pod)
+	return nil
+}
+
+func (f *feature) iCallGetPodAffinityLabels() error {
+	f.podmonMonitor.getPodAffinityLabels(f.pod)
+	return nil
+}
+
 func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	f := &feature{}
 	context.Step(`^a controller monitor "([^"]*)"$`, f.aControllerMonitor)
 	context.Step(`^a controller monitor unity$`, f.aControllerMonitorUnity)
 	context.Step(`^a controller monitor vxflex$`, f.aControllerMonitorVxflex)
+	//context.Step(`^a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)"$`, f.aPodForNodeWithVolumesCondition)
 	context.Step(`^a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)"$`, f.aPodForNodeWithVolumesCondition)
+	context.Step(`^a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)" affinity "([^"]*)"$`, f.aPodForNodeWithVolumesConditionAffinity)
 	context.Step(`^I call controllerCleanupPod for node "([^"]*)"$`, f.iCallControllerCleanupPodForNode)
 	context.Step(`^I induce error "([^"]*)"$`, f.iInduceError)
 	context.Step(`^the last log message contains "([^"]*)"$`, f.theLastLogMessageContains)
@@ -781,4 +1058,7 @@ func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^I call StartNodeMonitor with key "([^"]*)" and value "([^"]*)"$`, f.iCallStartNodeMonitorWithKeyAndValue)
 	context.Step(`^I send a node event type "([^"]*)"$`, f.iSendANodeEventType)
 	context.Step(`^I call test lock and getPodKey$`, f.iCallTestLockAndGetPodKey)
+	context.Step(`^a controller pod with podaffinitylabels$`, f.aControllerPodWithPodaffinitylabels)
+	context.Step(`^create a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)" affinity "([^"]*)" errorcase "([^"]*)"$`, f.createAPodForNodeWithVolumesConditionAffinityErrorcase)
+	context.Step(`^I call getPodAffinityLabels$`, f.iCallGetPodAffinityLabels)
 }
