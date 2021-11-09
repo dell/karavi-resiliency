@@ -22,7 +22,7 @@ spec:
 {{- if eq .Values.podmonTest.deploymentType "statefulset" }}
     serviceName: 2vols
 {{ end }}
-{{- if eq .Values.podmonTest.deploymentType "deployment" }}
+{{- if gt .Values.podmonTest.replicas 1 }}
     replicas: {{ required "Number of replicas" .Values.podmonTest.replicas }}
 {{ end }}
     template:
@@ -42,7 +42,7 @@ spec:
                   values: 
                   - {{.Values.podmonTest.zone}}
 {{end}}
-{{- if eq .Values.podmonTest.podAffinity "true"}}
+{{- if eq .Values.podmonTest.podAffinity true}}
         affinity:
           podAffinity:
             requiredDuringSchedulingIgnoredDuringExecution:

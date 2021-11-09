@@ -18,8 +18,10 @@ zone=${zone:-""}
 storageClassName=${storageClassName:-vxflexos-retain}
 image="$REGISTRY_HOST:$REGISTRY_PORT/podmontest:v0.0.54"
 prefix="pmtv"
+replicas=1
 deploymentType="statefulset"
 driverLabel="csi-vxflexos"
+podAffinity="false"
 
 if [ "$DEBUG"x != "x" ]; then
   DEBUG="--dry-run --debug"
@@ -53,6 +55,15 @@ do
           storageClassName=$1
           shift
           ;;
+       "--replicas")
+          shift
+	  replicas=$1
+	  shift
+	  ;;
+       "--podAffinity")
+          podAffinity="true"
+          shift
+	  ;;
        "--deployment")
           deploymentType="deployment"
           shift
@@ -79,6 +90,8 @@ while [ $i -le $instances ]; do
               --set podmonTest.ndevices=$ndevices \
               --set podmonTest.nvolumes=$nvolumes \
               --set podmonTest.deploymentType=$deploymentType \
+              --set podmonTest.replicas=$replicas \
+              --set podmonTest.podAffinity=$podAffinity \
               --set podmonTest.image="$image" \
               --set podmonTest.zone="$zone" \
               --set podmonTest.driverLabel="$driverLabel"
