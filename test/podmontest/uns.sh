@@ -13,6 +13,7 @@
 instances=${instances:-4}
 prefix="pmt"
 remove_all=""
+start=${start:-1}
 
 for param in $*
 do
@@ -32,6 +33,11 @@ do
           remove_all=$1
           shift
           ;;
+       "--start")
+          shift
+          start=$1
+          shift
+          ;;
     esac
 done
 
@@ -39,7 +45,7 @@ if [ "$remove_all"x != "x" ]; then
   instances=$(kubectl get pods -l "podmon.dellemc.com/driver=csi-${remove_all}" -A | grep -c "$prefix")
 fi
 
-i=1
+i=$start
 while [ $i -le $instances ]; do
   helm delete -n "${prefix}"$i "${prefix}"$i &
   i=$((i + 1))

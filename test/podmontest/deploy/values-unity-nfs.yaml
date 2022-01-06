@@ -4,8 +4,12 @@ podmonTest:
   driverLabel: csi-unity
   storageClassName: unity-virt21048j9rzz-nfs
   nvolumes: 2
-  ndevices: 2
+  ndevices: 0
   # deploymentType can be "statefulset" or "deployment"
   deploymentType: statefulset
+  # replicas is the number of replicas for deployments or statefulsets
+  replicas: 1
+  # set to "true" to locate replicates on the same node
+  podAffinity: "false"
   # zone will restrict node placement by matching node label failure-domain.beta.kubernetes.io/zone
   zone: ""

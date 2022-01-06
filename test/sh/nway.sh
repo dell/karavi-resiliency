@@ -29,9 +29,8 @@ NODELIST10=""
 POLLTIME=5			# Poll time to print results
 BOUNCEIPSECONDS=240             # Bounce IP time in seconds for interface down
 TIMEOUT=600			# Maximum time in seconds to wait for a failure cycle (needs to be higher than EVACUATE_TIMEOUT)
-EVACUATE_TIMEOUT=$TIMEOUT       # Doesn't really matter if most of the time is spent in evacuation
-MAXITERATIONS=100		# Maximum number of failover iterations
-DRIVERNS=""				# Driver namespace
+MAXITERATIONS=3			# Maximum number of failover iterations
+DRIVERNS="vxflexos"		# Driver namespace
 
 rm -f stop			# Remove the stop file
 
@@ -67,6 +66,7 @@ done
 
 [ "$DRIVERNS" = "" ] && echo "Required argument: --ns driver_namespace" && exit 2
 echo "Collecting logs driver namespace $DRIVERNS podmon label $podmon_label timeout $TIMEOUT"
+EVACUATE_TIMEOUT=$TIMEOUT       # Doesn't really matter if most of the time is spent in evacuation
 
 # check_timeout takes an argument $1 for how many seconds we've been running
 # and aborts if we exceed TIMEOUT
@@ -157,7 +157,8 @@ get_pods_on_nodes() {
 	totalcount=0
 	for node in $nodelist
 	do
-		count=$(kubectl get pods -l podmon.dellemc.com/driver -A -o wide | grep $node | wc -l)
+		# Make sure to differentiate between node-1 and node-10 by checking for a blank after the node
+		count=$(kubectl get pods -l podmon.dellemc.com/driver -A -o wide | grep "$node " | wc -l)
 		totalcount=$( expr $count + $totalcount)
 	done
 	echo $totalcount
@@ -230,7 +231,8 @@ process_nodes() {
 			podsToMove=$(get_pods_on_nodes $NODELIST)
 		done
 		if [ $podsToMove -gt 0 ]; then
-			echo "Evacuation phase timeout"
+			echo "Evacuation phase timeout... collecting logs"
+			collect_logs.sh --ns $DRIVERNS
 		fi
 		echo $(date) $timesec $failovercount "podsToMove:" $podsToMove
 		movedPods=$(expr $initialPodsToMove - $podsToMove)
