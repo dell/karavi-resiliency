@@ -17,18 +17,18 @@ metadata:
 spec:
     selector:
         matchLabels:
-          app: podmontest
+          app: podmontest-{{ .Release.Namespace }}
 
 {{- if eq .Values.podmonTest.deploymentType "statefulset" }}
     serviceName: 2vols
 {{ end }}
-{{- if eq .Values.podmonTest.deploymentType "deployment" }}
-    replicas: 1
+{{- if gt .Values.podmonTest.replicas 1 }}
+    replicas: {{ required "Number of replicas" .Values.podmonTest.replicas }}
 {{ end }}
     template:
       metadata:
         labels:
-          app: podmontest
+          app: podmontest-{{ .Release.Namespace }}
           podmon.dellemc.com/driver: {{ required "Must set driver label" .Values.podmonTest.driverLabel }}
       spec:
 {{- if ne .Values.podmonTest.zone "" }}
@@ -41,6 +41,18 @@ spec:
                   operator: In
                   values: 
                   - {{.Values.podmonTest.zone}}
+{{end}}
+{{- if eq .Values.podmonTest.podAffinity true}}
+        affinity:
+          podAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                - key: "app"
+                  operator: In
+                  values: 
+                  - podmontest-{{ .Release.Namespace }}
+              topologyKey: "kubernetes.io/hostname"
 {{end}}
         serviceAccount: podmontest
         containers:
