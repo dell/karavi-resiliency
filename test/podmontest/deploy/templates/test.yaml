@@ -22,7 +22,7 @@ spec:
 {{- if eq .Values.podmonTest.deploymentType "statefulset" }}
     serviceName: 2vols
 {{ end }}
-{{- if gt ( int .Values.podmonTest.replicas) 1 }}
+{{- if gt .Values.podmonTest.replicas 1.0 }}
     replicas: {{ required "Number of replicas" .Values.podmonTest.replicas }}
 {{ end }}
     template:
