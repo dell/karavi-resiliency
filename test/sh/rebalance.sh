@@ -10,7 +10,7 @@ maxPods=90
 
 # nodelist returns a list of nodes(
 nodelist() {
-	kubectl get nodes -A | grep -v master  | grep -v NAME | awk '{ print $1 }'
+	kubectl get nodes -A | grep -v 'mast.r'  | grep -v NAME | awk '{ print $1 }'
 }
 
 # get the number of pods on a node $1
