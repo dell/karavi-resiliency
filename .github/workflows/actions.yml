@@ -84,7 +84,7 @@ jobs:
           repository: 'dell/dell-csi-extensions'
           path: dell-csi-extensions
       - name: Install Mockgen
-        run: go get github.com/golang/mock/mockgen@v1.4.4
+        run: go get github.com/golang/mock/mockgen@v1.6.0
       - name: Get dependencies
         run: go mod download
       - name: Mod tidy
