@@ -18,6 +18,7 @@ zone=${zone:-""}
 storageClassName=${storageClassName:-unity-nfs}
 image="$REGISTRY_HOST:$REGISTRY_PORT/podmontest:v0.0.54"
 prefix="pmtu"
+replicas=1
 deploymentType="statefulset"
 driverLabel="csi-unity"
 podAffinity="false"
