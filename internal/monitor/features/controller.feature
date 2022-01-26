@@ -28,7 +28,7 @@ Feature: Controller Monitor
   @controller-mode
   Scenario Outline: test controllerModePodHandler
     Given a controller monitor "vxflex"
-    And a pod for node <podnode> with <nvol> volumes condition <condition>
+    And a pod for node <podnode> with <nvol> volumes condition <condition> affinity <affin>
     And a node <podnode> with taint <nodetaint>
     And I induce error <error>
     When I call controllerModePodHandler with event <eventtype>
@@ -37,24 +37,25 @@ Feature: Controller Monitor
     And the last log message contains <errormsg>
 
     Examples:
-      | podnode | nvol | condition     | nodetaint | error         | eventtype | cleaned | info    | errormsg                           |
-      | "node1" | 2    | "Initialized" | "noexec"  | "none"        | "Updated" | "true"  | "false" | "Successfully cleaned up pod"      |
-      | "node1" | 2    | "NotReady"    | "noexec"  | "none"        | "Updated" | "true"  | "false" | "Successfully cleaned up pod"      |
-      | "node1" | 2    | "NotReady"    | "nosched" | "none"        | "Updated" | "true"  | "false" | "Successfully cleaned up pod"      |
-      | "node1" | 2    | "CrashLoop"   | "none"    | "none"        | "Updated" | "false" | "false" | "cleaning up CrashLoopBackOff pod" |
-      | "node1" | 2    | "NotReady"    | "nosched" | "none"        | "Deleted" | "false" | "false" | "none"                             |
-      | "node1" | 2    | "Ready"       | "none"    | "none"        | "Updated" | "false" | "true"  | "none"                             |
-      | "node1" | 2    | "NotReady"    | "noexec"  | "GetPod"      | "Updated" | "false" | "false" | "GetPod failed"                    |
-      | "node1" | 2    | "NotReady"    | "noexec"  | "GetNode"     | "Updated" | "false" | "false" | "GetNode failed"                   |
-      | "node1" | 2    | "Ready"       | "noexec"  | "CreateEvent" | "Updated" | "false" | "true"  | "none"                             |
-      | "node1" | 2    | "NotReady"    | "noexec"  | "CreateEvent" | "Updated" | "true"  | "false" | "Successfully cleaned up pod"      |
-      | "node1" | 2    | "CrashLoop"   | "noexec"  | "CreateEvent" | "Updated" | "true"  | "false" | "Successfully cleaned up pod"      |
-      | "node1" | 2    | "Initialized" | "noexec"  | "CreateEvent" | "Updated" | "true"  | "false" | "Successfully cleaned up pod"      |
+      | podnode | nvol | condition     | affin   | nodetaint | error         | eventtype | cleaned | info    | errormsg                           |
+      | "node1" | 2    | "Initialized" | "false" | "noexec"  | "none"        | "Updated" | "true"  | "false" | "Successfully cleaned up pod"      |
+      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "none"        | "Updated" | "true"  | "false" | "Successfully cleaned up pod"      |
+      | "node1" | 2    | "NotReady"    | "false" | "nosched" | "none"        | "Updated" | "true"  | "false" | "Successfully cleaned up pod"      |
+      | "node1" | 2    | "CrashLoop"   | "false" | "none"    | "none"        | "Updated" | "false" | "false" | "cleaning up CrashLoopBackOff pod" |
+      | "node1" | 2    | "NotReady"    | "false" | "nosched" | "none"        | "Deleted" | "false" | "false" | "none"                             |
+      | "node1" | 2    | "Ready"       | "false" | "none"    | "none"        | "Updated" | "false" | "true"  | "none"                             |
+      | "node1" | 2    | "Ready"       | "true"  | "none"    | "none"        | "Updated" | "false" | "true"  | "none"                             |
+      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "GetPod"      | "Updated" | "false" | "false" | "GetPod failed"                    |
+      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "GetNode"     | "Updated" | "false" | "false" | "GetNode failed"                   |
+      | "node1" | 2    | "Ready"       | "false" | "noexec"  | "CreateEvent" | "Updated" | "false" | "true"  | "none"                             |
+      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "CreateEvent" | "Updated" | "true"  | "false" | "Successfully cleaned up pod"      |
+      | "node1" | 2    | "CrashLoop"   | "false" | "noexec"  | "CreateEvent" | "Updated" | "true"  | "false" | "Successfully cleaned up pod"      |
+      | "node1" | 2    | "Initialized" | "false" | "noexec"  | "CreateEvent" | "Updated" | "true"  | "false" | "Successfully cleaned up pod"      |
 
   @controller-mode
   Scenario Outline: test ArrayConnectivityMonitor
     Given a controller monitor "vxflex"
-    And a pod for node <podnode> with <nvol> volumes condition <condition>
+    And a pod for node <podnode> with <nvol> volumes condition <condition> affinity <affin>
     And I induce error <error>
     When I call controllerModePodHandler with event "Updated"
     And I call ArrayConnectivityMonitor
@@ -62,8 +63,24 @@ Feature: Controller Monitor
     And the last log message contains <errormsg>
 
     Examples:
-      | podnode | nvol | condition | error              | cleaned | errormsg                      |
-      | "node1" | 2    | "Ready"   | "NodeConnected"    | "false" | "Connected true"              |
-      | "node1" | 2    | "Ready"   | "NodeNotConnected" | "true"  | "Successfully cleaned up pod" |
-      | "node1" | 2    | "Ready"   | "CreateEvent"      | "true"  | "Successfully cleaned up pod" |
+      | podnode | nvol | condition | affin   | error              | cleaned | errormsg                      |
+      | "node1" | 2    | "Ready"   | "true"  | "NodeNotConnected" | "true"  | "none"                        |
+      | "node1" | 2    | "Ready"   | "false" | "NodeConnected"    | "false" | "Connected true"              |
+      | "node1" | 2    | "Ready"   | "false" | "NodeNotConnected" | "true"  | "Successfully cleaned up pod" |
+      | "node1" | 2    | "Ready"   | "false" | "CreateEvent"      | "true"  | "Successfully cleaned up pod" |
 
+  @controller-mode
+  Scenario Outline: test PodAffinityLabels
+    Given a controller pod with podaffinitylabels
+    And create a pod for node <podnode> with <nvol> volumes condition <condition> affinity <affin> errorcase <errorcase>
+    And I induce error <error>
+    When I call getPodAffinityLabels
+    Then the pod is cleaned <cleaned>
+
+  Examples:
+    | podnode | nvol | condition     | affin   | nodetaint | error         | errorcase       | cleaned |
+    | "node1" | 2    | "Ready"       | "true"  | "none"    | "none"        | "podaffinity"   | "false" |
+    | "node1" | 2    | "Ready"       | "true"  | "none"    | "none"        | "topology"      | "false" |
+    | "node1" | 2    | "Ready"       | "true"  | "none"    | "none"        | "required"      | "false" |
+    | "node1" | 2    | "Ready"       | "true"  | "none"    | "none"        | "labelselector" | "false" |
+    | "node1" | 2    | "Ready"       | "true"  | "none"    | "none"        | "operator"      | "false" |

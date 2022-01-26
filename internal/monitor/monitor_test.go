@@ -81,3 +81,32 @@ func TestNodeMode(t *testing.T) {
 	}
 	log.Printf("Node-mode test finished")
 }
+
+func TestMapEqualsMap(t *testing.T) {
+	cases := []struct {
+		mapA, mapB map[string]string
+		result     bool
+	}{
+		{
+			map[string]string{"key": "value"},
+			map[string]string{"key": "value"},
+			true,
+		},
+		{
+			map[string]string{"key": "value"},
+			map[string]string{"value": "key"},
+			false,
+		},
+		{
+			map[string]string{"key": "value"},
+			map[string]string{},
+			false,
+		},
+	}
+	for caseNum, acase := range cases {
+		result := mapEqualsMap(acase.mapA, acase.mapB)
+		if result != acase.result {
+			t.Errorf("Case %d: Expected %t got %t", caseNum, acase.result, result)
+		}
+	}
+}

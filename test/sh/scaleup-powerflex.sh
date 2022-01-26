@@ -12,7 +12,7 @@
 CWD=$(pwd)
 NVOLUMES=2
 STORAGECLASS=vxflexos
-MAXPODS=81
+MAXPODS=4
 
 # checks that all labeled pods are running, exits if not
 wait_on_running() {
