@@ -2,7 +2,7 @@ podmonTest:
   image: "registry:port/podmontest:v0.0.54"
   namespace: "podmontest"
   driverLabel: csi-unity
-  storageClassName: unity-virt21048j9rzz-nfs
+  storageClassName: unity-nfs
   nvolumes: 2
   ndevices: 0
   # deploymentType can be "statefulset" or "deployment"

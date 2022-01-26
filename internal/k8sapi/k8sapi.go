@@ -127,7 +127,7 @@ func (api *Client) GetCachedVolumeAttachment(ctx context.Context, pvName, nodeNa
 			vaKey := fmt.Sprintf("%s/%s", *va.Spec.Source.PersistentVolumeName, va.Spec.NodeName)
 			api.volumeAttachmentCache[vaKey] = vaCopy
 			api.volumeAttachmentNameToKey[vaCopy.ObjectMeta.Name] = vaKey
-			log.Infof("Adding VA Cache %s %s", vaCopy.ObjectMeta.Name, vaKey)
+			log.Debugf("Adding VA Cache %s %s", vaCopy.ObjectMeta.Name, vaKey)
 		}
 	}
 	return api.volumeAttachmentCache[key], nil
