@@ -30,6 +30,7 @@ spec:
         labels:
           app: podmontest-{{ .Release.Namespace }}
           podmon.dellemc.com/driver: {{ required "Must set driver label" .Values.podmonTest.driverLabel }}
+          affinity: affinity
       spec:
 {{- if ne .Values.podmonTest.zone "" }}
         affinity:
@@ -54,6 +55,14 @@ spec:
                   - podmontest-{{ .Release.Namespace }}
               topologyKey: "kubernetes.io/hostname"
 {{end}}
+        topologySpreadConstraints:
+          - maxSkew: {{ required "Number of replicas" .Values.podmonTest.replicas }} #
+            topologyKey: kubernetes.io/hostname
+        #    whenUnsatisfiable: ScheduleAnyway
+            whenUnsatisfiable: DoNotSchedule
+            labelSelector:
+              matchLabels:
+                affinity: affinity
         serviceAccount: podmontest
         containers:
           - name: podmontest
