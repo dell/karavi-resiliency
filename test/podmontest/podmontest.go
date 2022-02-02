@@ -44,7 +44,6 @@ func main() {
 	readExistingEntries(rootDir)
 	for i := 0; ; i++ {
 		makeEntry(string(podTag), rootDir, i)
-		time.Sleep(5 * time.Second)
 	}
 }
 

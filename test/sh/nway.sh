@@ -15,8 +15,8 @@
 REBOOT=off
 COUNT=0
 # NODELIST1... NODELIST10 are space separated lists of nodes that will be failed as a unit.
-NODELIST1=""
-NODELIST2=""
+NODELIST1="10.247.102.219"
+NODELIST2="10.247.102.220"
 NODELIST3=""
 NODELIST4=""
 NODELIST5=""
@@ -28,10 +28,11 @@ NODELIST10=""
 
 POLLTIME=5			# Poll time to print results
 BOUNCEIPSECONDS=240             # Bounce IP time in seconds for interface down
+BOUNCEKUBELETSECONDS=0          # Bounce the kubelet instead if BOUNCEIPSECONDS > 0
 TIMEOUT=600			# Maximum time in seconds to wait for a failure cycle (needs to be higher than EVACUATE_TIMEOUT)
-MAXITERATIONS=3			# Maximum number of failover iterations
+MAXITERATIONS=9999		# Maximum number of failover iterations
 DRIVERNS="vxflexos"		# Driver namespace
-REBALANCE=1			# Do rebalance if needed for pods with affinity
+REBALANCE=0			# Do rebalance if needed for pods with affinity
 
 rm -f stop			# Remove the stop file
 
@@ -45,6 +46,11 @@ for param in $*; do
   "--bounceipseconds")
     shift
     BOUNCEIPSECONDS=$1
+    shift
+    ;;
+  "--bouncekubeletseconds")
+    shift
+    BOUNCEKUBELETSECONDS=$1
     shift
     ;;
   "--maxiterations")
@@ -63,7 +69,7 @@ for param in $*; do
     ;;
   "--help")
     shift
-    echo "parameters: --ns driver-namespace [--bounceipseconds value] [--maxiterations value] [--timeoutseconds value]"
+    echo "parameters: --ns driver-namespace [--bounceipseconds value] [--bouncekubeletseconds value] [--maxiterations value] [--timeoutseconds value]"
     exit
     ;;
   esac
@@ -93,7 +99,7 @@ maxPods=90
 
 # nodelist returns a list of nodes(
 nodelist() {
-	kubectl get nodes -A | grep -v 'mast.r'  | grep -v NAME | awk '{ print $1 }'
+	kubectl get nodes -A | grep -v master  | grep -v NAME | awk '{ print $1 }'
 }
 
 # get the number of pods on a node $1
@@ -131,7 +137,7 @@ deletePodsInNS() {
 
 
 rebalance() {
-        echo "Rebalancing pods to nodes..."
+        echo $(date) "Rebalancing pods to nodes..."
 	cordonedNodes=""
 	nodes=$(nodelist)
 	echo nodes: $nodes
@@ -152,12 +158,16 @@ rebalance() {
 	echo "waiting for pods to get moved"
 	for i in 1 2 3 4 5 6 7 8 9 10; do
 		kubectl get pods -l podmon.dellemc.com/driver -A -o wide | grep -v NAME | grep -v Running
-		sleep 60
+		non_running_pods=$(kubectl get pods -l podmon.dellemc.com/driver -A -o wide | grep -v Running | wc -l)
+		# Sleep if non_running_pods gt 1 (accounting for HEADER)
+		if [ $non_running_pods -gt 1 ]; then
+			sleep 60
+		fi
 	done
 	for n in $cordonedNodes; do
 		uncordon $n
 	done
-	echo "Rebalancing complete"
+	echo $(date) "Rebalancing complete"
 }
 # ====================================================================================================================================================
 
@@ -255,8 +265,13 @@ failnodes() {
 	for node in $nodelist
 	do
 		# kill node
-		echo bouncing $node $COUNT
-		ssh $node nohup sh /root/bounce.ip --seconds $BOUNCEIPSECONDS &
+		if [ $BOUNCEKUBELETSECONDS -gt 0 ]; then
+			echo bouncing kubelet $node $COUNT
+			ssh $node nohup sh /root/bounce.kubelet --seconds $BOUNCEKUBELETSECONDS &
+		else
+			echo bouncing ip $node $COUNT
+			ssh $node nohup sh /root/bounce.ip --seconds $BOUNCEIPSECONDS &
+		fi
 	done
 	failovercount=$(expr $failovercount + 1)
 
@@ -298,6 +313,7 @@ get_nodes_to_kill() {
 process_nodes() {
 	NODELIST=$(get_nodes_to_kill $*)
 	[ "$NODELIST" = "" ] && return
+	echo "processing NODELIST:" $NODELIST
 	initialRunningPods=$(get_running_pods)
 	initialPodsToMove=$(get_pods_on_nodes $NODELIST)
 	podsToMove=$initialPodsToMove
@@ -348,13 +364,13 @@ process_nodes() {
 		kubectl get nodes -o custom-columns=NAME:.metadata.name,TAINTS:.spec.taints | grep "storage.dell"
 		echo $(date) $timesec $failovercount "tainted nodes:" $taints
 		echo "nodes cleanup time:" $(expr $timesec - $BOUNCEIPSECONDS)
+		sleep 60
+		check_running
+		if [ $failovercount -ge $MAXITERATIONS ]; then
+			echo $(date) "exiting due to failover count: " $failovercount
+			exit 0
+		fi
 	fi
-	if [ $failovercount -ge $MAXITERATIONS ]; then
-		exit 0
-	fi
-	sleep 60
-	check_running
-	
 }
 
 while true
