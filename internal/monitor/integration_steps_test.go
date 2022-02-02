@@ -14,13 +14,7 @@ package monitor
 import (
 	"context"
 	"fmt"
-	"github.com/cucumber/godog"
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
 	"io/ioutil"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/rand"
 	"math"
 	"os"
 	"os/exec"
@@ -31,6 +25,13 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/cucumber/godog"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/rand"
 )
 
 type integration struct {
@@ -75,6 +76,7 @@ var wordsToNumberMap = map[string]float64{
 var failureToScriptMap = map[string]string{
 	"interfacedown": "bounce.ip",
 	"reboot":        "reboot.node",
+	"kubeletdown":   "bounce.kubelet",
 }
 
 const (
