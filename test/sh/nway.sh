@@ -15,8 +15,8 @@
 REBOOT=off
 COUNT=0
 # NODELIST1... NODELIST10 are space separated lists of nodes that will be failed as a unit.
-NODELIST1="10.247.102.219"
-NODELIST2="10.247.102.220"
+NODELIST1=""
+NODELIST2=""
 NODELIST3=""
 NODELIST4=""
 NODELIST5=""
@@ -92,6 +92,16 @@ check_timeout() {
 		fi
 	fi
 }
+
+# getinitialpods queries each podmontest pod to determine the initial pod id that initialized the volume
+# if this changes over time, it might indicate the volume was over-written and reinitialized
+# the test stores the initial pod ids at the beginning in initial_pods.orig
+# each iteration it gets the ids again and stores them in initial_pods.now and compares
+getinitialpods() {
+	pmts=$(kubectl get namespace | awk '/pmt/ { print $1; }')
+	for i in $pmts; do echo -n "$i "; kubectl logs -n $i podmontest-0 | grep initial-pod | head -1; done
+}
+
 
 # ====================================================================================================================================================
 # This part of the code rebalances pods across nodes for pod affinity.
@@ -366,6 +376,10 @@ process_nodes() {
 		echo "nodes cleanup time:" $(expr $timesec - $BOUNCEIPSECONDS)
 		sleep 60
 		check_running
+		getinitialpods >initial_pods.now
+		echo "diffing initial_pods.now and initial_pods.orig"
+		diff -b initial_pods.now initial_pods.orig
+		rc=$?
 		if [ $failovercount -ge $MAXITERATIONS ]; then
 			echo $(date) "exiting due to failover count: " $failovercount
 			exit 0
@@ -373,6 +387,8 @@ process_nodes() {
 	fi
 }
 
+getinitialpods >initial_pods.orig
+echo "falling into main loop..."
 while true
 do
 	process_nodes $NODELIST1
