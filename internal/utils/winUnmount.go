@@ -1,4 +1,5 @@
-//+build test windows
+//go:build test || windows
+// +build test windows
 
 /*
  * Copyright (c) 2021. Dell Inc., or its subsidiaries. All Rights Reserved.
