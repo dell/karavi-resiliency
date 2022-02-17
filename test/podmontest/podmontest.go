@@ -24,6 +24,7 @@ import (
 
 //TAGSIZE standard size for a pod tab
 const TAGSIZE = 16
+const InitialPod = "initial-pod"
 
 var rootDir = "/"
 var enableDoExit bool
@@ -41,21 +42,27 @@ func main() {
 		fmt.Printf("Couldn't generate podTag: %s", err.Error())
 	}
 	rootDir := os.Getenv("ROOT_DIR")
-	readExistingEntries(rootDir)
+	initialPod := readExistingEntries(rootDir)
+	fmt.Printf("initialPod: %t\n", initialPod)
 	for i := 0; ; i++ {
-		makeEntry(string(podTag), rootDir, i)
+		makeEntry(string(podTag), rootDir, i, initialPod)
 	}
 }
 
-func readExistingEntries(rootDir string) {
+// Returns true if initial pod instance
+func readExistingEntries(rootDir string) bool {
 	var timeSamples int
 	var prevTime time.Time
 	var computeTimeDelta bool
 	var key string
+	printed := make(map[string]bool)
+	reportedOtherKeys := make(map[string]bool)
+	initialPod := true
+
 	entries, err := ioutil.ReadDir(rootDir)
 	if err != nil {
 		fmt.Printf("Couldn't read %s\n", rootDir)
-		return
+		return true
 	}
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), "data") {
@@ -64,6 +71,7 @@ func readExistingEntries(rootDir string) {
 				fmt.Printf("Couldn't open %s %s\n", entry.Name(), err.Error())
 				continue
 			}
+			initialPod := false
 			scanner := bufio.NewScanner(f)
 			for scanner.Scan() {
 				line := scanner.Text()
@@ -73,12 +81,21 @@ func readExistingEntries(rootDir string) {
 					computeTimeDelta = true
 					continue
 				}
+				if strings.HasPrefix(line, InitialPod) {
+					fmt.Printf("%s\n", line)
+					continue
+				}
 				parts := strings.SplitN(line, " ", 2)
 				if key == "" {
 					key = parts[0]
 				}
-				if key != parts[0] {
-					fmt.Printf("ERROR: mixed keys %s and %s\n", key, parts[0])
+				if key != parts[0] && !reportedOtherKeys[parts[0]] {
+					fmt.Printf("mixed keys (could be due to replicas on same node): %s and %s\n", key, parts[0])
+					reportedOtherKeys[parts[0]] = true
+				}
+				if !printed[key] {
+					fmt.Printf("%s\n", line)
+					printed[key] = true
 				}
 				if len(parts) < 2 {
 					// Should have a pod id and a time as separate parts
@@ -102,14 +119,15 @@ func readExistingEntries(rootDir string) {
 				fmt.Printf("ERROR scannning %s\n", entry.Name())
 			}
 			f.Close()
-			return
+			return initialPod
 		}
 	}
+	return initialPod
 }
 
 var counter int
 
-func makeEntry(podTag, rootDir string, index int) {
+func makeEntry(podTag, rootDir string, index int, initialPod bool) {
 	tag := fmt.Sprintf("%x %s\n", podTag, time.Now().Format(time.Stamp))
 	entries, err := ioutil.ReadDir(rootDir)
 	if err != nil {
@@ -127,6 +145,10 @@ func makeEntry(podTag, rootDir string, index int) {
 				continue
 			}
 			if index == 0 {
+				if initialPod {
+					f.WriteString(InitialPod + " " + tag)
+					fmt.Printf("%s %s\n", InitialPod, tag)
+				}
 				f.WriteString("\n")
 			}
 			_, err = f.WriteString(tag)
