@@ -1,7 +1,7 @@
 FROM registry.access.redhat.com/ubi8:8.5
 LABEL vendor="Dell Inc." \
       name="csm-resiliency" \
-      summary="Dell EMC Container Storage Modules (CSM) for Resiliency" \
+      summary="Dell Container Storage Modules (CSM) for Resiliency" \
       description="Makes Kubernetes applications, including those that utilize persistent storage, more resilient to various failures" \
       version="2.0.0" \
       license="Apache-2.0"
