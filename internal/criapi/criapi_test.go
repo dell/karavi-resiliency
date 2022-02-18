@@ -1,4 +1,5 @@
-//+build k8s
+//go:build k8s
+// +build k8s
 
 /*
  * Copyright (c) 2021. Dell Inc., or its subsidiaries. All Rights Reserved.

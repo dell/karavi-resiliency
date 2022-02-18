@@ -55,10 +55,14 @@ spec:
                   - podmontest-{{ .Release.Namespace }}
               topologyKey: "kubernetes.io/hostname"
 {{end}}
+        tolerations:
+          - effect: NoExecute
+            key: node.kubernetes.io/unreachable
+            operator: Exists
+            tolerationSeconds: {{ required "Number of seconds to tolerate unreachable taint" .Values.podmonTest.unreachableTolerationSeconds }}
         topologySpreadConstraints:
           - maxSkew: {{ required "Number of replicas" .Values.podmonTest.replicas }} #
             topologyKey: kubernetes.io/hostname
-        #    whenUnsatisfiable: ScheduleAnyway
             whenUnsatisfiable: DoNotSchedule
             labelSelector:
               matchLabels:
