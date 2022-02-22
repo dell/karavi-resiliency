@@ -22,6 +22,7 @@ replicas=1
 deploymentType="statefulset"
 driverLabel="csi-unity"
 podAffinity="false"
+unreachableTolerationSeconds=300
 
 if [ "$DEBUG"x != "x" ]; then
   DEBUG="--dry-run --debug"
@@ -68,6 +69,10 @@ do
           deploymentType="deployment"
           shift
           ;;
+       "--unreachableTolerationSeconds")
+          shift
+          unreachableTolerationSeconds=$1
+          shift
        "--label")
           shift
           driverLabel=$1
@@ -92,6 +97,7 @@ while [ $i -le $instances ]; do
               --set podmonTest.deploymentType=$deploymentType \
               --set podmonTest.replicas=$replicas \
               --set podmonTest.podAffinity=$podAffinity \
+              --set podmonTest.unreachableTolerationSeconds=$unreachableTolerationSeconds \
               --set podmonTest.image="$image" \
               --set podmonTest.zone="$zone" \
               --set podmonTest.driverLabel="$driverLabel"
