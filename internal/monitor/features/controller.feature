@@ -68,19 +68,6 @@ Feature: Controller Monitor
 
     Examples:
       | podnode | nvol | condition     | affin   | nodetaint | error         | eventtype | cleaned | info    | errormsg                                                   |
-      | "node1" | 2    | "Initialized" | "false" | "noexec"  | "none"          | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
-      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "none"          | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
-      | "node1" | 2    | "NotReady"    | "false" | "nosched" | "none"          | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
-      | "node1" | 2    | "CrashLoop"   | "false" | "none"    | "none"          | "Updated" | "false" | "false" | "cleaning up CrashLoopBackOff pod"                         |
-      | "node1" | 2    | "NotReady"    | "false" | "nosched" | "none"          | "Deleted" | "false" | "false" | "none"                                                     |
-      | "node1" | 2    | "Ready"       | "false" | "none"    | "none"          | "Updated" | "false" | "true"  | "none"                                                     |
-      | "node1" | 2    | "Ready"       | "true"  | "none"    | "none"          | "Updated" | "false" | "true"  | "none"                                                     |
-      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "GetPod"        | "Updated" | "false" | "false" | "GetPod failed"                                            |
-      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "GetNode"       | "Updated" | "false" | "false" | "GetNode failed"                                           |
-      | "node1" | 2    | "Ready"       | "false" | "noexec"  | "CreateEvent"   | "Updated" | "false" | "true"  | "none"                                                     |
-      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "CreateEvent"   | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
-      | "node1" | 2    | "CrashLoop"   | "false" | "noexec"  | "CreateEvent"   | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
-      | "node1" | 2    | "Initialized" | "false" | "noexec"  | "CreateEvent"   | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
       | "node1" | 2    | "NotReady"    | "false" | "nosched" | "NoAnnotation"  | "Updated" | "false" | "false" | "There were 2 errors calling ControllerUnpublishVolume"    |
       | "node1" | 2    | "NotReady"    | "false" | "nosched" | "BadCSINode"    | "Updated" | "false" | "false" | "There were 2 errors calling ControllerUnpublishVolume"    |
 
