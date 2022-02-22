@@ -37,20 +37,83 @@ Feature: Controller Monitor
     And the last log message contains <errormsg>
 
     Examples:
-      | podnode | nvol | condition     | affin   | nodetaint | error         | eventtype | cleaned | info    | errormsg                           |
-      | "node1" | 2    | "Initialized" | "false" | "noexec"  | "none"        | "Updated" | "true"  | "false" | "Successfully cleaned up pod"      |
-      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "none"        | "Updated" | "true"  | "false" | "Successfully cleaned up pod"      |
-      | "node1" | 2    | "NotReady"    | "false" | "nosched" | "none"        | "Updated" | "true"  | "false" | "Successfully cleaned up pod"      |
-      | "node1" | 2    | "CrashLoop"   | "false" | "none"    | "none"        | "Updated" | "false" | "false" | "cleaning up CrashLoopBackOff pod" |
-      | "node1" | 2    | "NotReady"    | "false" | "nosched" | "none"        | "Deleted" | "false" | "false" | "none"                             |
-      | "node1" | 2    | "Ready"       | "false" | "none"    | "none"        | "Updated" | "false" | "true"  | "none"                             |
-      | "node1" | 2    | "Ready"       | "true"  | "none"    | "none"        | "Updated" | "false" | "true"  | "none"                             |
-      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "GetPod"      | "Updated" | "false" | "false" | "GetPod failed"                    |
-      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "GetNode"     | "Updated" | "false" | "false" | "GetNode failed"                   |
-      | "node1" | 2    | "Ready"       | "false" | "noexec"  | "CreateEvent" | "Updated" | "false" | "true"  | "none"                             |
-      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "CreateEvent" | "Updated" | "true"  | "false" | "Successfully cleaned up pod"      |
-      | "node1" | 2    | "CrashLoop"   | "false" | "noexec"  | "CreateEvent" | "Updated" | "true"  | "false" | "Successfully cleaned up pod"      |
-      | "node1" | 2    | "Initialized" | "false" | "noexec"  | "CreateEvent" | "Updated" | "true"  | "false" | "Successfully cleaned up pod"      |
+      | podnode | nvol | condition     | affin   | nodetaint | error         | eventtype | cleaned | info    | errormsg                                                   |
+      | "node1" | 2    | "Initialized" | "false" | "noexec"  | "none"          | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
+      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "none"          | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
+      | "node1" | 2    | "NotReady"    | "false" | "nosched" | "none"          | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
+      | "node1" | 2    | "CrashLoop"   | "false" | "none"    | "none"          | "Updated" | "false" | "false" | "cleaning up CrashLoopBackOff pod"                         |
+      | "node1" | 2    | "NotReady"    | "false" | "nosched" | "none"          | "Deleted" | "false" | "false" | "none"                                                     |
+      | "node1" | 2    | "Ready"       | "false" | "none"    | "none"          | "Updated" | "false" | "true"  | "none"                                                     |
+      | "node1" | 2    | "Ready"       | "true"  | "none"    | "none"          | "Updated" | "false" | "true"  | "none"                                                     |
+      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "GetPod"        | "Updated" | "false" | "false" | "GetPod failed"                                            |
+      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "GetNode"       | "Updated" | "false" | "false" | "GetNode failed"                                           |
+      | "node1" | 2    | "Ready"       | "false" | "noexec"  | "CreateEvent"   | "Updated" | "false" | "true"  | "none"                                                     |
+      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "CreateEvent"   | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
+      | "node1" | 2    | "CrashLoop"   | "false" | "noexec"  | "CreateEvent"   | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
+      | "node1" | 2    | "Initialized" | "false" | "noexec"  | "CreateEvent"   | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
+      | "node1" | 2    | "NotReady"    | "false" | "nosched" | "NoAnnotation"  | "Updated" | "false"  | "false" | "Aborting pod cleanup because array still connected"      |
+      | "node1" | 2    | "NotReady"    | "false" | "nosched" | "BadCSINode"    | "Updated" | "false"  | "false" | "Aborting pod cleanup because array still connected"      |
+
+  @controller-mode
+  Scenario Outline: test controllerModePodHandler skipping validate volume with a CSIExtensionNotPresent error
+    Given a controller monitor "vxflex"
+    And I induce error "CSIExtensionsNotPresent"
+    And a pod for node <podnode> with <nvol> volumes condition <condition> affinity <affin>
+    And a node <podnode> with taint <nodetaint>
+    And I induce error <error>
+    When I call controllerModePodHandler with event <eventtype>
+    Then the pod is cleaned <cleaned>
+    And a controllerPodInfo is present <info>
+    And the last log message contains <errormsg>
+
+    Examples:
+      | podnode | nvol | condition     | affin   | nodetaint | error         | eventtype | cleaned | info    | errormsg                                                   |
+      | "node1" | 2    | "Initialized" | "false" | "noexec"  | "none"          | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
+      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "none"          | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
+      | "node1" | 2    | "NotReady"    | "false" | "nosched" | "none"          | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
+      | "node1" | 2    | "CrashLoop"   | "false" | "none"    | "none"          | "Updated" | "false" | "false" | "cleaning up CrashLoopBackOff pod"                         |
+      | "node1" | 2    | "NotReady"    | "false" | "nosched" | "none"          | "Deleted" | "false" | "false" | "none"                                                     |
+      | "node1" | 2    | "Ready"       | "false" | "none"    | "none"          | "Updated" | "false" | "true"  | "none"                                                     |
+      | "node1" | 2    | "Ready"       | "true"  | "none"    | "none"          | "Updated" | "false" | "true"  | "none"                                                     |
+      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "GetPod"        | "Updated" | "false" | "false" | "GetPod failed"                                            |
+      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "GetNode"       | "Updated" | "false" | "false" | "GetNode failed"                                           |
+      | "node1" | 2    | "Ready"       | "false" | "noexec"  | "CreateEvent"   | "Updated" | "false" | "true"  | "none"                                                     |
+      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "CreateEvent"   | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
+      | "node1" | 2    | "CrashLoop"   | "false" | "noexec"  | "CreateEvent"   | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
+      | "node1" | 2    | "Initialized" | "false" | "noexec"  | "CreateEvent"   | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
+      | "node1" | 2    | "NotReady"    | "false" | "nosched" | "NoAnnotation"  | "Updated" | "false" | "false" | "There were 2 errors calling ControllerUnpublishVolume"    |
+      | "node1" | 2    | "NotReady"    | "false" | "nosched" | "BadCSINode"    | "Updated" | "false" | "false" | "There were 2 errors calling ControllerUnpublishVolume"    |
+
+  @controller-mode
+  Scenario Outline: test controllerModePodHandler with pre-existing call to controllerModePodHandler"
+    Given a controller monitor "vxflex"
+    And I induce error "CSIExtensionsNotPresent"
+    And a pod for node <podnode> with <nvol> volumes condition "Ready" affinity <affin>
+    And I call controllerModePodHandler with event "Update"
+    And I induce error "PodNotReady"
+    And a node <podnode> with taint <nodetaint>
+    And I induce error <error>
+    When I call controllerModePodHandler with event <eventtype>
+    Then the pod is cleaned <cleaned>
+    And a controllerPodInfo is present <info>
+    And the last log message contains <errormsg>
+
+    Examples:
+      | podnode | nvol | condition     | affin   | nodetaint | error         | eventtype | cleaned | info    | errormsg                                                     |
+      | "node1" | 2    | "Initialized" | "false" | "noexec"  | "none"          | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
+      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "none"          | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
+      | "node1" | 2    | "NotReady"    | "false" | "nosched" | "none"          | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
+      | "node1" | 2    | "NotReady"    | "false" | "nosched" | "none"          | "Deleted" | "false" | "false" | "none"                                                     |
+      | "node1" | 2    | "Ready"       | "false" | "none"    | "none"          | "Updated" | "false" | "true"  | "none"                                                     |
+      | "node1" | 2    | "Ready"       | "true"  | "none"    | "none"          | "Updated" | "false" | "true"  | "none"                                                     |
+      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "GetPod"        | "Updated" | "false" | "true"  | "GetPod failed"                                            |
+      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "GetNode"       | "Updated" | "false" | "true"  | "GetNode failed"                                           |
+      | "node1" | 2    | "Ready"       | "false" | "noexec"  | "CreateEvent"   | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
+      | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "CreateEvent"   | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
+      | "node1" | 2    | "CrashLoop"   | "false" | "noexec"  | "CreateEvent"   | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
+      | "node1" | 2    | "Initialized" | "false" | "noexec"  | "CreateEvent"   | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
+      | "node1" | 2    | "NotReady"    | "false" | "nosched" | "NoAnnotation"  | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
+      | "node1" | 2    | "NotReady"    | "false" | "nosched" | "BadCSINode"    | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
 
   @controller-mode
   Scenario Outline: test ArrayConnectivityMonitor
