@@ -8,7 +8,7 @@ You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-# Dell EMC Container Storage Modules (CSM) for Resiliency
+# Dell Container Storage Modules (CSM) for Resiliency
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-v2.0%20adopted-ff69b4.svg)](https://github.com/dell/csm/blob/main/docs/CODE_OF_CONDUCT.md)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Docker Pulls](https://img.shields.io/docker/pulls/dellemc/podmon)](https://hub.docker.com/r/dellemc/podmon)
@@ -16,11 +16,11 @@ You may obtain a copy of the License at
 [![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/dell/karavi-resiliency?include_prereleases&label=latest&style=flat-square)](https://github.com/dell/karavi-resiliency/releases/latest)
 [![Releases](https://img.shields.io/badge/Releases-green.svg)](https://github.com/dell/karavi-resiliency/releases)
 
-CSM for Resiliency is part of the [CSM (Container Storage Modules)](https://github.com/dell/csm) open-source suite of Kubernetes storage enablers for Dell EMC products. CSM for Resiliency is a project designed to make Kubernetes Applications, including those that utilize persistent storage, more resilient to various failures. The first component of CSM for Resiliency is a pod monitor that is specifically designed to protect stateful applications from various failures. It is not a standalone application, but rather is deployed as a _sidecar_ to Dell EMC CSI (Container Storage Interface) drivers, in both the driver's controller pods and the driver's node pods. Deploying CSM for Resiliency as a sidecar allows it to make direct requests to the driver through the Unix domain socket that Kubernetes sidecars use to make CSI requests.
+CSM for Resiliency is part of the [CSM (Container Storage Modules)](https://github.com/dell/csm) open-source suite of Kubernetes storage enablers for Dell products. CSM for Resiliency is a project designed to make Kubernetes Applications, including those that utilize persistent storage, more resilient to various failures. The first component of CSM for Resiliency is a pod monitor that is specifically designed to protect stateful applications from various failures. It is not a standalone application, but rather is deployed as a _sidecar_ to Dell CSI (Container Storage Interface) drivers, in both the driver's controller pods and the driver's node pods. Deploying CSM for Resiliency as a sidecar allows it to make direct requests to the driver through the Unix domain socket that Kubernetes sidecars use to make CSI requests.
 
 Some of the methods CSM for Resiliency invokes in the driver are standard CSI methods, such as NodeUnpublishVolume, NodeUnstageVolume, and ControllerUnpublishVolume. CSM for Resiliency also uses proprietary calls that are not part of the standard CSI specification. Currently, there is only one, ValidateVolumeHostConnectivity that returns information on whether a host is connected to the storage system and/or whether any I/O activity has happened in the recent past from a list of specified volumes. This allows CSM for Resiliency to make more accurate determinations about the state of the system and its persistent volumes.
 
-Accordingly, CSM for Resiliency is adapted to, and qualified with each Dell EMC CSI driver it is to be used with. Different storage systems have different nuances and characteristics that CSM for Resiliency must take into account.
+Accordingly, CSM for Resiliency is adapted to, and qualified with each Dell CSI driver it is to be used with. Different storage systems have different nuances and characteristics that CSM for Resiliency must take into account.
 
 For documentation, please visit [Container Storage Modules documentation](https://dell.github.io/csm-docs/).
 
@@ -43,6 +43,6 @@ This project is adhering to [Semantic Versioning](https://semver.org/).
 
 ## About
 
-Dell EMC Container Storage Modules (CSM) is 100% open source and community-driven. All components are available
+Dell Container Storage Modules (CSM) is 100% open source and community-driven. All components are available
 under [Apache 2 License](https://www.apache.org/licenses/LICENSE-2.0.html) on
 GitHub.
