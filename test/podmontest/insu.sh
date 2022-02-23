@@ -73,6 +73,7 @@ do
           shift
           unreachableTolerationSeconds=$1
           shift
+          ;;
        "--label")
           shift
           driverLabel=$1
