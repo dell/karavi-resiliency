@@ -9,6 +9,6 @@ keywords:
 - storage
 - prometheus
 maintainers:
-- name: DellEMC
+- name: Dell
 engine: gotpl
 
