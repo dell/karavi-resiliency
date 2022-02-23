@@ -130,7 +130,6 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 
 			log.Infof("podMonitorHandler: namespace: %s name: %s nodename: %s initialized: %t ready: %t taints [nosched: %t noexec: %t podmon: %t ]",
 				pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, pod.Spec.NodeName, initialized, ready, taintnosched, taintnoexec, taintpodmon)
-			// TODO: option for taintnosched vs. taintnoexec
 			if (taintnoexec || taintnosched || taintpodmon) && !ready {
 				// Use the last podInfo recorded when pod ready to make sure node has an annotation for the CSI NodeID
 				podInfoValue, ok := cm.PodKeyToControllerPodInfo.Load(podKey)
