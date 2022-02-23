@@ -50,6 +50,8 @@ type K8sMock struct {
 		GetPersistentVolumeClaim             bool
 		GetNode                              bool
 		GetNodeWithTimeout                   bool
+		GetNodeNoAnnotation                  bool
+		GetNodeBadCSINode                    bool
 		GetVolumeHandleFromVA                bool
 		GetPVNameFromVA                      bool
 		Watch                                bool
@@ -318,6 +320,12 @@ func (mock *K8sMock) GetNode(ctx context.Context, nodeName string) (*v1.Node, er
 		return node, errors.New("induced GetNode error")
 	}
 	if mock.NameToNode[nodeName] != nil {
+		if mock.InducedErrors.GetNodeNoAnnotation { // no node annotation at all
+			mock.NameToNode[nodeName].ObjectMeta.Annotations["csi.volume.kubernetes.io/nodeid"] = ""
+		}
+		if mock.InducedErrors.GetNodeBadCSINode { // bad json
+			mock.NameToNode[nodeName].ObjectMeta.Annotations["csi.volume.kubernetes.io/nodeid"] = "[["
+		}
 		return mock.NameToNode[nodeName], nil
 	}
 	node = &v1.Node{}

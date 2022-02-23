@@ -209,6 +209,15 @@ func (f *feature) iInduceError(induced string) error {
 		f.k8sapiMock.InducedErrors.Connect = true
 	case "DeletePod":
 		f.k8sapiMock.InducedErrors.DeletePod = true
+	case "PodNotReady":
+		f.pod.Status.Conditions = make([]v1.PodCondition, 0)
+		condition := v1.PodCondition{
+			Type:    "Ready",
+			Status:  "False",
+			Reason:  "PodNotReady",
+			Message: "PodNotReady",
+		}
+		f.pod.Status.Conditions = append(f.pod.Status.Conditions, condition)
 	case "GetPod":
 		f.k8sapiMock.InducedErrors.GetPod = true
 	case "GetVolumeAttachments":
@@ -233,6 +242,10 @@ func (f *feature) iInduceError(induced string) error {
 		f.k8sapiMock.InducedErrors.GetNode = true
 	case "GetNodeWithTimeout":
 		f.k8sapiMock.InducedErrors.GetNodeWithTimeout = true
+	case "BadCSINode":
+		f.k8sapiMock.InducedErrors.GetNodeBadCSINode = true
+	case "NoAnnotation":
+		f.k8sapiMock.InducedErrors.GetNodeNoAnnotation = true
 	case "GetVolumeHandleFromVA":
 		f.k8sapiMock.InducedErrors.GetVolumeHandleFromVA = true
 	case "GetPVNameFromVA":

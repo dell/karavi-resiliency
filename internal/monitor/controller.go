@@ -118,7 +118,7 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 				podUID := string(pod.ObjectMeta.UID)
 				podInfo := &ControllerPodInfo{
 					PodKey:            podKey,
-					Node:              node,
+					Node:              node.DeepCopy(),
 					PodUID:            podUID,
 					ArrayIDs:          arrayIDs,
 					PodAffinityLabels: podAffinityLabels,
@@ -130,8 +130,15 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 
 			log.Infof("podMonitorHandler: namespace: %s name: %s nodename: %s initialized: %t ready: %t taints [nosched: %t noexec: %t podmon: %t ]",
 				pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, pod.Spec.NodeName, initialized, ready, taintnosched, taintnoexec, taintpodmon)
-			// TODO: option for taintnosched vs. taintnoexec
 			if (taintnoexec || taintnosched || taintpodmon) && !ready {
+				// Use the last podInfo recorded when pod ready to make sure node has an annotation for the CSI NodeID
+				podInfoValue, ok := cm.PodKeyToControllerPodInfo.Load(podKey)
+				if ok {
+					controllerPodInfo := podInfoValue.(*ControllerPodInfo)
+					if getCSINodeIDAnnotation(controllerPodInfo.Node, cm.DriverPathStr) != "" {
+						node = controllerPodInfo.Node
+					}
+				}
 				go cm.controllerCleanupPod(pod, node, "NodeFailure", taintnoexec, taintpodmon)
 			} else if !ready && crashLoopBackOff {
 				cnt, _ := cm.PodKeyToCrashLoopBackOffCount.LoadOrStore(podKey, 0)
@@ -331,7 +338,7 @@ func (cm *PodMonitorType) callValidateVolumeHostConnectivity(node *v1.Node, volu
 		log.Infof("ValidateVolumeHostConnectivity Node %s NodeId %s Connected %t", node.ObjectMeta.Name, req.NodeId, resp.GetConnected())
 		return resp.GetConnected(), resp.GetIosInProgress(), nil
 	}
-	return false, false, fmt.Errorf("Could not determine CSI NodeID from the node: %s annotations: %s", node.ObjectMeta.Name, csiNodeID)
+	return false, false, fmt.Errorf("callValidateVolumeHostConnectivity: Could not determine CSI NodeID for node: %s", node.ObjectMeta.Name)
 }
 
 // callControllerUnpublishVolume in the driver, log any messages, return error.
@@ -339,6 +346,7 @@ func (cm *PodMonitorType) callControllerUnpublishVolume(node *v1.Node, volumeID 
 	var err error
 	csiNodeID := getCSINodeIDAnnotation(node, cm.DriverPathStr)
 	if csiNodeID == "" {
+		log.Errorf("callControllerUnpublishVolume: Could not determine CSI NodeID for node: %s", node.ObjectMeta.Name)
 		return errors.New("csiNodeID is not set")
 	}
 	for i := 0; i < CSIMaxRetries; i++ {
@@ -527,20 +535,22 @@ func getCSINodeIDAnnotation(node *v1.Node, driverPath string) string {
 			var csiAnnotationsMap map[string]json.RawMessage
 			err := json.Unmarshal([]byte(csiAnnotations), &csiAnnotationsMap)
 			if err != nil {
-				log.Errorf("could not unmarshal csi annotations to json: %s", err.Error())
+				log.Errorf("could not unmarshal csi annotations %s to json: %s", csiAnnotations, err.Error())
 				return ""
 			}
 			var nodeID string
 			err = json.Unmarshal(csiAnnotationsMap[driverPath], &nodeID)
 			if err != nil {
-				log.Errorf("could not unmarshal driver path key from nodeid annotation: %s", err.Error())
+				log.Errorf("could not unmarshal driver path key from nodeid annotation %s: to json: %s", csiAnnotations, err.Error())
 				return ""
 			}
 
 			log.Debugf("Returning CSI Node ID Annotation: %s", nodeID)
 			return nodeID
 		}
+		log.Errorf("No annotation on node %s for csi.volume.kubernetes.io/nodeid: %s", node.ObjectMeta.Name, csiAnnotations)
 	}
+	log.Errorf("No annotations on node %s", node.ObjectMeta.Name)
 	return ""
 }
 
