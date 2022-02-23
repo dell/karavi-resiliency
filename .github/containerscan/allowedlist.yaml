@@ -6,5 +6,6 @@ general:
     - CVE-2021-27219
     - CVE-2022-25315
     - CVE-2022-25235
+    - CVE-2022-25236 
     # Disputed CVEs
     - CVE-2019-1010022
