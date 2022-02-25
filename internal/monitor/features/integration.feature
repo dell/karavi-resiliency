@@ -415,8 +415,8 @@ Feature: Integration Test
 
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "2-2"       | "2-2" | "2-2" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 240      | 900        | 900     | 600           |
-      | ""         | "2-2"       | "2-2" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "interfacedown" | 240      | 900        | 900     | 600           |
+      | ""         | "2-2"       | "2-2" | "2-2" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 600      | 900        | 900     | 900           |
+      | ""         | "2-2"       | "2-2" | "0-0" | "unity"    | "unity-nfs"   | "one-third" | "zero"  | "interfacedown" | 600      | 900        | 900     | 900           |
 
   @powerflex-short-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node slow reboots)
