@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi8:8.5
+FROM registry.access.redhat.com/ubi8:8.5-230.1645809059
 LABEL vendor="Dell Inc." \
       name="csm-resiliency" \
       summary="Dell Container Storage Modules (CSM) for Resiliency" \
