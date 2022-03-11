@@ -385,11 +385,13 @@ func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, 
 
 	// Select the deployment script to use based on the driver type.
 	var deployScript string
+	cleanUpWait := 1 * time.Second
 	switch driverType {
 	case "vxflexos":
 		deployScript = "insv.sh"
 	case "unity":
 		deployScript = "insu.sh"
+		cleanUpWait = 120 * time.Second
 	}
 
 	// Set test namespace prefix is based on the driver type.
@@ -429,6 +431,8 @@ func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, 
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 
+	// For consecutive run provide Unity array some cleanup times
+	time.Sleep(cleanUpWait)
 	log.Infof("Attempting to deploy with command: %v", command)
 	err = command.Start()
 	if err != nil {
