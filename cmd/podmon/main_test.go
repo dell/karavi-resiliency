@@ -13,10 +13,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/cucumber/godog"
-	log "github.com/sirupsen/logrus"
 	"os"
 	"testing"
+
+	"github.com/cucumber/godog"
+	log "github.com/sirupsen/logrus"
 )
 
 func TestMain(m *testing.M) {
@@ -31,7 +32,7 @@ func TestMain(m *testing.M) {
 func TestMainFunc(t *testing.T) {
 	log.Printf("Starting main-func test")
 	godogOptions := godog.Options{
-		Format: "pretty,cucumber:main-func-cucumber-report.json",
+		Format: "pretty,junit:main-func-junit-report.xml,cucumber:main-func-cucumber-report.json",
 		Paths:  []string{"features"},
 	}
 	status := godog.TestSuite{
