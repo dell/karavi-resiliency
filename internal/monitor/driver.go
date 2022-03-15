@@ -13,9 +13,10 @@ package monitor
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"os"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type drivertype interface {
@@ -103,7 +104,7 @@ func (d *UnityDriver) GetDriverName() string {
 
 //GetDriverMountDir returns the Unity private mount directory.
 func (d *UnityDriver) GetDriverMountDir(volumeHandle, pvName, podUUID string) string {
-	privateMountDir := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/pv/%s/mount", pvName)
+	privateMountDir := fmt.Sprintf("/var/lib/kubelet/pods/%s/volumes/kubernetes.io~csi/%s/mount", podUUID, pvName)
 	log.Debugf("privateMountDir: %s", privateMountDir)
 	return privateMountDir
 }
