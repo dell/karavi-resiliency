@@ -14,6 +14,7 @@ package monitor
 import (
 	"fmt"
 	"os"
+	"podmon/internal/utils"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -150,5 +151,36 @@ func (d *UnityDriver) NodeUnstageExcludedError(err error) bool {
 
 // FinalCleanup handles any driver specific final cleanup.
 func (d *UnityDriver) FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID string) error {
+	if rawBlock { //Do this cleanup on raw device block
+		blockDev := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/volumeDevices/%s/dev/%s", pvName, podUUID)
+
+		loopBackDev, err := utils.GetLoopBackDevice(pvName)
+		if err != nil || loopBackDev == "" {
+			// nothing to clean
+			log.Infof("LOOOOOOOOOOOOOOOOPPPPBACK DEVICE EMPTY")
+			return nil
+		}
+
+		log.Infof("LOOOOOOOOOOOOOOOOPPPPBACK DEVICE: %s", loopBackDev)
+
+		_, err = utils.DeleteLoopBackDevice(loopBackDev)
+		if err != nil {
+			log.Infof("error deleting loopback device: %s", loopBackDev)
+			return nil
+		}
+
+		err = utils.Unmount(blockDev, 1)
+		if err != nil {
+			log.Infof("error in unmount block device in FinalCleanup: %s path: %s", err, blockDev)
+		} else {
+			log.Infof("sucessfully unmounted block device: %s", blockDev)
+		}
+		err = RemoveDev(blockDev)
+		if err != nil {
+			log.Infof("error remove block device FinalCleanup: %s path: %s", err, blockDev)
+		} else {
+			log.Infof("removed block device: %s", blockDev)
+		}
+	}
 	return nil
 }
