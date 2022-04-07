@@ -152,24 +152,20 @@ func (d *UnityDriver) NodeUnstageExcludedError(err error) bool {
 // FinalCleanup handles any driver specific final cleanup.
 func (d *UnityDriver) FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID string) error {
 	if rawBlock { //Do this cleanup on raw device block
-		blockDev := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/volumeDevices/%s/dev/%s", pvName, podUUID)
-
-		loopBackDev, err := utils.GetLoopBackDevice(pvName)
+		loopBackDev, err := getLoopBackDevice(pvName)
 		if err != nil || loopBackDev == "" {
 			// nothing to clean
-			log.Infof("LOOOOOOOOOOOOOOOOPPPPBACK DEVICE EMPTY")
-			return nil
+			return err
 		}
 
-		log.Infof("LOOOOOOOOOOOOOOOOPPPPBACK DEVICE: %s", loopBackDev)
-
-		_, err = utils.DeleteLoopBackDevice(loopBackDev)
+		_, err = deleteLoopBackDevice(loopBackDev)
 		if err != nil {
 			log.Infof("error deleting loopback device: %s", loopBackDev)
-			return nil
+			return err
 		}
 
-		err = utils.Unmount(blockDev, 1)
+		blockDev := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/volumeDevices/%s/dev/%s", pvName, podUUID)
+		err = unMountPath(blockDev, 1)
 		if err != nil {
 			log.Infof("error in unmount block device in FinalCleanup: %s path: %s", err, blockDev)
 		} else {
@@ -184,3 +180,9 @@ func (d *UnityDriver) FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID 
 	}
 	return nil
 }
+
+var (
+	getLoopBackDevice    = utils.GetLoopBackDevice
+	deleteLoopBackDevice = utils.DeleteLoopBackDevice
+	unMountPath          = utils.Unmount
+)

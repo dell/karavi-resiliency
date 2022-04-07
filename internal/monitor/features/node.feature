@@ -59,28 +59,31 @@ Feature: Controller Monitor
     And the last log message contains <errorMsg>
 
     Examples:
-      | driver | nodeName | pods | vols | devs | cleaned | unMountErr | rmDirErr    | taintErr       | k8apiErr              | errorMsg                           |
-      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "none"                | "none"                             |
-      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "GetContainerInfo"    | "none"                             |
-      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "ContainerRunning"    | "Couldn't completely cleanup node" |
-      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
-      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "K8sTaint"     | "none"                | "Failed to remove taint against node1 node" |
-      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "K8sTaint"     | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
-      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "none"     | "RemoveDir" | "none"         | "none"                | "Couldn't completely cleanup node" |
-      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "none"     | "RemoveDir" | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
-      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "none"     | "RemoveDir" | "K8sTaint"     | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
-      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "Unmount"  | "none"      | "none"         | "none"                | "none"                             |
-      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "Unmount"  | "none"      | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
-      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "Unmount"  | "none"      | "K8sTaint"     | "none"                | "Failed to remove taint against node1 node" |
-      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "Unmount"  | "none"      | "K8sTaint"     | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
-      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "Unmount"  | "RemoveDir" | "none"         | "none"                | "Couldn't completely cleanup node" |
-      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "Unmount"  | "RemoveDir" | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
-      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "Unmount"  | "RemoveDir" | "K8sTaint"     | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
-      | unity  | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "none"                | "none"                             |
-      | unity  | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
-      | unity  | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "NodeUnstageVolume"   | "Couldn't completely cleanup node" |
-      | unity  | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "NodeUnpublishNFSShareNotFound" | "none" |
-      | unity  | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "NodeUnstageNFSShareNotFound"   | "none" |
+      | driver | nodeName | pods | vols | devs | cleaned | unMountErr    | rmDirErr    | taintErr       | k8apiErr              | errorMsg                           |
+      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "none"        | "none"      | "none"         | "none"                | "none"                             |
+      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "none"        | "none"      | "none"         | "GetContainerInfo"    | "none"                             |
+      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "none"        | "none"      | "none"         | "ContainerRunning"    | "Couldn't completely cleanup node" |
+      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "none"        | "none"      | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
+      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "none"        | "none"      | "K8sTaint"     | "none"                | "Failed to remove taint against node1 node" |
+      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "none"        | "none"      | "K8sTaint"     | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
+      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "none"        | "RemoveDir" | "none"         | "none"                | "Couldn't completely cleanup node" |
+      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "none"        | "RemoveDir" | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
+      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "none"        | "RemoveDir" | "K8sTaint"     | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
+      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "Unmount"     | "none"      | "none"         | "none"                | "none"                             |
+      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "Unmount"     | "none"      | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
+      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "Unmount"     | "none"      | "K8sTaint"     | "none"                | "Failed to remove taint against node1 node" |
+      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "Unmount"     | "none"      | "K8sTaint"     | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
+      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "Unmount"     | "RemoveDir" | "none"         | "none"                | "Couldn't completely cleanup node" |
+      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "Unmount"     | "RemoveDir" | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
+      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "Unmount"     | "RemoveDir" | "K8sTaint"     | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
+      | unity  | "node1"  | 1    | 1    | 1    | 1       | "none"        | "none"      | "none"         | "none"                | "none"                             |
+      | unity  | "node1"  | 1    | 1    | 1    | 1       | "none"        | "none"      | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
+      | unity  | "node1"  | 1    | 1    | 1    | 1       | "none"        | "none"      | "none"         | "NodeUnstageVolume"   | "Couldn't completely cleanup node" |
+      | unity  | "node1"  | 1    | 1    | 1    | 1       | "none"        | "none"      | "none"         | "NodeUnpublishNFSShareNotFound" | "none" |
+      | unity  | "node1"  | 1    | 1    | 1    | 1       | "none"        | "none"      | "none"         | "NodeUnstageNFSShareNotFound"   | "none" |
+      | unity  | "node1"  | 1    | 1    | 1    | 1       | "GetLoopBack" | "none"      | "none"         | "none"                | "Couldn't completely cleanup node" |
+      | unity  | "node1"  | 1    | 1    | 1    | 1       | "DelLoopBack" | "none"      | "none"         | "none"                | "Couldn't completely cleanup node" |
+      | unity  | "node1"  | 1    | 1    | 1    | 1       | "UnMountPath" | "RemoveDir" | "K8sTaint"     | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
       # Multiple pod tests
       | vxflex | "node1"  | 3    | 2    | 1    | 3       | "none"     | "none"      | "none"         | "none"                | "none"                             |
       | vxflex | "node1"  | 3    | 2    | 1    | 2       | "none"     | "none"      | "none"         | "none"                | "Couldn't completely cleanup node" |

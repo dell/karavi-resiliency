@@ -74,6 +74,7 @@ type feature struct {
 	//'none', it will validate if it indeed was a successful message.
 	validateLastMessage bool
 	badWatchObject      bool
+	utilMock            *utils.UtilsMock
 }
 
 func (f *feature) aControllerMonitorUnity() error {
@@ -113,6 +114,10 @@ func (f *feature) aControllerMonitor(driver string) error {
 	RemoveDir = f.mockRemoveDir
 	f.badWatchObject = false
 	f.pod2 = nil
+	f.utilMock = new(utils.UtilsMock)
+	getLoopBackDevice = f.utilMock.GetLoopBackDevice
+	deleteLoopBackDevice = f.utilMock.DeleteLoopBackDevice
+	unMountPath = f.utilMock.Unmount
 	return nil
 }
 
@@ -291,6 +296,12 @@ func (f *feature) iInduceError(induced string) error {
 		f.csiapiMock.InducedErrors.NodeUnpublishNFSShareNotFound = true
 	case "NodeUnstageNFSShareNotFound":
 		f.csiapiMock.InducedErrors.NodeUnstageNFSShareNotFound = true
+	case "GetLoopBack":
+		f.utilMock.InducedErrors.GetLoopBackDevice = true
+	case "DelLoopBack":
+		f.utilMock.InducedErrors.DeleteLoopBackDevice = true
+	case "UnMountPath":
+		f.utilMock.InducedErrors.Unmount = true
 	default:
 		return fmt.Errorf("Unknown induced error: %s", induced)
 	}
