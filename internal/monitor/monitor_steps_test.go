@@ -74,7 +74,7 @@ type feature struct {
 	//'none', it will validate if it indeed was a successful message.
 	validateLastMessage bool
 	badWatchObject      bool
-	utilMock            *utils.UtilsMock
+	utilMock            *utils.Mock
 }
 
 func (f *feature) aControllerMonitorUnity() error {
@@ -114,7 +114,7 @@ func (f *feature) aControllerMonitor(driver string) error {
 	RemoveDir = f.mockRemoveDir
 	f.badWatchObject = false
 	f.pod2 = nil
-	f.utilMock = new(utils.UtilsMock)
+	f.utilMock = new(utils.Mock)
 	getLoopBackDevice = f.utilMock.GetLoopBackDevice
 	deleteLoopBackDevice = f.utilMock.DeleteLoopBackDevice
 	unMountPath = f.utilMock.Unmount

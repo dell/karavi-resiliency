@@ -26,6 +26,7 @@ var (
 	execCommand = exec.Command
 )
 
+// GetLoopBackDevice get the loopbackdevice for given pv
 func GetLoopBackDevice(pvname string) (string, error) {
 	textBytes, err := execCommand("/usr/sbin/losetup", "-a").Output()
 	if err != nil || string(textBytes) == "" {
@@ -43,6 +44,7 @@ func GetLoopBackDevice(pvname string) (string, error) {
 	return loopDevices[0], nil
 }
 
+// DeleteLoopBackDevice deletes the loopbackdevice from the system
 func DeleteLoopBackDevice(loopDev string) ([]byte, error) {
 	cmd := execCommand("/usr/sbin/losetup", "-d", loopDev)
 	return cmd.Output()

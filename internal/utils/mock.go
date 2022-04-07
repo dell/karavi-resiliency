@@ -15,8 +15,8 @@ import (
 	"errors"
 )
 
-//UtilsMock is a mock structure used for testing
-type UtilsMock struct {
+//Mock is a mock structure used for testing
+type Mock struct {
 	InducedErrors struct {
 		GetLoopBackDevice    bool
 		DeleteLoopBackDevice bool
@@ -25,16 +25,16 @@ type UtilsMock struct {
 	}
 }
 
-// GetLoopBackDevice gets all the volume attachments in the K8S system
-func (mock *UtilsMock) GetLoopBackDevice(pv string) (string, error) {
+// GetLoopBackDevice gets the loopbackdevice for given pv
+func (mock *Mock) GetLoopBackDevice(pv string) (string, error) {
 	if mock.InducedErrors.GetLoopBackDevice {
 		return "", errors.New("induced GetLoopBackDevice error")
 	}
 	return pv, nil
 }
 
-// DeleteLoopBackDevice deletes a volume attachment by name.
-func (mock *UtilsMock) DeleteLoopBackDevice(device string) ([]byte, error) {
+// DeleteLoopBackDevice deletes a loopbackdevice.
+func (mock *Mock) DeleteLoopBackDevice(device string) ([]byte, error) {
 	delSucc := []byte("loopbackdevice")
 	if mock.InducedErrors.DeleteLoopBackDevice {
 		return nil, errors.New("induced DeleteLoopBackDevice error")
@@ -43,7 +43,7 @@ func (mock *UtilsMock) DeleteLoopBackDevice(device string) ([]byte, error) {
 }
 
 // Unmount is a wrapper around syscall.Unmount
-func (mock *UtilsMock) Unmount(devName string, flags int) error {
+func (mock *Mock) Unmount(devName string, flags int) error {
 	if mock.InducedErrors.Unmount {
 		return errors.New("induced Unmount error")
 	}
@@ -51,7 +51,7 @@ func (mock *UtilsMock) Unmount(devName string, flags int) error {
 }
 
 // Creat is a wrapper around syscall.Creat
-func (mock *UtilsMock) Creat(filepath string, flags int) (int, error) {
+func (mock *Mock) Creat(filepath string, flags int) (int, error) {
 	if mock.InducedErrors.Creat {
 		return 1, errors.New("induced Creat error")
 	}
