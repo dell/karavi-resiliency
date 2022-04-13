@@ -12,3 +12,5 @@ general:
     - CVE-2022-0778
     # Disputed CVEs
     - CVE-2019-1010022
+    - CVE-2022-26280
+    - CVE-2018-25032

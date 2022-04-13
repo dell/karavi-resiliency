@@ -1,0 +1,59 @@
+/*
+ * Copyright (c) 2022. Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ */
+
+package utils
+
+import (
+	"errors"
+)
+
+//Mock is a mock structure used for testing
+type Mock struct {
+	InducedErrors struct {
+		GetLoopBackDevice    bool
+		DeleteLoopBackDevice bool
+		Unmount              bool
+		Creat                bool
+	}
+}
+
+// GetLoopBackDevice gets the loopbackdevice for given pv
+func (mock *Mock) GetLoopBackDevice(pv string) (string, error) {
+	if mock.InducedErrors.GetLoopBackDevice {
+		return "", errors.New("induced GetLoopBackDevice error")
+	}
+	return pv, nil
+}
+
+// DeleteLoopBackDevice deletes a loopbackdevice.
+func (mock *Mock) DeleteLoopBackDevice(device string) ([]byte, error) {
+	delSucc := []byte("loopbackdevice")
+	if mock.InducedErrors.DeleteLoopBackDevice {
+		return nil, errors.New("induced DeleteLoopBackDevice error")
+	}
+	return delSucc, nil
+}
+
+// Unmount is a wrapper around syscall.Unmount
+func (mock *Mock) Unmount(devName string, flags int) error {
+	if mock.InducedErrors.Unmount {
+		return errors.New("induced Unmount error")
+	}
+	return nil
+}
+
+// Creat is a wrapper around syscall.Creat
+func (mock *Mock) Creat(filepath string, flags int) (int, error) {
+	if mock.InducedErrors.Creat {
+		return 1, errors.New("induced Creat error")
+	}
+	return 0, nil
+}

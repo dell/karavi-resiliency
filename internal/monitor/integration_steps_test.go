@@ -391,7 +391,7 @@ func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, 
 		deployScript = "insv.sh"
 	case "unity":
 		deployScript = "insu.sh"
-		cleanUpWait = 120 * time.Second
+		cleanUpWait = 60 * time.Second
 	}
 
 	// Set test namespace prefix is based on the driver type.
