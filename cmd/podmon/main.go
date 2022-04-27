@@ -111,6 +111,9 @@ func main() {
 	if strings.Contains(*args.driverPath, "unity") {
 		log.Infof("CSI Driver for Unity")
 		monitor.Driver = new(monitor.UnityDriver)
+	} else if strings.Contains(*args.driverPath, "isilon") { // added condition to create instance of PowerScale driver
+		log.Infof("CSI Driver for PowerScale")
+		monitor.Driver = new(monitor.PScaleDriver)
 	} else {
 		log.Infof("CSI Driver for VxFlex OS")
 		monitor.Driver = new(monitor.VxflexDriver)
