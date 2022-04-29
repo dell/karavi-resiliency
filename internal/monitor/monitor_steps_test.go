@@ -84,6 +84,9 @@ func (f *feature) aControllerMonitorUnity() error {
 func (f *feature) aControllerMonitorVxflex() error {
 	return f.aControllerMonitor("vxflex")
 }
+func (f *feature) aControllerMonitorisilon() error {
+	return f.aControllerMonitor("isilon")
+}
 
 func (f *feature) aControllerMonitor(driver string) error {
 	if f.loghook == nil {
@@ -96,6 +99,8 @@ func (f *feature) aControllerMonitor(driver string) error {
 		Driver = new(VxflexDriver)
 	case "unity":
 		Driver = new(UnityDriver)
+	case "isilon":
+		Driver = new(PScaleDriver)
 	default:
 		Driver = new(VxflexDriver)
 	}
@@ -109,7 +114,7 @@ func (f *feature) aControllerMonitor(driver string) error {
 	getContainers = f.criMock.GetContainerInfo
 	f.podmonMonitor = &PodMonitorType{}
 	f.podmonMonitor.CSIExtensionsPresent = true
-	f.podmonMonitor.DriverPathStr = "csi-vxflexos.dellemc.com"
+	f.podmonMonitor.DriverPathStr = "csi-isilon.dellemc.com"
 	gofsutil.UseMockFS()
 	RemoveDir = f.mockRemoveDir
 	f.badWatchObject = false
@@ -583,7 +588,7 @@ func (f *feature) createPod(node string, nvolumes int, condition, affinity strin
 		pv.Spec.ClaimRef = claimRef
 		log.Infof("claimRef completed")
 		csiPVSource := &v1.CSIPersistentVolumeSource{}
-		csiPVSource.Driver = "csi-vxflexos.dellemc.com"
+		csiPVSource.Driver = "csi-isilon.dellemc.com"
 		csiPVSource.VolumeHandle = fmt.Sprintf("vhandle%d", i)
 		pv.Spec.CSI = csiPVSource
 		// Create a PVC
@@ -925,7 +930,7 @@ func (f *feature) createPodErrorCase(node string, nvolumes int, condition, affin
 		pv.Spec.ClaimRef = claimRef
 		log.Infof("claimRef completed")
 		csiPVSource := &v1.CSIPersistentVolumeSource{}
-		csiPVSource.Driver = "csi-vxflexos.dellemc.com"
+		csiPVSource.Driver = "csi-isilon.dellemc.com"
 		csiPVSource.VolumeHandle = fmt.Sprintf("vhandle%d", i)
 		pv.Spec.CSI = csiPVSource
 		// Create a PVC
@@ -1014,8 +1019,8 @@ func (f *feature) aControllerPodWithPodaffinitylabels() error {
 		fmt.Printf("loghook last-entry %+v\n", f.loghook.LastEntry())
 	}
 	// This test is for error condition of func getPodAffinityLabels
-	// testing only for VxflexosDriver
-	Driver = new(VxflexDriver)
+	// testing only for isilonDriver
+	Driver = new(PScaleDriver)
 
 	f.k8sapiMock = new(k8sapi.K8sMock)
 	f.k8sapiMock.Initialize()
@@ -1027,7 +1032,7 @@ func (f *feature) aControllerPodWithPodaffinitylabels() error {
 	getContainers = f.criMock.GetContainerInfo
 	f.podmonMonitor = &PodMonitorType{}
 	f.podmonMonitor.CSIExtensionsPresent = true
-	f.podmonMonitor.DriverPathStr = "csi-vxflexos.dellemc.com"
+	f.podmonMonitor.DriverPathStr = "csi-isilon.dellemc.com"
 	gofsutil.UseMockFS()
 	RemoveDir = f.mockRemoveDir
 	f.badWatchObject = false
@@ -1052,6 +1057,7 @@ func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^a controller monitor "([^"]*)"$`, f.aControllerMonitor)
 	context.Step(`^a controller monitor unity$`, f.aControllerMonitorUnity)
 	context.Step(`^a controller monitor vxflex$`, f.aControllerMonitorVxflex)
+	context.Step(`^a controller monitor isilon$`, f.aControllerMonitorisilon)
 	//context.Step(`^a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)"$`, f.aPodForNodeWithVolumesCondition)
 	context.Step(`^a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)"$`, f.aPodForNodeWithVolumesCondition)
 	context.Step(`^a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)" affinity "([^"]*)"$`, f.aPodForNodeWithVolumesConditionAffinity)

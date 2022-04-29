@@ -331,7 +331,7 @@ func (mock *K8sMock) GetNode(ctx context.Context, nodeName string) (*v1.Node, er
 	node = &v1.Node{}
 	node.ObjectMeta.Name = nodeName
 	node.ObjectMeta.Annotations = make(map[string]string)
-	node.ObjectMeta.Annotations["csi.volume.kubernetes.io/nodeid"] = "{\"csi-vxflexos.dellemc.com\":\"46C8B5F8-74A3-4B2B-B158-EF845654D38C\"}"
+	node.ObjectMeta.Annotations["csi.volume.kubernetes.io/nodeid"] = "{\"csi-isilon.dellemc.com\":\"46C8B5F8-74A3-4B2B-B158-EF845654D38C\"}"
 	return node, nil
 }
 

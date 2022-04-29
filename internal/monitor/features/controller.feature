@@ -5,7 +5,7 @@ Feature: Controller Monitor
 
   @controller-mode
   Scenario Outline: Test controllerCleanupPod
-    Given a controller monitor "vxflex"
+    Given a controller monitor "isilon"
     And a pod for node <podnode> with <nvol> volumes condition ""
     And I induce error <error>
     When I call controllerCleanupPod for node <node>
@@ -27,7 +27,7 @@ Feature: Controller Monitor
 
   @controller-mode
   Scenario Outline: test controllerModePodHandler
-    Given a controller monitor "vxflex"
+    Given a controller monitor "isilon"
     And a pod for node <podnode> with <nvol> volumes condition <condition> affinity <affin>
     And a node <podnode> with taint <nodetaint>
     And I induce error <error>
@@ -56,7 +56,7 @@ Feature: Controller Monitor
 
   @controller-mode
   Scenario Outline: test controllerModePodHandler skipping validate volume with a CSIExtensionNotPresent error
-    Given a controller monitor "vxflex"
+    Given a controller monitor "isilon"
     And I induce error "CSIExtensionsNotPresent"
     And a pod for node <podnode> with <nvol> volumes condition <condition> affinity <affin>
     And a node <podnode> with taint <nodetaint>
@@ -73,7 +73,7 @@ Feature: Controller Monitor
 
   @controller-mode
   Scenario Outline: test controllerModePodHandler with pre-existing call to controllerModePodHandler"
-    Given a controller monitor "vxflex"
+    Given a controller monitor "isilon"
     And I induce error "CSIExtensionsNotPresent"
     And a pod for node <podnode> with <nvol> volumes condition "Ready" affinity <affin>
     And I call controllerModePodHandler with event "Update"
@@ -104,7 +104,7 @@ Feature: Controller Monitor
 
   @controller-mode
   Scenario Outline: test ArrayConnectivityMonitor
-    Given a controller monitor "vxflex"
+    Given a controller monitor "isilon"
     And a pod for node <podnode> with <nvol> volumes condition <condition> affinity <affin>
     And I induce error <error>
     When I call controllerModePodHandler with event "Updated"
@@ -134,3 +134,4 @@ Feature: Controller Monitor
     | "node1" | 2    | "Ready"       | "true"  | "none"    | "none"        | "required"      | "false" |
     | "node1" | 2    | "Ready"       | "true"  | "none"    | "none"        | "labelselector" | "false" |
     | "node1" | 2    | "Ready"       | "true"  | "none"    | "none"        | "operator"      | "false" |
+
