@@ -198,8 +198,12 @@ func (d *PScaleDriver) GetDriverName() string {
 
 //GetDriverMountDir returns the PowerScale private mount directory.
 func (d *PScaleDriver) GetDriverMountDir(volumeHandle, pvName, podUUID string) string {
-	privateMountDir := fmt.Sprintf("/var/lib/kubelet/pods/%s/volumes/kubernetes.io~csi/%s/mount", podUUID, pvName)
-	log.Debugf("privateMountDir: %s", privateMountDir)
+	privateMountDir := os.Getenv("X_CSI_PRIVATE_MOUNT_DIR")
+	if privateMountDir == "" {
+		privateMountDir = "/var/lib/kubelet"
+	}
+	privateMountDir = fmt.Sprintf("%s/pods/%s/volumes/kubernetes.io~csi/%s/mount", privateMountDir, podUUID, pvName)
+	log.Infof("privateMountDir: %s", privateMountDir)
 	return privateMountDir
 }
 
