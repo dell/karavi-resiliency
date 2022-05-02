@@ -95,6 +95,7 @@ const (
 	UnprotectedPodsNS   = "unlabeled"
 	PowerflexNS         = "pmtv"
 	UnityNS             = "pmtu"
+	PowerScaleNS        = "pmti"
 )
 
 // Used for stopping the test from continuing
@@ -392,6 +393,9 @@ func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, 
 	case "unity":
 		deployScript = "insu.sh"
 		cleanUpWait = 60 * time.Second
+	case "isilon":
+		deployScript = "insi.sh"
+		cleanUpWait = 60 * time.Second
 	}
 
 	// Set test namespace prefix is based on the driver type.
@@ -405,6 +409,9 @@ func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, 
 		case "unity":
 			i.testNamespacePrefix[UnityNS] = true
 			prefix = UnityNS
+		case "isilon":
+			i.testNamespacePrefix[PowerScaleNS] = true
+			prefix = PowerScaleNS
 		}
 	} else {
 		i.testNamespacePrefix[UnprotectedPodsNS] = true
@@ -1563,3 +1570,4 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^wait (\d+) to see there are no taints$`, i.theTaintsForTheFailedNodesAreRemovedWithinSeconds)
 	context.Step(`^labeled pods are on a different node$`, i.labeledPodsChangedNodes)
 }
+
