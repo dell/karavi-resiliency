@@ -145,3 +145,21 @@ Feature: Controller Monitor
 
       | "node1"  | "podmon-nosched" | 3         | "GetNodeWithTimeout" | "6"          | "Cleanup of pods complete"          |
       | "node1"  | "podmon-noexec"  | 3         | "GetNodeWithTimeout" | "6"          | "API connectivity restored to node" |
+
+  @node-mode
+  Scenario Outline: Testing monitor.nodeModeCleanupPods with privateMountDir
+    Given a controller monitor <driver>
+    And node <nodeName> env vars set
+    And I have a <pods> pods for node <nodeName> with <vols> volumes <devs> devices condition ""
+    And the controller cleaned up <cleaned> pods for node <nodeName>
+    And I induce error <k8apiErr>
+    And I induce error <unMountErr>
+    And I induce error <rmDirErr>
+    And I induce error <taintErr>
+    When I call nodeModeCleanupPods for node <nodeName> with empty private mount
+    And the last log message contains <errorMsg>
+
+    Examples:
+      | driver | nodeName | pods | vols | devs | cleaned | unMountErr | rmDirErr    | taintErr       | k8apiErr              | errorMsg                           |
+      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "none"                | "none"                             |
+      | isilon | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "none"                | "none"                             |

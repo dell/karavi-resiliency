@@ -498,6 +498,16 @@ func (f *feature) iCallNodeModeCleanupPodsForNode(nodeName string) error {
 	return nil
 }
 
+func (f *feature) iCallNodeModeCleanupPodsForNodeWithEmptyPrivateMount(nodeName string) error {
+	f.validateLastMessage = true
+	node, _ := f.k8sapiMock.GetNode(context.Background(), nodeName)
+	f.node = node
+	os.Setenv("X_CSI_PRIVATE_MOUNT_DIR", "")
+	f.podmonMonitor.nodeModeCleanupPods(node)
+
+	return nil
+}
+
 func (f *feature) createPod(node string, nvolumes int, condition, affinity string) *v1.Pod {
 	pod := &v1.Pod{}
 	pod.ObjectMeta.UID = uuid.NewUUID()
@@ -1073,6 +1083,7 @@ func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^I call ArrayConnectivityMonitor$`, f.iCallArrayConnectivityMonitor)
 	context.Step(`^I call nodeModePodHandler for node "([^"]*)" with event "([^"]*)"$`, f.iCallNodeModePodHandlerForNodeWithEvent)
 	context.Step(`^I call nodeModeCleanupPods for node "([^"]*)"$`, f.iCallNodeModeCleanupPodsForNode)
+	context.Step(`^I call nodeModeCleanupPods for node "([^"]*)" with empty private mount$`, f.iCallNodeModeCleanupPodsForNodeWithEmptyPrivateMount)
 	context.Step(`^I expect podMonitor to have (\d+) mounts$`, f.iExpectPodMonitorToHaveMounts)
 	context.Step(`^I have a (\d+) pods for node "([^"]*)" with (\d+) volumes (\d+) devices condition "([^"]*)"$`, f.iHaveAPodsForNodeWithVolumesDevicesCondition)
 	context.Step(`^the controller cleaned up (\d+) pods for node "([^"]*)"$`, f.theControllerCleanedUpPodsForNode)
