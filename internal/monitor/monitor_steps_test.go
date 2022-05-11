@@ -85,6 +85,10 @@ func (f *feature) aControllerMonitorVxflex() error {
 	return f.aControllerMonitor("vxflex")
 }
 
+func (f *feature) aControllerMonitorisilon() error {
+	return f.aControllerMonitor("isilon")
+}
+
 func (f *feature) aControllerMonitor(driver string) error {
 	if f.loghook == nil {
 		f.loghook = logtest.NewGlobal()
@@ -96,6 +100,8 @@ func (f *feature) aControllerMonitor(driver string) error {
 		Driver = new(VxflexDriver)
 	case "unity":
 		Driver = new(UnityDriver)
+	case "isilon":
+		Driver = new(PScaleDriver)
 	default:
 		Driver = new(VxflexDriver)
 	}
@@ -487,6 +493,16 @@ func (f *feature) iCallNodeModeCleanupPodsForNode(nodeName string) error {
 	node, _ := f.k8sapiMock.GetNode(context.Background(), nodeName)
 	f.node = node
 
+	f.podmonMonitor.nodeModeCleanupPods(node)
+
+	return nil
+}
+
+func (f *feature) iCallNodeModeCleanupPodsForNodeWithEmptyPrivateMount(nodeName string) error {
+	f.validateLastMessage = true
+	node, _ := f.k8sapiMock.GetNode(context.Background(), nodeName)
+	f.node = node
+	os.Setenv("X_CSI_PRIVATE_MOUNT_DIR", "")
 	f.podmonMonitor.nodeModeCleanupPods(node)
 
 	return nil
@@ -1052,6 +1068,7 @@ func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^a controller monitor "([^"]*)"$`, f.aControllerMonitor)
 	context.Step(`^a controller monitor unity$`, f.aControllerMonitorUnity)
 	context.Step(`^a controller monitor vxflex$`, f.aControllerMonitorVxflex)
+	context.Step(`^a controller monitor isilon$`, f.aControllerMonitorisilon)
 	//context.Step(`^a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)"$`, f.aPodForNodeWithVolumesCondition)
 	context.Step(`^a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)"$`, f.aPodForNodeWithVolumesCondition)
 	context.Step(`^a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)" affinity "([^"]*)"$`, f.aPodForNodeWithVolumesConditionAffinity)
@@ -1066,6 +1083,7 @@ func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^I call ArrayConnectivityMonitor$`, f.iCallArrayConnectivityMonitor)
 	context.Step(`^I call nodeModePodHandler for node "([^"]*)" with event "([^"]*)"$`, f.iCallNodeModePodHandlerForNodeWithEvent)
 	context.Step(`^I call nodeModeCleanupPods for node "([^"]*)"$`, f.iCallNodeModeCleanupPodsForNode)
+	context.Step(`^I call nodeModeCleanupPods for node "([^"]*)" with empty private mount$`, f.iCallNodeModeCleanupPodsForNodeWithEmptyPrivateMount)
 	context.Step(`^I expect podMonitor to have (\d+) mounts$`, f.iExpectPodMonitorToHaveMounts)
 	context.Step(`^I have a (\d+) pods for node "([^"]*)" with (\d+) volumes (\d+) devices condition "([^"]*)"$`, f.iHaveAPodsForNodeWithVolumesDevicesCondition)
 	context.Step(`^the controller cleaned up (\d+) pods for node "([^"]*)"$`, f.theControllerCleanedUpPodsForNode)
