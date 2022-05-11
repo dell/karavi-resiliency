@@ -186,3 +186,53 @@ var (
 	deleteLoopBackDevice = utils.DeleteLoopBackDevice
 	unMountPath          = utils.Unmount
 )
+
+//PScaleDriver provides a Driver instance for the PowerScale architecture.
+type PScaleDriver struct {
+}
+
+//GetDriverName returns the driver name string
+func (d *PScaleDriver) GetDriverName() string {
+	return "isilon"
+}
+
+//GetDriverMountDir returns the PowerScale private mount directory.
+func (d *PScaleDriver) GetDriverMountDir(volumeHandle, pvName, podUUID string) string {
+	privateMountDir := os.Getenv("X_CSI_PRIVATE_MOUNT_DIR")
+	if privateMountDir == "" {
+		privateMountDir = "/var/lib/kubelet"
+	}
+	privateMountDir = fmt.Sprintf("%s/pods/%s/volumes/kubernetes.io~csi/%s/mount", privateMountDir, podUUID, pvName)
+	log.Infof("privateMountDir: %s", privateMountDir)
+	return privateMountDir
+}
+
+// GetDriverBlockDev Returns the block device used for a PV by a pod.
+func (d *PScaleDriver) GetDriverBlockDev(volumeHandle, pvName, podUUID string) string {
+	return ""
+}
+
+// GetStagingMountDir Returns the staging directory used by NodeUnstage for a mount device.
+func (d *PScaleDriver) GetStagingMountDir(volumeHandle, pvName string) string {
+	return ""
+}
+
+// GetStagingBlockDir Returns the staging directory used by NodeUnstage for a block device.
+func (d *PScaleDriver) GetStagingBlockDir(volumeHandle, pvName string) string {
+	return ""
+}
+
+// NodeUnpublishExcludedError filters out NodeUnpublish errors that should be excluded
+func (d *PScaleDriver) NodeUnpublishExcludedError(err error) bool {
+	return false
+}
+
+// NodeUnstageExcludedError filters out NodeStage errors that should be excluded
+func (d *PScaleDriver) NodeUnstageExcludedError(err error) bool {
+	return false
+}
+
+// FinalCleanup handles any driver specific final cleanup.
+func (d *PScaleDriver) FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID string) error {
+	return nil
+}

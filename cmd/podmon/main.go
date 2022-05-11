@@ -108,13 +108,19 @@ func main() {
 		return
 	}
 	log.Infof("Running in %s mode", monitor.PodMonitor.Mode)
-	if strings.Contains(*args.driverPath, "unity") {
+	switch {
+	case strings.Contains(*args.driverPath, "unity"):
 		log.Infof("CSI Driver for Unity")
 		monitor.Driver = new(monitor.UnityDriver)
-	} else {
+	case strings.Contains(*args.driverPath, "isilon"):
+		// added condition to create instance of PowerScale driver
+		log.Infof("CSI Driver for PowerScale")
+		monitor.Driver = new(monitor.PScaleDriver)
+	default:
 		log.Infof("CSI Driver for VxFlex OS")
 		monitor.Driver = new(monitor.VxflexDriver)
 	}
+
 	monitor.PodmonTaintKey = fmt.Sprintf("%s.%s", monitor.Driver.GetDriverName(), monitor.PodmonTaintKeySuffix)
 	monitor.SetArrayConnectivityPollRate(time.Duration(*args.arrayConnectivityPollRate) * time.Second)
 	monitor.ArrayConnectivityConnectionLossThreshold = *args.arrayConnectivityConnectionLossThreshold
