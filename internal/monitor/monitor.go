@@ -14,17 +14,18 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"podmon/internal/csiapi"
+	"podmon/internal/k8sapi"
+	"strings"
+	"sync"
+	"time"
+
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
-	"podmon/internal/csiapi"
-	"podmon/internal/k8sapi"
-	"strings"
-	"sync"
-	"time"
 )
 
 const (
@@ -35,11 +36,15 @@ const (
 	crashLoopBackOffReason  = "CrashLoopBackOff"
 	// PodmonTaintKeySuffix is used for creating a driver specific podmon taint key
 	PodmonTaintKeySuffix = "podmon.storage.dell.com"
+	// PodmonDriverPodTaintKeySuffix is used for creating a driver node pod specific podmon taint key
+	PodmonDriverPodTaintKeySuffix = "storage.dell.com"
 )
 
 var (
 	// PodmonTaintKey is the key for this driver's podmon taint.
 	PodmonTaintKey = ""
+	// PodmonDriverPodTaintKey is the key for this driver's node pod taint.
+	PodmonDriverPodTaintKey = ""
 	//ShortTimeout used for initial try
 	ShortTimeout = 10 * time.Second
 	//MediumTimeout is a wait-backoff after the ShortTimeout
@@ -174,6 +179,7 @@ func podMonitorHandler(eventType watch.EventType, object interface{}) error {
 	pm := &PodMonitor
 	switch PodMonitor.Mode {
 	case "controller":
+		// driver-namespace == pod.spec.namespace call different function.
 		if err := pm.controllerModePodHandler(pod, eventType); err != nil {
 			return err
 		}
@@ -196,6 +202,7 @@ func podMonitorHandler(eventType watch.EventType, object interface{}) error {
 func StartPodMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, labelValue string, restartDelay time.Duration) {
 	log.Infof("attempting to start PodMonitor\n")
 	PodmonTaintKey = fmt.Sprintf("%s.%s", Driver.GetDriverName(), PodmonTaintKeySuffix)
+	PodmonDriverPodTaintKey = fmt.Sprintf("offline.%s.%s", Driver.GetDriverName(), PodmonDriverPodTaintKeySuffix)
 	podMonitor := Monitor{Client: client}
 	listOptions := metav1.ListOptions{
 		Watch: true,

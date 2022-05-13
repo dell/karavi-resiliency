@@ -15,12 +15,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	csiext "github.com/dell/dell-csi-extensions/podmon"
-	"github.com/fsnotify/fsnotify"
-	"github.com/kubernetes-csi/csi-lib-utils/leaderelection"
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
-	"google.golang.org/grpc"
 	"podmon/internal/csiapi"
 	"podmon/internal/k8sapi"
 	"podmon/internal/monitor"
@@ -28,6 +22,13 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	csiext "github.com/dell/dell-csi-extensions/podmon"
+	"github.com/fsnotify/fsnotify"
+	"github.com/kubernetes-csi/csi-lib-utils/leaderelection"
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
+	"google.golang.org/grpc"
 )
 
 type leaderElection interface {
@@ -56,6 +57,8 @@ const (
 	podmonNodeLogFormat                            = "PODMON_NODE_LOG_FORMAT"
 	podmonNodeLogLevel                             = "PODMON_NODE_LOG_LEVEL"
 	podmonSkipArrayConnectionValidation            = "PODMON_SKIP_ARRAY_CONNECTION_VALIDATION"
+	driverPodLabelKey                              = "driver.dellemc.com"
+	driverPodLabelValue                            = "dell-storage"
 )
 
 //K8sAPI is reference to the internal Kubernetes wrapper client
@@ -165,6 +168,9 @@ func main() {
 
 		// monitor the pods with the designated label key/value
 		go StartPodMonitorFn(K8sAPI, k8sapi.K8sClient.Client, *args.labelKey, *args.labelValue, monitor.MonitorRestartTimeDelay)
+
+		// monitor the driver node pods
+		go StartPodMonitorFn(K8sAPI, k8sapi.K8sClient.Client, *args.driverPodLabelKey, *args.driverPodLabelValue, monitor.MonitorRestartTimeDelay)
 		for {
 			log.Printf("podmon alive...")
 			if stop := PodMonWait(); stop {
@@ -196,6 +202,8 @@ type PodmonArgs struct {
 	skipArrayConnectionValidation            *bool   // skip the validation that array connectivity has been lost
 	driverPath                               *string // driverPath to use for parsing csi.volume.kubernetes.io/nodeid annotation
 	driverConfigParamsFile                   *string // Set the location of the driver ConfigMap
+	driverPodLabelKey                        *string // driverPodLabelKey for annotating driver node pods to be watched/processed
+	driverPodLabelValue                      *string // driverPodLabelValue value for annotating driver node pods to be watched/processed
 }
 
 var args PodmonArgs
@@ -214,6 +222,8 @@ func getArgs() {
 		args.skipArrayConnectionValidation = flag.Bool("skipArrayConnectionValidation", skipArrayConnectionValidation, "skip validation of array connectivity loss before killing pod")
 		args.driverPath = flag.String("driverPath", driverPath, "driverPath to use for parsing csi.volume.kubernetes.io/nodeid annotation")
 		args.driverConfigParamsFile = flag.String("driver-config-params", driverConfigParamsDefault, "Full path to the YAML file containing the driver ConfigMap")
+		args.driverPodLabelKey = flag.String("driverPodLabelKey", driverPodLabelKey, "label key for pods or other objects to be monitored")
+		args.driverPodLabelValue = flag.String("driverPodLabelValue", driverPodLabelValue, "label value for pods or other objects to be monitored")
 	})
 
 	// -- For testing purposes. Re-default the values since main will be called multiple times --
@@ -228,6 +238,8 @@ func getArgs() {
 	*args.skipArrayConnectionValidation = skipArrayConnectionValidation
 	*args.driverPath = driverPath
 	*args.driverConfigParamsFile = driverConfigParamsDefault
+	*args.driverPodLabelKey = driverPodLabelKey
+	*args.driverPodLabelValue = driverPodLabelValue
 	flag.Parse()
 }
 
