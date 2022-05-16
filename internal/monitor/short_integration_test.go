@@ -36,7 +36,7 @@ func TestPowerFlexShortCheck(t *testing.T) {
 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
 
 	godogOptions := godog.Options{
-		Format:        "pretty,junit:powerflex-short-check-junit-report.xml,cucumber:powerflex-short-check-cucumber-report.json",
+		Format:        "pretty,junit:powerflex-short-check-junit-report.xml",
 		Paths:         []string{"features"},
 		Tags:          "powerflex-int-setup-check",
 		StopOnFailure: stopOnFailure,
@@ -68,7 +68,7 @@ func TestUnityShortCheck(t *testing.T) {
 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
 
 	godogOptions := godog.Options{
-		Format:        "pretty,junit:unity-short-check-junit-report.xml,cucumber:unity-short-check-cucumber-report.json",
+		Format:        "pretty,junit:unity-short-check-junit-report.xml",
 		Paths:         []string{"features"},
 		Tags:          "unity-int-setup-check",
 		StopOnFailure: stopOnFailure,
@@ -108,7 +108,7 @@ func TestPowerFlexShortIntegration(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        "pretty,junit:powerflex-short-integration-junit-report.xml,cucumber:powerflex-short-integration-cucumber-report.json",
+		Format:        "pretty,junit:powerflex-short-integration-junit-report.xml",
 		Paths:         []string{"features"},
 		Tags:          "powerflex-short-integration",
 		StopOnFailure: stopOnFailure,
@@ -146,7 +146,7 @@ func TestUnityShortIntegration(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        "pretty,junit:unity-short-integration-junit-report.xml,cucumber:unity-short-integration-cucumber-report.json",
+		Format:        "pretty,junit:unity-short-integration-junit-report.xml",
 		Paths:         []string{"features"},
 		Tags:          "unity-short-integration",
 		StopOnFailure: stopOnFailure,
