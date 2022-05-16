@@ -131,6 +131,8 @@ Feature: Integration Test
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
       # Small number of pods, increasing number of vols and devs
       | ""         | "1-1"       | "1-1" | "0-0" | "isilon"    | "isilon" | "one-third" | "zero"  | "interfacedown" | 600      | 900        | 900     | 900           |
+      | ""         | "3-5"       | "1-1" | "0-0" | "isilon"    | "isilon" | "one-third" | "zero"  | "interfacedown" | 600      | 900        | 900     | 900           |
+
 
   @unity-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
@@ -195,6 +197,27 @@ Feature: Integration Test
       | ""         | "1-2"       | "1-1" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
       # Slightly more pods, increasing number of vols and devs
       | ""         | "3-5"       | "2-2" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
+
+
+@powerscale-integration
+  Scenario Outline: Basic node failover testing using test StatefulSet pods (node kubelet down)
+    Given a kubernetes <kubeConfig>
+    And cluster is clean of test pods
+    And wait <nodeCleanSecs> to see there are no taints
+    And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
+    Then validate that all pods are running within <deploySecs> seconds
+    When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
+    Then validate that all pods are running within <runSecs> seconds
+    And labeled pods are on a different node
+    And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
+    Then finally cleanup everything
+
+    Examples:
+      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure       | failSecs | deploySecs | runSecs | nodeCleanSecs |
+      # Small number of pods, increasing number of vols and devs
+      | ""         | "1-2"       | "1-1" | "0-0" | "isilon"    | "isilon"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
+      # Slightly more pods, increasing number of vols and devs
+      | ""         | "3-5"       | "1-1" | "0-0" | "isilon"    | "isilon"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
 
   @powerflex-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node slow reboots)
@@ -322,6 +345,24 @@ Feature: Integration Test
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | nodeCleanSecs |
       | ""         | "1-2"       | "1-1" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "interfacedown" | 600      | 900        | 900           |
 #      | ""         | "1-2"       | "1-1" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "reboot"        | 240      | 900        | 900           |
+
+
+  @powerscale-integration
+  Scenario Outline: Deploy pods when there are failed nodes already
+    Given a kubernetes <kubeConfig>
+    And cluster is clean of test pods
+    And wait <nodeCleanSecs> to see there are no taints
+    When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
+    And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
+    Then validate that all pods are running within <deploySecs> seconds
+    And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
+    Then finally cleanup everything
+    And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
+    Then validate that all pods are running within <deploySecs> seconds
+    Then finally cleanup everything
+    Examples:
+      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure         | failSecs | deploySecs | nodeCleanSecs |
+      | ""         | "1-2"       | "1-1" | "0-0" | "isilon"   | "isilom"      | "one-third" | "zero"  | "interfacedown" | 600      | 900        | 900           |
 
   @powerflex-integration
   Scenario Outline: Short failure window tests
