@@ -153,5 +153,3 @@ Feature: Controller Monitor
       | "node1" | "Ready"       | "none"          | "Updated" |
       | "node1" | "NotReady"    | "GetPod"        | "Updated" |
       | "node1" | "NotReady"    | "GetNode"       | "Updated" |
-
- 
