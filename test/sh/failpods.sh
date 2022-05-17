@@ -20,15 +20,20 @@ for param in $*; do
     namespace=$1
     shift
     ;;
+  "--timeoutseconds")
+    shift
+    timeoutseconds=$1
+    shift
+    ;;
   "--help")
     shift
-    echo "parameters: --ns driver_namespace"
+    echo "parameters: --ns driver_namespace [--timeoutseconds value]"
     exit
     ;;
   esac
 done
 
-[ "$namespace" = "" ] && echo "Required argument: --ns driver_namespace" && exit 2
+[ "$namespace" = "" ] && echo "Required argument: --ns driver_namespace --timeoutseconds value" && exit 2
 
 # nodeList returns a list of nodes
 nodeList() {
@@ -50,7 +55,7 @@ getWorker(){
 getRunningPods() {
     node=$(getWorker)
     # kubectl get pods -A -o wide | grep $node | grep $namespace | grep Running | awk '{ print $2 }'
-    kubectl get pods -A -o wide | grep $node | grep $namespace | awk '{ print $2 }'
+    kubectl get pods -A -o wide | grep $node | grep $namespace | grep -v 'controller' | awk '{ print $2 }'
 }
 
 # getDriverImage returns the initial driver image before its patched
@@ -58,7 +63,7 @@ getDriverImage() {
     ns=$namespace
     pods=$(getRunningPods)
     for pod in $pods; do
-        kubectl get pod $pod -n $ns -o custom-columns=IMAGE:.spec.containers[0].image | awk 'FNR == 2 {print}'
+        kubectl get pod $pod -n $ns -o custom-columns=IMAGE:.spec.containers[1].image | awk 'FNR == 2 {print}'
     done
 }
 
@@ -73,21 +78,8 @@ failPodsInNS() {
     done
 }
 
-# verify checks that the pods in the specified namespace are running
-verify() {
-    node=$(getWorker)
-    ns=$namespace
-    podStatus=$(kubectl get pods -n $ns -o wide | grep $node | grep Running | grep -v NAME | wc -l)
-    if [ $podStatus -gt 1 ]; then
-		echo "some applications not running- terminating test"
-	else 
-        return 0
-    fi
-}
-
 process_pods() {
     echo "Failing CSI driver pod for a single worker node..."
-    timesec=10
     initialImage=$(getDriverImage)
 
     # returns a list of nodes
@@ -107,8 +99,8 @@ process_pods() {
         failPodsInNS $ns
 	done
 
-    echo "Fail time in seconds:" $timesec
-    sleep $timesec
+    echo "Fail time in seconds:" $timeoutseconds
+    sleep $timeoutseconds
 
     echo "Begin patching pods in namespace $ns"
     for ns in $namespaces; do
@@ -120,7 +112,14 @@ process_pods() {
     done 
 
     echo "Waiting for $pods to come back"  
-    verify
+    for ns in $namespaces; do 
+        node=$(getWorker)
+        ns=$namespace
+        podStatus=$(kubectl get pods -n $ns -o wide | grep $node | grep Running | grep -v NAME | wc -l)
+        if [ $podStatus -gt 1 ]; then
+		    sleep 60
+        fi
+    done
     echo "Fail test complete"
 }
 
