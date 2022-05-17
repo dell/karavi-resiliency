@@ -353,10 +353,6 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 			log.Errorf("Failed to remove taint against %s node: %v", node.ObjectMeta.Name, err)
 			return false
 		}
-		if err := taintNode(node.ObjectMeta.Name, PodmonDriverPodTaintKey, true); err != nil {
-			log.Errorf("Failed to remove taint against %s node: %v", node.ObjectMeta.Name, err)
-			return false
-		}
 		log.Infof("Cleanup of pods complete: %v", podKeys)
 		return true
 	}
