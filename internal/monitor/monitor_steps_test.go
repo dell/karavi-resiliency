@@ -1047,6 +1047,40 @@ func (f *feature) iCallGetPodAffinityLabels() error {
 	return nil
 }
 
+func (f *feature) aControllerMonitorNodePod(arg1 string) error {
+	return godog.ErrPending
+}
+
+func (f *feature) aDriverPodForNodeWithCondition(node, condition string) error {
+	pod := f.createPod(node, 1, condition, "false")
+	f.pod = pod
+	f.k8sapiMock.AddPod(pod)
+	return nil
+}
+
+func (f *feature) iCallControllerModeDriverPodHandlerWithEvent(event string) error {
+	var eventType watch.EventType
+	switch event {
+	case "Added":
+		eventType = watch.Added
+	case "Modified":
+		eventType = watch.Modified
+	case "Deleted":
+		eventType = watch.Deleted
+	default:
+		eventType = watch.Error
+	}
+	f.err = f.podmonMonitor.controllerModeDriverPodHandler(f.pod, eventType)
+	if f.pod2 != nil {
+		f.podmonMonitor.controllerModeDriverPodHandler(f.pod2, eventType)
+	}
+	return nil
+}
+
+func (f *feature) theIsTainted(node string) error {
+	return nil
+}
+
 func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	f := &feature{}
 	context.Step(`^a controller monitor "([^"]*)"$`, f.aControllerMonitor)
@@ -1085,4 +1119,7 @@ func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^a controller pod with podaffinitylabels$`, f.aControllerPodWithPodaffinitylabels)
 	context.Step(`^create a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)" affinity "([^"]*)" errorcase "([^"]*)"$`, f.createAPodForNodeWithVolumesConditionAffinityErrorcase)
 	context.Step(`^I call getPodAffinityLabels$`, f.iCallGetPodAffinityLabels)
+	context.Step(`^a driver pod for node "([^"]*)" with condition "([^"]*)"$`, f.aDriverPodForNodeWithCondition)
+	context.Step(`^I call controllerModeDriverPodHandler with event "([^"]*)"$`, f.iCallControllerModeDriverPodHandlerWithEvent)
+	context.Step(`^the "([^"]*)" is tainted$`, f.theIsTainted)
 }
