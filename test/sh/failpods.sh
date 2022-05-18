@@ -37,7 +37,7 @@ done
 
 # nodeList returns a list of nodes
 nodeList() {
-	kubectl get nodes -A | grep -v 'mast.r'  | grep -v NAME | awk '{ print $1 }'
+	kubectl get nodes -A | grep -v -E 'mast.r|control-plane'  | grep -v NAME | awk '{ print $1 }'
 }
 
 # getNumOfPods returns the number of pods on a node $1 for a specific namespace
@@ -48,7 +48,7 @@ getNumOfPods() {
 
 # getWorker returns the first worker node that we are targeting
 getWorker(){
-    kubectl get nodes -A | grep -v 'mast.r'  | grep -v NAME | awk 'NR==1{ print $1 }'
+    kubectl get nodes -A | grep -v -E 'mast.r|control-plane'  | grep -v NAME | awk 'NR==1{ print $1 }'
 }
 
 # getRunningPods returns the names of the running pods that are on the targeted worker node for a specific namespace
