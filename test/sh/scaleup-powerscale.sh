@@ -26,7 +26,7 @@ wait_on_running() {
 
 date
 
-BOUNCEIPTIME=300
+BOUNCEIPTIME=240
 instances="4"
 if [ $instances -eq $MAXPODS ]; then
 cd ../podmontest; sh insi.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
