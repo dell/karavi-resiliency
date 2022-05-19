@@ -298,7 +298,6 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 
 		// Check containers to make sure they're not running. This uses the containerInfos map obtained above.
 		pod := podInfo.Pod
-		namespace, name := splitPodKey(podKey)
 		for _, containerStatus := range pod.Status.ContainerStatuses {
 			containerID := containerStatus.ContainerID
 			cid := strings.Split(containerID, "//")
@@ -314,6 +313,7 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 		}
 
 		// Check to make sure the pod has been deleted, or still exists
+		namespace, name := splitPodKey(podKey)
 		currentPod, err := K8sAPI.GetPod(ctx, namespace, name)
 		if err == nil {
 			// We retrieve a pod for the namespace/name... see if same one

@@ -89,18 +89,7 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 			taintpodmon := nodeHasTaint(node, PodmonTaintKey, v1.TaintEffectNoSchedule) || nodeHasTaint(node, PodmonDriverPodTaintKey, v1.TaintEffectNoSchedule)
 
 			// Determine pod status
-			ready := false
-			initialized := true
-			conditions := pod.Status.Conditions
-			for _, condition := range conditions {
-				log.Debugf("pod condition.Type: %s %v", condition.Type, condition.Status)
-				if condition.Type == podReadyCondition {
-					ready = condition.Status == v1.ConditionTrue
-				}
-				if condition.Type == podInitializedCondition {
-					initialized = condition.Status == v1.ConditionTrue
-				}
-			}
+			ready, initialized := podStatus(pod.Status.Conditions)
 
 			// Loop for containerStatus for CrashLoopBackOff
 			crashLoopBackOff := false
@@ -650,12 +639,6 @@ func (cm *PodMonitorType) controllerModeDriverPodHandler(pod *v1.Pod, eventType 
 
 	// Lock so that only one thread is processing pod at a time
 	podKey := getPodKey(pod)
-	// Clean up pod key to PodInfo and CrashLoopBackOffCount mappings if deleting.
-	if eventType == watch.Deleted {
-		cm.PodKeyToControllerPodInfo.Delete(podKey)
-		cm.PodKeyToCrashLoopBackOffCount.Delete(podKey)
-		return nil
-	}
 	// Single thread processing of this pod
 	Lock(podKey, pod, LockSleepTimeDelay)
 	defer Unlock(podKey)
@@ -674,27 +657,17 @@ func (cm *PodMonitorType) controllerModeDriverPodHandler(pod *v1.Pod, eventType 
 			log.Errorf("GetNode failed: %s: %s", pod.Spec.NodeName, err)
 		} else {
 			// Determine pod status
-			ready := false
-			initialized := true
-			conditions := pod.Status.Conditions
-			for _, condition := range conditions {
-				log.Debugf("pod condition.Type: %s %v", condition.Type, condition.Status)
-				if condition.Type == podReadyCondition {
-					ready = condition.Status == v1.ConditionTrue
-				}
-				if condition.Type == podInitializedCondition {
-					initialized = condition.Status == v1.ConditionTrue
-				}
-			}
+			ready, initialized := podStatus(pod.Status.Conditions)
 
 			if !ready {
-				log.Infof("Tainting node %s because of driver node pod down", node.ObjectMeta.Name)
+				log.Infof("Taint node %s with %s driver node pod down", node.ObjectMeta.Name, PodmonDriverPodTaintKey)
 				err := taintNode(node.ObjectMeta.Name, PodmonDriverPodTaintKey, false)
 				if err != nil {
 					log.Errorf("Unable to taint node: %s: %s", node.ObjectMeta.Name, err.Error())
 				}
 			} else {
 				hasTaint := nodeHasTaint(node, PodmonDriverPodTaintKey, v1.TaintEffectNoSchedule)
+				log.Infof("Removing taint from node %s with %s", node.ObjectMeta.Name, PodmonDriverPodTaintKey)
 				//remove taint
 				if hasTaint {
 					err := taintNode(node.ObjectMeta.Name, PodmonDriverPodTaintKey, true)
@@ -710,4 +683,20 @@ func (cm *PodMonitorType) controllerModeDriverPodHandler(pod *v1.Pod, eventType 
 	}
 
 	return nil
+}
+
+// podStatus determine pod status
+func podStatus(conditions []v1.PodCondition) (bool, bool) {
+	ready := false
+	initialized := true
+	for _, condition := range conditions {
+		log.Debugf("pod condition.Type: %s %v", condition.Type, condition.Status)
+		if condition.Type == podReadyCondition {
+			ready = condition.Status == v1.ConditionTrue
+		}
+		if condition.Type == podInitializedCondition {
+			initialized = condition.Status == v1.ConditionTrue
+		}
+	}
+	return ready, initialized
 }

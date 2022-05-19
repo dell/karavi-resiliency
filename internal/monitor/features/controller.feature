@@ -140,16 +140,17 @@ Feature: Controller Monitor
     Given a controller monitor "vxflex"
     And a driver pod for node <podnode> with condition <condition>
     And I induce error <error>
+    And I taint the node <podnode> with <taint>
     When I call controllerModeDriverPodHandler with event <eventtype>
-    And the <podnode> is tainted
+    And the node <podnode> is tainted <tainted>
 
     Examples:
-      | podnode | condition     |  error          | eventtype |
-      | "node1" | "Initialized" | "none"          | "Updated" |
-      | "node1" | "NotReady"    | "none"          | "Updated" |
-      | "node1" | "NotReady"    | "none"          | "Updated" |
-      | "node1" | "CrashLoop"   | "none"          | "Updated" |
-      | "node1" | "NotReady"    | "none"          | "Deleted" |
-      | "node1" | "Ready"       | "none"          | "Updated" |
-      | "node1" | "NotReady"    | "GetPod"        | "Updated" |
-      | "node1" | "NotReady"    | "GetNode"       | "Updated" |
+      | podnode | condition     |  error          | eventtype | tainted | taint   |
+      | "node1" | "Initialized" | "none"          | "Updated" | "false" | "false" |
+      | "node1" | "NotReady"    | "none"          | "Updated" | "true" | "false" |
+      | "node1" | "NotReady"    | "none"          | "Updated" | "true" | "false" |
+      | "node1" | "CrashLoop"   | "none"          | "Updated" | "false" | "false" |
+      | "node1" | "NotReady"    | "none"          | "Deleted" | "true" | "false" |
+      | "node1" | "Ready"       | "none"          | "Updated" | "false" | "true" |
+      | "node1" | "NotReady"    | "GetPod"        | "Updated" | "false" | "false" |
+      | "node1" | "NotReady"    | "GetNode"       | "Updated" | "false" | "false" |

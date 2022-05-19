@@ -179,7 +179,6 @@ func podMonitorHandler(eventType watch.EventType, object interface{}) error {
 	pm := &PodMonitor
 	switch PodMonitor.Mode {
 	case "controller":
-		// driver-namespace == pod.spec.namespace call different function.
 		if err := pm.controllerModePodHandler(pod, eventType); err != nil {
 			return err
 		}

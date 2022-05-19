@@ -15,6 +15,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -23,7 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
-	"time"
 )
 
 //K8sMock is a mock structure used for testing
@@ -422,10 +423,10 @@ func (mock *K8sMock) TaintNode(ctx context.Context, nodeName, taintKey string, e
 			})
 		}
 		node.Spec.Taints = updatedTaints
+		mock.AddNode(node)
 	} else {
 		return err
 	}
-
 	return nil
 }
 
