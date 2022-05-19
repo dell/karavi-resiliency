@@ -42,8 +42,9 @@ import (
 )
 
 const (
-	podns       string = "podns"
-	containerID        = "1234"
+	podns                string = "podns"
+	containerID                 = "1234"
+	vxflexDriverPodTaint        = "offline.vxflex.podmon.storage.dell.com"
 )
 
 type feature struct {
@@ -1063,6 +1064,68 @@ func (f *feature) iCallGetPodAffinityLabels() error {
 	return nil
 }
 
+func (f *feature) aControllerMonitorNodePod(arg1 string) error {
+	return godog.ErrPending
+}
+
+func (f *feature) aDriverPodForNodeWithCondition(node, condition string) error {
+	pod := f.createPod(node, 1, condition, "false")
+	f.pod = pod
+	f.k8sapiMock.AddPod(pod)
+	return nil
+}
+
+func (f *feature) iCallControllerModeDriverPodHandlerWithEvent(event string) error {
+	var eventType watch.EventType
+	PodmonDriverPodTaintKey = vxflexDriverPodTaint //assigned vxflex driver as default
+	switch event {
+	case "Added":
+		eventType = watch.Added
+	case "Modified":
+		eventType = watch.Modified
+	case "Deleted":
+		eventType = watch.Deleted
+	default:
+		eventType = watch.Error
+	}
+	f.err = f.podmonMonitor.controllerModeDriverPodHandler(f.pod, eventType)
+	if f.pod2 != nil {
+		f.podmonMonitor.controllerModeDriverPodHandler(f.pod2, eventType)
+	}
+	return nil
+}
+
+func (f *feature) theNodeIsTainted(nodename, boolean string) error {
+	node, _ := f.k8sapiMock.GetNode(context.Background(), nodename)
+	//node.Spec.Taints
+	switch boolean {
+	case "true":
+		// check for taint
+		if len(node.Spec.Taints) > 0 {
+			return nil
+		}
+	case "false":
+		// check for taint
+		return nil
+	default:
+		return nil
+	}
+	return errors.New("Node is not tainted")
+}
+
+func (f *feature) iTaintTheNodeWith(node, boolean string) error {
+	switch boolean {
+	case "true":
+		err := f.k8sapiMock.TaintNode(context.Background(), node, vxflexDriverPodTaint, v1.TaintEffectNoSchedule, false)
+		if err != nil {
+			log.Infof("err: %v", err)
+			return err
+		}
+	default:
+	}
+	return nil
+}
+
 func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	f := &feature{}
 	context.Step(`^a controller monitor "([^"]*)"$`, f.aControllerMonitor)
@@ -1103,4 +1166,8 @@ func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^a controller pod with podaffinitylabels$`, f.aControllerPodWithPodaffinitylabels)
 	context.Step(`^create a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)" affinity "([^"]*)" errorcase "([^"]*)"$`, f.createAPodForNodeWithVolumesConditionAffinityErrorcase)
 	context.Step(`^I call getPodAffinityLabels$`, f.iCallGetPodAffinityLabels)
+	context.Step(`^a driver pod for node "([^"]*)" with condition "([^"]*)"$`, f.aDriverPodForNodeWithCondition)
+	context.Step(`^I call controllerModeDriverPodHandler with event "([^"]*)"$`, f.iCallControllerModeDriverPodHandlerWithEvent)
+	context.Step(`^the node "([^"]*)" is tainted "([^"]*)"$`, f.theNodeIsTainted)
+	context.Step(`^I taint the node "([^"]*)" with "([^"]*)"$`, f.iTaintTheNodeWith)
 }

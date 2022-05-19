@@ -37,7 +37,7 @@ Feature: Controller Monitor
     And the last log message contains <errormsg>
 
     Examples:
-      | podnode | nvol | condition     | affin   | nodetaint | error         | eventtype | cleaned | info    | errormsg                                                   |
+      | podnode | nvol | condition     | affin   | nodetaint | error           | eventtype | cleaned | info    | errormsg                                                   |
       | "node1" | 2    | "Initialized" | "false" | "noexec"  | "none"          | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
       | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "none"          | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
       | "node1" | 2    | "NotReady"    | "false" | "nosched" | "none"          | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
@@ -67,7 +67,7 @@ Feature: Controller Monitor
     And the last log message contains <errormsg>
 
     Examples:
-      | podnode | nvol | condition     | affin   | nodetaint | error         | eventtype | cleaned | info    | errormsg                                                   |
+      | podnode | nvol | condition     | affin   | nodetaint | error           | eventtype | cleaned | info    | errormsg                                                   |
       | "node1" | 2    | "NotReady"    | "false" | "nosched" | "NoAnnotation"  | "Updated" | "false" | "false" | "There were 2 errors calling ControllerUnpublishVolume"    |
       | "node1" | 2    | "NotReady"    | "false" | "nosched" | "BadCSINode"    | "Updated" | "false" | "false" | "There were 2 errors calling ControllerUnpublishVolume"    |
 
@@ -86,7 +86,7 @@ Feature: Controller Monitor
     And the last log message contains <errormsg>
 
     Examples:
-      | podnode | nvol | condition     | affin   | nodetaint | error         | eventtype | cleaned | info    | errormsg                                                     |
+      | podnode | nvol | condition     | affin   | nodetaint | error           | eventtype | cleaned | info    | errormsg                                                   |
       | "node1" | 2    | "Initialized" | "false" | "noexec"  | "none"          | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
       | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "none"          | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
       | "node1" | 2    | "NotReady"    | "false" | "nosched" | "none"          | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
@@ -134,3 +134,23 @@ Feature: Controller Monitor
     | "node1" | 2    | "Ready"       | "true"  | "none"    | "none"        | "required"      | "false" |
     | "node1" | 2    | "Ready"       | "true"  | "none"    | "none"        | "labelselector" | "false" |
     | "node1" | 2    | "Ready"       | "true"  | "none"    | "none"        | "operator"      | "false" |
+
+  @controller-mode
+  Scenario Outline: test controllerModeDriverPodHandler
+    Given a controller monitor "vxflex"
+    And a driver pod for node <podnode> with condition <condition>
+    And I induce error <error>
+    And I taint the node <podnode> with <taint>
+    When I call controllerModeDriverPodHandler with event <eventtype>
+    And the node <podnode> is tainted <tainted>
+
+    Examples:
+      | podnode | condition     |  error          | eventtype | tainted | taint   |
+      | "node1" | "Initialized" | "none"          | "Updated" | "false" | "false" |
+      | "node1" | "NotReady"    | "none"          | "Updated" | "true" | "false" |
+      | "node1" | "NotReady"    | "none"          | "Updated" | "true" | "false" |
+      | "node1" | "CrashLoop"   | "none"          | "Updated" | "false" | "false" |
+      | "node1" | "NotReady"    | "none"          | "Deleted" | "true" | "false" |
+      | "node1" | "Ready"       | "none"          | "Updated" | "false" | "true" |
+      | "node1" | "NotReady"    | "GetPod"        | "Updated" | "false" | "false" |
+      | "node1" | "NotReady"    | "GetNode"       | "Updated" | "false" | "false" |
