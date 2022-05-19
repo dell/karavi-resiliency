@@ -73,7 +73,6 @@ failPodsInNS() {
     pods=$(getRunningPods)
     for pod in $pods; do
         echo "Failing pods: $pods "
-        # kubectl patch pod vxflexos-node-4sb5r -n vxflexos --patch '{"spec": {"containers": [{"name": "driver", "image": "podmontest"}]}}'
         kubectl patch pod $pod -n $ns --patch '{"spec": {"containers": [{"name": "driver", "image": "podmontest"}]}}'
     done
 }
