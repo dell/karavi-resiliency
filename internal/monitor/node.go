@@ -15,19 +15,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/dell/gofsutil"
-	log "github.com/sirupsen/logrus"
 	"io/ioutil"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/watch"
-	cri "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 	"os"
 	"podmon/internal/criapi"
 	"podmon/internal/k8sapi"
 	"podmon/internal/utils"
 	"strings"
 	"time"
+
+	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/dell/gofsutil"
+	log "github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/watch"
+	cri "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 )
 
 //APICheckInterval interval to wait before calling node API after successful call
@@ -134,6 +135,12 @@ func (pm *PodMonitorType) nodeModePodHandler(pod *v1.Pod, eventType watch.EventT
 	podKey := getPodKey(pod)
 	// Check that this pod belongs to our node
 	nodeName := os.Getenv("KUBE_NODE_NAME")
+	driverNamespace := os.Getenv("MY_POD_NAMESPACE")
+	if driverNamespace == pod.ObjectMeta.Namespace {
+		//driver pod, no need to protect at node
+		return nil
+	}
+
 	fields := make(map[string]interface{})
 	fields["Namespace"] = pod.ObjectMeta.Namespace
 	fields["PodName"] = pod.ObjectMeta.Name
@@ -342,7 +349,7 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 	// Don't remove the taint if we had an error cleaning up a pod, or we skipped a pod because
 	// it was still present. Instead we will do another cleanup cycle.
 	if removeTaint && len(podKeysSkipped) == 0 && len(podKeysWithError) == 0 {
-		if err := taintNode(node.ObjectMeta.Name, true); err != nil {
+		if err := taintNode(node.ObjectMeta.Name, PodmonTaintKey, true); err != nil {
 			log.Errorf("Failed to remove taint against %s node: %v", node.ObjectMeta.Name, err)
 			return false
 		}
