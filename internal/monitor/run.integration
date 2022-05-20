@@ -48,6 +48,7 @@ while [ $ITER -le $ITERATIONS ]; do
 
   run_e2e_test "powerflex" "vxflexos" "pmtv"
   run_e2e_test "unity" "unity" "pmtu"
+  run_e2e_test "isilon" "isilon" "pmti"
 
   sleep "$SLEEP_TIME"
   sh $RESILIENCY/tools/mon.sh --once

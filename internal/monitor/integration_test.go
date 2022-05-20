@@ -92,6 +92,38 @@ func TestUnityFirstCheck(t *testing.T) {
 	log.Printf("Integration setup check finished")
 }
 
+func TestPowerScaleFirstCheck(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableIntTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableIntTestVar)
+		return
+	}
+
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
+	godogOptions := godog.Options{
+		Format:        "pretty,cucumber:powerscale-first-check-cucumber-report.json",
+		Paths:         []string{"features"},
+		Tags:          "powerscale-int-setup-check",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "integration",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Skip("Integration setup check failed")
+	} else {
+		setupIsGood = true
+	}
+	log.Printf("Integration setup check finished")
+}
+
 func TestPowerFlexIntegration(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
@@ -168,6 +200,43 @@ func TestUnityIntegration(t *testing.T) {
 	log.Printf("Integration test finished")
 }
 
+func TestPowerScaleIntegration(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableIntTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableIntTestVar)
+		return
+	}
+
+	if !setupIsGood {
+		message := "The setup check failed. Tests skipped"
+		log.Printf(message)
+		t.Errorf(message)
+		return
+	}
+
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
+	log.Printf("Starting integration test")
+	godogOptions := godog.Options{
+		Format:        "pretty,cucumber:powerscale-integration-cucumber-report.json",
+		Paths:         []string{"features"},
+		Tags:          "powerscale-integration",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "integration",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Error("There were failed integration tests")
+	}
+	log.Printf("Integration test finished")
+}
 func TestPowerflexArrayInterfaceDown(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
