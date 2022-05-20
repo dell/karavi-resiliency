@@ -22,7 +22,6 @@ import (
 
 const enableIntTestVar = "RESILIENCY_INT_TEST"
 const enableStopOnFailure = "RESILIENCY_INT_TEST_STOP_ON_FAILURE"
-const outputFormatVar = "GODOG_OPT_FORMAT"
 
 var setupIsGood = false
 
@@ -43,7 +42,7 @@ func TestPowerFlexFirstCheck(t *testing.T) {
 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
 
 	godogOptions := godog.Options{
-		Format:        "pretty,junit:powerflex-first-check-junit-report.xml,cucumber:powerflex-first-check-cucumber-report.json",
+		Format:        "pretty,junit:powerflex-first-check-junit-report.xml",
 		Paths:         []string{"features"},
 		Tags:          "powerflex-int-setup-check",
 		StopOnFailure: stopOnFailure,
@@ -75,7 +74,7 @@ func TestUnityFirstCheck(t *testing.T) {
 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
 
 	godogOptions := godog.Options{
-		Format:        "pretty,junit:unity-first-check-junit-report.xml,cucumber:unity-first-check-cucumber-report.json",
+		Format:        "pretty,junit:unity-first-check-junit-report.xml",
 		Paths:         []string{"features"},
 		Tags:          "unity-int-setup-check",
 		StopOnFailure: stopOnFailure,
@@ -147,7 +146,7 @@ func TestPowerFlexIntegration(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        "pretty,junit:powerflex-integration-junit-report.xml,cucumber:powerflex-integration-cucumber-report.json",
+		Format:        "pretty,junit:powerflex-integration-junit-report.xml",
 		Paths:         []string{"features"},
 		Tags:          "powerflex-integration",
 		StopOnFailure: stopOnFailure,
@@ -185,7 +184,7 @@ func TestUnityIntegration(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        "pretty,junit:unity-integration-junit-report.xml,cucumber:unity-integration-cucumber-report.json",
+		Format:        "pretty,junit:unity-integration-junit-report.xml",
 		Paths:         []string{"features"},
 		Tags:          "unity-integration",
 		StopOnFailure: stopOnFailure,
@@ -260,7 +259,7 @@ func TestPowerflexArrayInterfaceDown(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        "pretty,junit:powerflex-interface-down-junit-report.xml,cucumber:powerflex-interface-down-cucumber-report.json",
+		Format:        "pretty,junit:powerflex-interface-down-junit-report.xml",
 		Paths:         []string{"features"},
 		Tags:          "powerflex-array-interface",
 		StopOnFailure: stopOnFailure,
@@ -298,7 +297,7 @@ func TestUnityArrayInterfaceDown(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        "pretty,junit:unity-interface-down-junit-report.xml,cucumber:unity-interface-down-cucumber-report.json",
+		Format:        "pretty,junit:unity-interface-down-junit-report.xml",
 		Paths:         []string{"features"},
 		Tags:          "unity-array-interface",
 		StopOnFailure: stopOnFailure,
