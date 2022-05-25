@@ -25,7 +25,7 @@ run_e2e_test() {
   echo "Clean up any remaining $tester_prefix test pods"
   sh $RESILIENCY/test/podmontest/uns.sh --prefix "$tester_prefix" --instances 18
   sleep "$SLEEP_TIME"
-  sh $RESILIENCY/tools/mon.sh --once
+  sh $RESILIENCY/tools/monx.sh --once
 
   # Run the e2e
   echo "****************** Execute the $storage_type E2E test *****************"
@@ -34,7 +34,7 @@ run_e2e_test() {
   echo "E2E test for $storage_type had Return code: " $RC
 
   date
-  sh $RESILIENCY/tools/mon.sh --once
+  sh $RESILIENCY/tools/monx.sh --once
 
   # Collect logs
   echo "Collecting driver logs from $driver_namespace namespace"
@@ -48,10 +48,10 @@ while [ $ITER -le $ITERATIONS ]; do
 
   run_e2e_test "powerflex" "vxflexos" "pmtv"
   run_e2e_test "unity" "unity" "pmtu"
-  run_e2e_test "isilon" "isilon" "pmti"
+  run_e2e_test "powerscale" "isilon" "pmti"
 
   sleep "$SLEEP_TIME"
-  sh $RESILIENCY/tools/mon.sh --once
+  sh $RESILIENCY/tools/monx.sh --once
 
   ITER=$((ITER + 1))
   if [ -e stop ]; then
