@@ -11,6 +11,7 @@
 #
 
 alias k=kubectl
+once=$1
 while true;
 do
 	date
@@ -64,5 +65,6 @@ END {
 	}
 }
 ' | sort
+	if [ "$once" == "--once" ]; then exit 0; fi
 	sleep 5
 done
