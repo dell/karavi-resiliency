@@ -30,11 +30,11 @@ unity-integration-test:
 	go test -timeout 6h -test.v -test.run "^\QTestUnityFirstCheck\E|\QTestUnityIntegration\E"
 
 powerscale-integration-test:
-    RESILIENCY_INT_TEST="true" \
-    RESILIENCY_TEST_CLEANUP="true" \
-    POLL_K8S="true" \
-    SCRIPTS_DIR="../../test/sh" \
-    go test -timeout 6h -test.v -test.run "^\QTestPowerScaleFirstCheck\E|\QTestPowerScaleIntegration\E"
+	RESILIENCY_INT_TEST="true" \
+	RESILIENCY_TEST_CLEANUP="true" \
+	POLL_K8S="true" \
+	SCRIPTS_DIR="../../test/sh" \
+	go test -timeout 6h -test.v -test.run "^\QTestPowerScaleFirstCheck\E|\QTestPowerScaleIntegration\E"
 
 
 powerflex-short-integration-test:
@@ -52,11 +52,11 @@ unity-short-integration-test:
 	go test -timeout 6h -test.v -test.run "^\QTestUnityShortCheck\E|\QTestUnityShortIntegration\E"
 
 powerscale-short-integration-test:
-    RESILIENCY_SHORT_INT_TEST="true" \
-    RESILIENCY_TEST_CLEANUP="true" \
-    POLL_K8S="true" \
-    SCRIPTS_DIR="../../test/sh" \
-    go test -timeout 6h -test.v -test.run "^\QTestPowerScaleShortCheck\E|\QTestPowerScaleShortIntegration\E"
+	RESILIENCY_SHORT_INT_TEST="true" \
+	RESILIENCY_TEST_CLEANUP="true" \
+	POLL_K8S="true" \
+	SCRIPTS_DIR="../../test/sh" \
+	go test -timeout 6h -test.v -test.run "^\QTestPowerScaleShortCheck\E|\QTestPowerScaleShortIntegration\E"
 
 powerflex-array-interface-test:
 	RESILIENCY_INT_TEST="true" \
