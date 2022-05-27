@@ -77,6 +77,7 @@ var failureToScriptMap = map[string]string{
 	"interfacedown": "bounce.ip",
 	"reboot":        "reboot.node",
 	"kubeletdown":   "bounce.kubelet",
+	"driverpod":     "failpods.sh",
 }
 
 const (
@@ -989,6 +990,22 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 
 	failed := 0
 	for _, name := range candidates {
+		// For CSI driver pod run the script from test host not worker node
+		if failureType == "driverpod" {
+			var cmd *exec.Cmd
+			cmd = exec.Command(
+				"/bin/sh", fmt.Sprintf("%s/failpods.sh", i.scriptsDir),
+				"--ns", i.driverType,
+				"--timeoutseconds", fmt.Sprintf("%d", wait),
+			)
+			out, err := cmd.CombinedOutput()
+			log.Infof("Driver node pod test executed %s", out)
+			if err != nil {
+				log.Infof("Failing err %v %s", err, out)
+				return failedNodes, err
+			}
+			return failedNodes, nil
+		}
 		if failed < numberToFail {
 			ip := nameToIP[name]
 			if err = i.induceFailureOn(name, ip, failureType, wait); err != nil {
@@ -1219,6 +1236,9 @@ func (i *integration) induceFailureOn(name string, ip, failureType string, wait 
 		invokeFailCmd = fmt.Sprintf("%s %s --seconds %d --interfaces %s", invokerScript, failureScript, wait, specificInterfaces)
 	}
 
+	if failureType == "driverpod" {
+		invokeFailCmd = fmt.Sprintf("%s %s --ns %s --timeoutseconds %d", invokerScript, failureScript, i.driverType, wait)
+	}
 	if i.isOpenshift {
 		// For Openshift, failure script invocation is done from the Bastion node to the Openshift node
 		invokeFailCmd = fmt.Sprintf("ssh %s core@%s sudo %s", sshOptions, ip, invokeFailCmd)
@@ -1536,6 +1556,81 @@ func (i *integration) detectOpenshift() (bool, error) {
 	return hasOpenshiftNS, nil
 }
 
+func (i *integration) iFailDriverPodsTaints(numNodes, failure string, wait int, expectedTaints string) error {
+	if expectedTaints != "" {
+		i.customTaints = expectedTaints
+	}
+
+	i.scriptsDir = os.Getenv("SCRIPTS_DIR")
+
+	workersToFail, err := i.parseRatioOrCount(numNodes)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("Test with %2.2f failed workers nodes", workersToFail)
+
+	failedWorkers, err := i.failWorkerNodes(workersToFail, failure, wait)
+	if err != nil {
+		return err
+	}
+
+	// Allow a little extra for node failure to be detected than just the node down time.
+	// This proved necessary for the really short failure times (45 sec.) to be reliable.
+	wait = wait + wait
+	log.Infof("Requested nodes to fail. Waiting up to %d seconds to see if they show up as failed.", wait)
+	timeoutDuration := time.Duration(wait) * time.Second
+	timeout := time.NewTimer(timeoutDuration)
+	ticker := time.NewTicker(checkTickerInterval * time.Second)
+	done := make(chan bool)
+	start := time.Now()
+
+	log.Infof("Wait done, checking for failed nodes...")
+	requestedWorkersAndFailed := func(node corev1.Node) bool {
+		found := false
+		for _, worker := range failedWorkers {
+			if node.Name == worker && i.isNodeFailed(node, expectedTaints) {
+				found = true
+				break
+			}
+		}
+
+		return found
+	}
+
+	foundFailedWorkers, err := i.searchForNodes(requestedWorkersAndFailed)
+
+	go func() {
+		for {
+			select {
+			case <-timeout.C:
+				log.Info("Timed out, but doing last check if requested nodes show up as failed")
+				foundFailedWorkers, err = i.searchForNodes(requestedWorkersAndFailed)
+				done <- true
+			case <-ticker.C:
+				log.Infof("Checking if requested nodes show up as failed (time left %v)", timeoutDuration-time.Since(start))
+				foundFailedWorkers, err = i.searchForNodes(requestedWorkersAndFailed)
+				if len(foundFailedWorkers) == len(failedWorkers) {
+					done <- true
+				}
+			}
+		}
+	}()
+
+	<-done
+	timeout.Stop()
+	ticker.Stop()
+
+	log.Infof("Completed checks for failed nodes after %v", time.Since(start))
+
+	err = AssertExpectedAndActual(assert.Equal, true, len(foundFailedWorkers) == len(failedWorkers),
+		fmt.Sprintf("Expected %d worker node(s) to be failed, but was %d. %v", len(failedWorkers), len(foundFailedWorkers), foundFailedWorkers))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	i := &integration{}
 	pollK8sEnabled := false
@@ -1570,4 +1665,5 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^these storageClasses "([^"]*)" exist in the cluster$`, i.theseStorageClassesExistInTheCluster)
 	context.Step(`^wait (\d+) to see there are no taints$`, i.theTaintsForTheFailedNodesAreRemovedWithinSeconds)
 	context.Step(`^labeled pods are on a different node$`, i.labeledPodsChangedNodes)
+	context.Step(`^I fail "([^"]*)" worker driver pod with "([^"]*)" failure for (\d+) and I expect these taints "([^"]*)"$`, i.iFailDriverPodsTaints)
 }
