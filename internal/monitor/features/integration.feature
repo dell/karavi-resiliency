@@ -622,3 +622,38 @@ Feature: Integration Test
     # | ""         | "3-5"       | "2-2" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 240      | 240        | 300     | 600           |
     # | ""         | "5-10"       | "1-1" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 1200      | 2000       | 2000     | 2000           |
 
+  @powerflex-integration
+  Scenario Outline: Basic node failover testing using test StatefulSet pods (driver pods down)
+    Given a kubernetes <kubeConfig>
+    And cluster is clean of test pods
+    And wait <nodeCleanSecs> to see there are no taints
+    And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
+    Then validate that all pods are running within <deploySecs> seconds
+    When I fail <workers> worker driver pod with <failure> failure for <failSecs> and I expect these taints <taints>
+    And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
+    Then finally cleanup everything
+
+    Examples:
+      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure     | taints                           | failSecs | deploySecs | runSecs | nodeCleanSecs |
+      | ""         | "1-2"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "driverpod" | "offline.vxflexos.storage.dell.com" | 120      | 240        | 300     | 600           |
+      | ""         | "1-2"       | "2-2" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "driverpod" | "offline.vxflexos.storage.dell.com" | 120      | 240        | 300     | 600           |
+      | ""         | "2-5"       | "2-2" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "driverpod" | "offline.vxflexos.storage.dell.com" | 120      | 240        | 300     | 600           |
+
+
+@unity-integration
+  Scenario Outline: Basic node failover testing using test StatefulSet pods (driver pods down)
+    Given a kubernetes <kubeConfig>
+    And cluster is clean of test pods
+    And wait <nodeCleanSecs> to see there are no taints
+    And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
+    Then validate that all pods are running within <deploySecs> seconds
+    When I fail <workers> worker driver pod with <failure> failure for <failSecs> and I expect these taints <taints>
+    And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
+    Then finally cleanup everything
+
+    Examples:
+      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass   | workers     | primary | failure     |  taints                          | failSecs | deploySecs | runSecs | nodeCleanSecs |
+      | ""         | "1-2"       | "1-1" | "0-0" | "unity"    | "unity-nfs"    | "one-third" | "zero"  | "driverpod" | "offline.unity.storage.dell.com" | 120      | 300        | 300     | 600           | 
+      | ""         | "1-3"       | "2-2" | "0-0" | "unity"    | "unity-nfs"    | "one-third" | "zero"  | "driverpod" | "offline.unity.storage.dell.com" | 120      | 300        | 300     | 600           |
+      | ""         | "1-2"       | "1-1" | "0-0" | "unity"    | "unity-iscsi"  | "one-third" | "zero"  | "driverpod" | "offline.unity.storage.dell.com" | 120      | 300        | 300     | 600           | 
+      | ""         | "1-3"       | "2-2" | "0-0" | "unity"    | "unity-iscsi"  | "one-third" | "zero"  | "driverpod" | "offline.unity.storage.dell.com" | 120      | 300        | 300     | 600           |
