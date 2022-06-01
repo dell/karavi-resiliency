@@ -1,6 +1,6 @@
 module podmon
 
-go 1.17
+go 1.18
 
 require (
 	github.com/bramvdbogaerde/go-scp v0.0.0-20201229172121-7a6c0268fa67
