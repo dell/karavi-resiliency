@@ -170,13 +170,14 @@ func main() {
 			}
 			// monitor all the nodes with no label required
 			go StartNodeMonitorFn(K8sAPI, k8sapi.K8sClient.Client, "", "", monitor.MonitorRestartTimeDelay)
+
+			// monitor the driver node pods
+			go StartPodMonitorFn(K8sAPI, k8sapi.K8sClient.Client, *args.driverPodLabelKey, *args.driverPodLabelValue, monitor.MonitorRestartTimeDelay)
 		}
 
 		// monitor the pods with the designated label key/value
 		go StartPodMonitorFn(K8sAPI, k8sapi.K8sClient.Client, *args.labelKey, *args.labelValue, monitor.MonitorRestartTimeDelay)
 
-		// monitor the driver node pods
-		go StartPodMonitorFn(K8sAPI, k8sapi.K8sClient.Client, *args.driverPodLabelKey, *args.driverPodLabelValue, monitor.MonitorRestartTimeDelay)
 		for {
 			log.Printf("podmon alive...")
 			if stop := PodMonWait(); stop {
