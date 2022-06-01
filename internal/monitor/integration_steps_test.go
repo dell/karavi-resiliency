@@ -105,7 +105,7 @@ var stopTestRequested bool
 // Workaround for non-inclusive word scan
 var primary = []byte{'m', 'a', 's', 't', 'e', 'r'}
 var primaryLabelKey = fmt.Sprintf("node-role.kubernetes.io/%s", string(primary))
-var controlPlane = "node-role.kubernetes.io/controlplane"
+var controlPlane = "node-role.kubernetes.io/control-plane"
 
 // These are for tracking to which nodes the tests upload scripts.
 // With multiple scenarios, we want to do this only once.
