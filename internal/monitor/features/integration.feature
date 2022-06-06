@@ -363,7 +363,7 @@ Feature: Integration Test
     Then finally cleanup everything
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure         | failSecs | deploySecs | nodeCleanSecs |
-      | ""         | "1-2"       | "1-1" | "0-0" | "isilon"   | "isilom"      | "one-third" | "zero"  | "interfacedown" | 600      | 900        | 900           |
+      | ""         | "1-2"       | "1-1" | "0-0" | "isilon"   | "isilon"      | "one-third" | "zero"  | "interfacedown" | 600      | 900        | 900           |
 
   @powerflex-integration
   Scenario Outline: Short failure window tests
