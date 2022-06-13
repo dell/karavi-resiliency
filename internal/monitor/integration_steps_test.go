@@ -1513,7 +1513,7 @@ func (i *integration) getExpectedTaints(nodeName string) string {
 		return i.customTaints
 	}
 	// Should minimally expect to the the Kubernetes unreachable taint on the failed node
-	theseTaints := "node.kubernetes.io/unreachable"
+	theseTaints := "node.kubernetes.io/unreachable,offline.vxflexos.storage.dell.com,offline.unity.storage.dell.com,offline.isilon.storage.dell.com"
 	if i.nodeHadPodsRunning(nodeName) {
 		// If the test failed some node(s) that had labeled pods in it, then we
 		// expect the podmon taint to be cleaned up as well.
