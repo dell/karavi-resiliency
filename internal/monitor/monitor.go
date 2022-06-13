@@ -61,6 +61,8 @@ var (
 	MonitorRestartTimeDelay = 10 * time.Second
 	//LockSleepTimeDelay wait for lock retry
 	LockSleepTimeDelay = 1 * time.Second
+	//IgnoreVolumelessPods, when set, will keep labeled pods with no volumes from being force deleted on node or connectivity failures.
+	IgnoreVolumelessPods bool
 	// dynamicConfigUpdateMutex protects concurrently running threads that could be affected by dynamic configuration parameters.
 	dynamicConfigUpdateMutex sync.Mutex
 	// arrayConnectivityPollRate is the rate it polls to check array connectivity to nodes.
@@ -245,7 +247,7 @@ func nodeMonitorHandler(eventType watch.EventType, object interface{}) error {
 		// Get the CSI annotations for nodeID
 		volumeIDs := make([]string, 0)
 		// Print out whether the host is connected or not...
-		_, _, _ = pm.callValidateVolumeHostConnectivity(node, volumeIDs, true)
+		_, _, _ = pm.callValidateVolumeHostConnectivity(node, volumeIDs, defaultArray, true)
 
 		// Determine if the node is tainted
 		taintnosched := nodeHasTaint(node, nodeUnreachableTaint, v1.TaintEffectNoSchedule)
