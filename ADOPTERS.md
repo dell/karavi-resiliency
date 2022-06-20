@@ -15,4 +15,4 @@ These organizations are using CSM for Resiliency in production:
 * [ORGANIZATION](https://url)
 
 If you're using CSM for Resiliency and wish to be listed, please feel free to
-[submit a pull request](https://github.com/karavi-resiliency/pulls)!
+[submit a pull request](https://github.com/dell/karavi-resiliency/pulls)!
