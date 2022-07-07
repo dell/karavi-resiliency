@@ -318,7 +318,7 @@ func (cm *PodMonitorType) callValidateVolumeHostConnectivity(node *v1.Node, volu
 	if csiNodeID != "" {
 		// Validate host connectivity for the node
 		req := &csiext.ValidateVolumeHostConnectivityRequest{
-			NodeId: csiNodeID,
+			NodeId:  csiNodeID,
 			ArrayId: arrayID,
 		}
 		if len(volumeIDs) > 0 {
@@ -378,7 +378,6 @@ func (cm *PodMonitorType) callControllerUnpublishVolume(node *v1.Node, volumeID 
 }
 
 // podToArrayIDs returns the array IDs used by the pod, along with pvCount, and error
-// TODO: multi-array
 func (cm *PodMonitorType) podToArrayIDs(ctx context.Context, pod *v1.Pod) ([]string, int, error) {
 	arrayIDs := make([]string, 0)
 	pvlist, err := K8sAPI.GetPersistentVolumesInPod(ctx, pod)
