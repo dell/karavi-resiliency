@@ -311,7 +311,7 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 }
 
 // call ValidateVolumeHostConnectivity in the driver, log any messages, and then
-// return the booleans Connected and IosInProgress.
+// return the booleans Connected and IosInProgress along with error.
 func (cm *PodMonitorType) callValidateVolumeHostConnectivity(node *v1.Node, volumeIDs []string, arrayID string, logIt bool) (bool, bool, error) {
 	// Get the CSI annotations for nodeID
 	csiNodeID := getCSINodeIDAnnotation(node, cm.DriverPathStr)
@@ -319,7 +319,9 @@ func (cm *PodMonitorType) callValidateVolumeHostConnectivity(node *v1.Node, volu
 		// Validate host connectivity for the node
 		req := &csiext.ValidateVolumeHostConnectivityRequest{
 			NodeId:  csiNodeID,
-			ArrayId: arrayID,
+		}
+		if arrayID != defaultArray {
+			req.ArrayId = arrayID
 		}
 		if len(volumeIDs) > 0 {
 			req.VolumeIds = volumeIDs
@@ -343,7 +345,7 @@ func (cm *PodMonitorType) callValidateVolumeHostConnectivity(node *v1.Node, volu
 				log.Info(message)
 			}
 		}
-		log.Infof("ValidateVolumeHostConnectivity Node %s NodeId %s Connected %t", node.ObjectMeta.Name, req.NodeId, resp.GetConnected())
+		log.Infof("ValidateVolumeHostConnectivity Node %s Array %s Connected %t", node.ObjectMeta.Name, arrayID, resp.GetConnected())
 		return resp.GetConnected(), resp.GetIosInProgress(), nil
 	}
 	return false, false, fmt.Errorf("callValidateVolumeHostConnectivity: Could not determine CSI NodeID for node: %s", node.ObjectMeta.Name)
