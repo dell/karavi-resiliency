@@ -1,5 +1,5 @@
 <!--
-Copyright (c) 2021 Dell Inc., or its subsidiaries. All Rights Reserved.
+Copyright (c) 2022 Dell Inc., or its subsidiaries. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -36,6 +36,36 @@ For documentation, please visit [Container Storage Modules documentation](https:
 - [Support](https://github.com/dell/csm/blob/main/docs/SUPPORT.md)
 - [Security](https://github.com/dell/csm/blob/main/docs/SECURITY.md)
 - [About](#about)
+
+## Building CSM for Resiliency
+
+If you wish to clone and build CSM for Resiliency, a Linux host is required with the following installed:
+
+| Component       | Version   | Additional Information                                                                                                                     |
+| --------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Docker          | v19+      | [Docker installation](https://docs.docker.com/engine/install/)                                                                                                    |
+| Golang          | v1.18+    | [Golang installation](https://github.com/travis-ci/gimme)                                                                                                         |
+| git             | latest    | [Git installation](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)                                                                              |
+
+Once all prerequisites are on the Linux host, follow the steps below to clone, build and deploy CSM for Resiliency:
+
+1. Clone the repository: `git clone https://github.com/dell/karavi-resiliency.git`
+2. Define and export the following environment variables to point to your Docker registry:
+
+    ```
+    export REGISTRY_HOST=<registry host>
+    export REGISTRY_PORT=<registry port>
+    export VERSION=<version>
+    ```
+3. At the root of the source tree, run the following to build and deploy: `make`
+
+## Testing CSM for Resiliency
+
+From the root directory where the repo was cloned, the unit tests can be executed as follows:
+
+```
+make unit-test
+```
 
 ## Versioning
 
