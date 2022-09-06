@@ -5,9 +5,9 @@ LABEL vendor="Dell Inc." \
       description="Makes Kubernetes applications, including those that utilize persistent storage, more resilient to various failures" \
       version="2.0.0" \
       license="Apache-2.0"
-RUN dnf -y install openssl && \
-    dnf -y install nettle && \
-    dnf -y install gnutls && \
-    dnf -y install systemd
+RUN microdnf -y install openssl && \
+    microdnf -y install nettle && \
+    microdnf -y install gnutls && \
+    microdnf -y install systemd
 COPY podmon /podmon
 ENTRYPOINT [ "/podmon" ]
