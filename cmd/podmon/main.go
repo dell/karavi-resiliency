@@ -48,6 +48,7 @@ const (
 	skipArrayConnectionValidation            = false
 	driverPath                               = "csi-vxflexos.dellemc.com"
 	driverConfigParamsDefault                = "resources/driver-config-params.yaml"
+	ignoreVolumelessPods                     = false
 	// -- Below are constants for dynamic configuration --
 	defaultLogLevel                                = log.DebugLevel
 	podmonArrayConnectivityPollRate                = "PODMON_ARRAY_CONNECTIVITY_POLL_RATE"
@@ -127,6 +128,7 @@ func main() {
 	monitor.PodmonTaintKey = fmt.Sprintf("%s.%s", monitor.Driver.GetDriverName(), monitor.PodmonTaintKeySuffix)
 	monitor.SetArrayConnectivityPollRate(time.Duration(*args.arrayConnectivityPollRate) * time.Second)
 	monitor.ArrayConnectivityConnectionLossThreshold = *args.arrayConnectivityConnectionLossThreshold
+	monitor.IgnoreVolumelessPods = *args.ignoreVolumelessPods
 	err := K8sAPI.Connect(args.kubeconfig)
 	if err != nil {
 		log.Errorf("kubernetes connection error: %s", err)
@@ -211,6 +213,7 @@ type PodmonArgs struct {
 	driverConfigParamsFile                   *string // Set the location of the driver ConfigMap
 	driverPodLabelKey                        *string // driverPodLabelKey for annotating driver node pods to be watched/processed
 	driverPodLabelValue                      *string // driverPodLabelValue value for annotating driver node pods to be watched/processed
+	ignoreVolumelessPods                     *bool   // Ignore volumeless pods even if they
 }
 
 var args PodmonArgs
@@ -231,6 +234,7 @@ func getArgs() {
 		args.driverConfigParamsFile = flag.String("driver-config-params", driverConfigParamsDefault, "Full path to the YAML file containing the driver ConfigMap")
 		args.driverPodLabelKey = flag.String("driverPodLabelKey", driverPodLabelKey, "label key for pods or other objects to be monitored")
 		args.driverPodLabelValue = flag.String("driverPodLabelValue", driverPodLabelValue, "label value for pods or other objects to be monitored")
+		args.ignoreVolumelessPods = flag.Bool("ignoreVolumelessPods", ignoreVolumelessPods, "ingnore volumeless pods even though they have podmon label")
 	})
 
 	// -- For testing purposes. Re-default the values since main will be called multiple times --
@@ -247,6 +251,7 @@ func getArgs() {
 	*args.driverConfigParamsFile = driverConfigParamsDefault
 	*args.driverPodLabelKey = driverPodLabelKey
 	*args.driverPodLabelValue = driverPodLabelValue
+	*args.ignoreVolumelessPods = ignoreVolumelessPods
 	flag.Parse()
 }
 

@@ -45,6 +45,9 @@ type ControllerPodInfo struct { // information controller keeps on hand about a 
 
 const notFound = "not found"
 const hostNameTopologyKey = "kubernetes.io/hostname"
+const arrayIDVolumeAttribute = "arrayID"
+const storageSystemVolumeAttribute = "StorageSystem"
+const defaultArray = "default"
 
 // controllerModePodHandler handles controller mode functionality when a pod event happens
 func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.EventType) error {
@@ -104,10 +107,19 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 			// If ready, we want to save the PodKeyToControllerPodInfo
 			// It will use these items to clean up pods if the array reports no connectivity.
 			if ready {
-				arrayIDs, err := cm.podToArrayIDs(pod)
+				arrayIDs, pvcCount, err := cm.podToArrayIDs(ctx, pod)
+				log.Infof("IgnoreVolumelessPods %t pvcCount %d", IgnoreVolumelessPods, pvcCount)
 				if err != nil {
 					log.Errorf("Could not determine pod to arrayIDs: %s", err)
+				} else {
+					// Do not keep track of Volumeless pods
+					if IgnoreVolumelessPods && pvcCount == 0 {
+						log.Infof("podKey %s ignore because Volumeless", podKey)
+						return nil
+					}
 				}
+				log.Infof("podKey %s pvcCount %d arrayIDs %v", podKey, pvcCount, arrayIDs)
+
 				podAffinityLabels := cm.getPodAffinityLabels(pod)
 				if len(podAffinityLabels) > 0 {
 					log.Infof("podKey %s podAffinityLabels %v", podKey, podAffinityLabels)
@@ -190,6 +202,12 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 	if err != nil {
 		log.WithFields(fields).Errorf("Could not get PersistentVolumes: %s", err)
 		return false
+	}
+
+	// ignoreVolumeless pod
+	if IgnoreVolumelessPods && len(pvlist) == 0 {
+		log.WithFields(fields).Infof("Ignoring volumeless pod")
+		return true
 	}
 
 	// Get the volume handles from the PVs
@@ -366,12 +384,12 @@ func (cm *PodMonitorType) callControllerUnpublishVolume(node *v1.Node, volumeID 
 	return err
 }
 
-// podToArrayIDs returns the array IDs used by the pod)
-// TODO: multi-array
-func (cm *PodMonitorType) podToArrayIDs(pod *v1.Pod) ([]string, error) {
-	arrayIDs := make([]string, 1)
-	arrayIDs[0] = "default"
-	return arrayIDs, nil
+// podToArrayIDs returns the array IDs used by the pod, along with pvCount, and error
+func (cm *PodMonitorType) podToArrayIDs(ctx context.Context, pod *v1.Pod) ([]string, int, error) {
+	arrayIDs := make([]string, 0)
+	pvlist, _ := K8sAPI.GetPersistentVolumesInPod(ctx, pod)
+	arrayIDs = append(arrayIDs, defaultArray)
+	return arrayIDs, len(pvlist), nil
 }
 
 // ArrayConnectivityMonitor -- periodically checks array connectivity to all the nodes using it.

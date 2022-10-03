@@ -154,3 +154,15 @@ Feature: Controller Monitor
       | "node1" | "Ready"       | "none"          | "Updated" | "false" | "true" |
       | "node1" | "NotReady"    | "GetPod"        | "Updated" | "false" | "false" |
       | "node1" | "NotReady"    | "GetNode"       | "Updated" | "false" | "false" |
+
+  @controller-mode
+  Scenario Outline: test IgnoreVolumelessPods
+    Given a controller monitor "vxflex"
+    And a pod for node <podnode> with <nvol> volumes condition <condition> affinity <affin>
+    When I call controllerModePodHandler with event "Updated"
+    Then the pod is cleaned <cleaned>
+
+    Examples:
+      | podnode | nvol | condition | affin   | error              | cleaned | errormsg                      |
+      | "node1" | 0    | "Ready"   | "true"  | "NodeNotConnected" | "false" | "none"                        |
+      | "node1" | 0    | "Ready"   | "false" | "NodeConnected"    | "false" | "Connected true"              |

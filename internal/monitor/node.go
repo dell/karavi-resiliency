@@ -298,6 +298,12 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 
 		// Check containers to make sure they're not running. This uses the containerInfos map obtained above.
 		pod := podInfo.Pod
+		// Get the PVs associated with this pod.
+		pvlist, _ := K8sAPI.GetPersistentVolumesInPod(ctx, pod)
+		if IgnoreVolumelessPods && len(pvlist) == 0 {
+			// Ignore pod without pvcs
+			return true
+		}
 		for _, containerStatus := range pod.Status.ContainerStatuses {
 			containerID := containerStatus.ContainerID
 			cid := strings.Split(containerID, "//")

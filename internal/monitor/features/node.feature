@@ -163,3 +163,21 @@ Feature: Controller Monitor
       | driver | nodeName | pods | vols | devs | cleaned | unMountErr | rmDirErr    | taintErr       | k8apiErr              | errorMsg                           |
       | vxflex | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "none"                | "none"                             |
       | isilon | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "none"                | "none"                             |
+
+@node-mode
+  Scenario Outline: Testing monitor.nodeModeCleanupPods
+    Given a controller monitor <driver>
+    And node <nodeName> env vars set
+    And I have a <pods> pods for node <nodeName> with <vols> volumes <devs> devices condition ""
+    And the controller cleaned up <cleaned> pods for node <nodeName>
+    And I induce error <k8apiErr>
+    And I induce error <unMountErr>
+    And I induce error <rmDirErr>
+    And I induce error <taintErr>
+    When I call nodeModeCleanupPods for node <nodeName>
+    And the last log message contains <errorMsg>
+
+    Examples:
+      | driver | nodeName | pods | vols | devs | cleaned | unMountErr | rmDirErr    | taintErr       | k8apiErr   | errorMsg                           |
+      | vxflex | "node1"  | 1    | 0    | 0    |0        | "none"     | "none"      | "none"         | "none"     | "none"                             |
+      | vxflex | "node1"  | 1    | 0    | 0    |0        | "none"     | "none"      | "none"         | "none"     | "none"                             |
