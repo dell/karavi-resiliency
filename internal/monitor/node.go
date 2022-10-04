@@ -45,7 +45,7 @@ var APIMonitorWait = internalAPIMonitorWait
 
 // TaintCountDelay delays pod cleanup until at least TaintCountDelay iterations of the apiMonitorLoop have executed,
 // giving the node time to stabalize (e.g. kubelet reconcile with API server) before initiating cleanup.
-var TaintCountDelay = 2
+var TaintCountDelay = 4
 
 // StartAPIMonitor checks API connectivity by pinging the indicated (self) node
 func StartAPIMonitor(api k8sapi.K8sAPI, firstTimeout, retryTimeout, interval time.Duration, waitFor func(interval time.Duration) bool) error {
@@ -298,6 +298,12 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 
 		// Check containers to make sure they're not running. This uses the containerInfos map obtained above.
 		pod := podInfo.Pod
+		// Get the PVs associated with this pod.
+		pvlist, _ := K8sAPI.GetPersistentVolumesInPod(ctx, pod)
+		if IgnoreVolumelessPods && len(pvlist) == 0 {
+			log.Infof("IgnoreVolumelessPods %t pvc count %d", IgnoreVolumelessPods, len(pvlist))
+			return true
+		}
 		for _, containerStatus := range pod.Status.ContainerStatuses {
 			containerID := containerStatus.ContainerID
 			cid := strings.Split(containerID, "//")

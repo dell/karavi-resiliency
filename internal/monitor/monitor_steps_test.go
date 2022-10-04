@@ -143,6 +143,10 @@ func (f *feature) aPodForNodeWithVolumesCondition(node string, nvolumes int, con
 }
 
 func (f *feature) aPodForNodeWithVolumesConditionAffinity(node string, nvolumes int, condition, affinity string) error {
+	// To test IgnoreVolumelessPods nvolumes is supplied 0 to induce it volumeless pod
+	if nvolumes == 0 {
+		IgnoreVolumelessPods = true
+	}
 	pod := f.createPod(node, nvolumes, condition, affinity)
 	f.pod = pod
 	f.k8sapiMock.AddPod(pod)
@@ -158,6 +162,10 @@ func (f *feature) aPodForNodeWithVolumesConditionAffinity(node string, nvolumes 
 
 func (f *feature) iHaveAPodsForNodeWithVolumesDevicesCondition(nPods int, nodeName string, nvolumes, ndevices int, condition string) error {
 	var err error
+	// To test IgnoreVolumelessPods nvolumes is supplied 0 to induce it volumeless pod
+	if nvolumes == 0 {
+		IgnoreVolumelessPods = true
+	}
 	f.podList = make([]*v1.Pod, nPods)
 	mockPaths := make([]string, nPods)
 	defer func() {
@@ -1132,7 +1140,6 @@ func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^a controller monitor unity$`, f.aControllerMonitorUnity)
 	context.Step(`^a controller monitor vxflex$`, f.aControllerMonitorVxflex)
 	context.Step(`^a controller monitor isilon$`, f.aControllerMonitorisilon)
-	//context.Step(`^a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)"$`, f.aPodForNodeWithVolumesCondition)
 	context.Step(`^a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)"$`, f.aPodForNodeWithVolumesCondition)
 	context.Step(`^a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)" affinity "([^"]*)"$`, f.aPodForNodeWithVolumesConditionAffinity)
 	context.Step(`^I call controllerCleanupPod for node "([^"]*)"$`, f.iCallControllerCleanupPodForNode)
