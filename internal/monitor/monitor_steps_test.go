@@ -143,7 +143,7 @@ func (f *feature) aPodForNodeWithVolumesCondition(node string, nvolumes int, con
 }
 
 func (f *feature) aPodForNodeWithVolumesConditionAffinity(node string, nvolumes int, condition, affinity string) error {
-	// To test IgnoreVolumelessPods vnvolumes is supplied 0 to induce it volumeless pod
+	// To test IgnoreVolumelessPods nvolumes is supplied 0 to induce it volumeless pod
 	if nvolumes == 0 {
 		IgnoreVolumelessPods = true
 	}
@@ -162,7 +162,7 @@ func (f *feature) aPodForNodeWithVolumesConditionAffinity(node string, nvolumes 
 
 func (f *feature) iHaveAPodsForNodeWithVolumesDevicesCondition(nPods int, nodeName string, nvolumes, ndevices int, condition string) error {
 	var err error
-	// To test IgnoreVolumelessPods vnvolumes is supplied 0 to induce it volumeless pod
+	// To test IgnoreVolumelessPods nvolumes is supplied 0 to induce it volumeless pod
 	if nvolumes == 0 {
 		IgnoreVolumelessPods = true
 	}
