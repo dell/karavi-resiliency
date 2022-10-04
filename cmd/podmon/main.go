@@ -213,7 +213,7 @@ type PodmonArgs struct {
 	driverConfigParamsFile                   *string // Set the location of the driver ConfigMap
 	driverPodLabelKey                        *string // driverPodLabelKey for annotating driver node pods to be watched/processed
 	driverPodLabelValue                      *string // driverPodLabelValue value for annotating driver node pods to be watched/processed
-	ignoreVolumelessPods                     *bool   // Ignore volumeless pods even if they
+	ignoreVolumelessPods                     *bool   // Ignore volumeless pods even if those has Resiliency label
 }
 
 var args PodmonArgs
