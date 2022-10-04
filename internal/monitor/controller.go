@@ -108,7 +108,6 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 			// It will use these items to clean up pods if the array reports no connectivity.
 			if ready {
 				arrayIDs, pvcCount, err := cm.podToArrayIDs(ctx, pod)
-				log.Infof("IgnoreVolumelessPods %t pvcCount %d", IgnoreVolumelessPods, pvcCount)
 				if err != nil {
 					log.Errorf("Could not determine pod to arrayIDs: %s", err)
 				} else {
