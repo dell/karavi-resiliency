@@ -65,6 +65,8 @@ var (
 	dynamicConfigUpdateMutex sync.Mutex
 	// arrayConnectivityPollRate is the rate it polls to check array connectivity to nodes.
 	arrayConnectivityPollRate = ShortTimeout
+	//IgnoreVolumelessPods when set will keep labeled pods with no volumes from being force deleted on node or connectivity failures.
+	IgnoreVolumelessPods bool
 )
 
 // GetArrayConnectivityPollRate returns the array connectivity poll rate.
