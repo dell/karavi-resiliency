@@ -3,4 +3,5 @@ general:
     # No fixes for these at this time
     - CVE-2022-2526
     - CVE-2022-40674
+    - CVE-2022-2175
 
