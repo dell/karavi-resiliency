@@ -298,10 +298,10 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 
 		// Check containers to make sure they're not running. This uses the containerInfos map obtained above.
 		pod := podInfo.Pod
-		// Get the PVs associated with this pod.
-		pvlist, err := K8sAPI.GetPersistentVolumesInPod(ctx, pod)
-		if err == nil && IgnoreVolumelessPods && len(pvlist) == 0 {
-			log.Infof("IgnoreVolumelessPods %t pvc count %d", IgnoreVolumelessPods, len(pvlist))
+
+		// ignore volumeless pods if needed
+		if IgnoreVolumelessPods && len(podInfo.Mounts) == 0 && len(podInfo.Devices) == 0 {
+			log.Infof("IgnoreVolumelessPods %t mount %d device %d", IgnoreVolumelessPods, len(podInfo.Mounts), len(podInfo.Devices))
 			return true
 		}
 		for _, containerStatus := range pod.Status.ContainerStatuses {
