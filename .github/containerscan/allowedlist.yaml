@@ -1,23 +1,7 @@
 general:
   vulnerabilities:
     # No fixes for these at this time
-    - CVE-2019-25013
-    - CVE-2019-5827
-    - CVE-2021-27219
-    - CVE-2022-25315
-    - CVE-2022-25235
-    - CVE-2022-25236
-    - CVE-2022-24407
-    - CVE-2021-44568
-    - CVE-2022-0778
     - CVE-2022-2526
-    - CVE-2022-27664
     - CVE-2022-40674
-    # Disputed CVEs
-    - CVE-2019-1010022
-    - CVE-2022-26280
-    - CVE-2018-25032
-    - CVE-2022-1271
     - CVE-2022-2175
-    - CVE-2021-44716
- 
+
