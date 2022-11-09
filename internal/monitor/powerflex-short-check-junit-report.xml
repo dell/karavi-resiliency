@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="integration" tests="1" skipped="0" failures="0" errors="0" time="58.327181706">
+  <testsuite name="Integration Test" tests="1" skipped="0" failures="0" errors="0" time="58.325890726">
+    <testcase name="Validate that we have a valid k8s configuration for the integration tests" status="passed" time="58.325890726"></testcase>
+  </testsuite>
+</testsuites>
