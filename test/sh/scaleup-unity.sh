@@ -97,4 +97,60 @@ wait_on_running
 sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500
 fi
 
+instances="108"
+if [ $instances -le $MAXPODS ]; then
+cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
+wait_on_running
+sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500
+fi
+
+instances="117"
+if [ $instances -le $MAXPODS ]; then
+cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
+wait_on_running
+sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500
+fi
+
+instances="126"
+if [ $instances -le $MAXPODS ]; then
+cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
+wait_on_running
+sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500
+fi
+
+instances="135"
+if [ $instances -le $MAXPODS ]; then
+cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
+wait_on_running
+sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500
+fi
+
+instances="144"
+if [ $instances -le $MAXPODS ]; then
+cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
+wait_on_running
+sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500
+fi
+
+instances="153"
+if [ $instances -le $MAXPODS ]; then
+cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
+wait_on_running
+sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500
+fi
+
+instances="162"
+if [ $instances -le $MAXPODS ]; then
+cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
+wait_on_running
+sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500
+fi
+
+instances="196"
+if [ $instances -le $MAXPODS ]; then
+cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
+wait_on_running
+sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500
+fi
+
 date
