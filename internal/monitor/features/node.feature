@@ -86,6 +86,10 @@ Feature: Controller Monitor
       | isilon | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "ContainerRunning"    | "Couldn't completely cleanup node" |
       | isilon | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
 
+      | pstore | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"     | "none"                          | "none"                                      |
+      | pstore | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"     | "GetContainerInfo"              | "none"                                      |
+      | pstore | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"     | "NodeUnpublishVolume"           | "Couldn't completely cleanup node"          |
+      | pstore | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"     | "NodeUnstageVolume"             | "Couldn't completely cleanup node"          |
 
       # Multiple pod tests
       | vxflex | "node1"  | 3    | 2    | 1    | 3       | "none"     | "none"      | "none"         | "none"                | "none"                             |
@@ -163,6 +167,7 @@ Feature: Controller Monitor
       | driver | nodeName | pods | vols | devs | cleaned | unMountErr | rmDirErr    | taintErr       | k8apiErr              | errorMsg                           |
       | vxflex | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "none"                | "none"                             |
       | isilon | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "none"                | "none"                             |
+      | pstore | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"   | "none"   | "none"   | "none"   |
 
 @node-mode
   Scenario Outline: Testing monitor.nodeModeCleanupPods

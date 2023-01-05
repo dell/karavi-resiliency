@@ -94,6 +94,10 @@ func (f *feature) aControllerMonitorisilon() error {
 	return f.aControllerMonitor("isilon")
 }
 
+func (f *feature) aControllerMonitorPstore() error {
+	return f.aControllerMonitor("pstore")
+}
+
 func (f *feature) aControllerMonitor(driver string) error {
 	if f.loghook == nil {
 		f.loghook = logtest.NewGlobal()
@@ -107,6 +111,8 @@ func (f *feature) aControllerMonitor(driver string) error {
 		Driver = new(UnityDriver)
 	case "isilon":
 		Driver = new(PScaleDriver)
+	case "pstore":
+		Driver = new(PStoreDriver)
 	default:
 		Driver = new(VxflexDriver)
 	}
@@ -1144,6 +1150,7 @@ func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^a controller monitor unity$`, f.aControllerMonitorUnity)
 	context.Step(`^a controller monitor vxflex$`, f.aControllerMonitorVxflex)
 	context.Step(`^a controller monitor isilon$`, f.aControllerMonitorisilon)
+	context.Step(`^a controller monitor pstore$`, f.aControllerMonitorPstore)
 	context.Step(`^a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)"$`, f.aPodForNodeWithVolumesCondition)
 	context.Step(`^a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)" affinity "([^"]*)"$`, f.aPodForNodeWithVolumesConditionAffinity)
 	context.Step(`^I call controllerCleanupPod for node "([^"]*)"$`, f.iCallControllerCleanupPodForNode)

@@ -97,10 +97,11 @@ Feature: Podmon Main
     Then the last log message contains <message>
 
     Examples:
-      | k8sHostValue | k8sPort | args                    | message                 |
-      | "localhost"  | "1234"  | "--driverPath=unity"    | "leader election: true" |
-      | "localhost"  | "1234"  | "--driverPath=vxflexos" | "leader election: true" |
-      | "localhost"  | "1234"  | "--driverPath=isilon"    | "leader election: true" |
+      | k8sHostValue | k8sPort | args                      | message                 |
+      | "localhost"  | "1234"  | "--driverPath=unity"      | "leader election: true" |
+      | "localhost"  | "1234"  | "--driverPath=vxflexos"   | "leader election: true" |
+      | "localhost"  | "1234"  | "--driverPath=isilon"     | "leader election: true" |
+      | "localhost"  | "1234"  | "--driverPath=powerstore" | "leader election: true" |
 
   Scenario Outline: Test using driver ConfigMap
     Given a podmon instance
