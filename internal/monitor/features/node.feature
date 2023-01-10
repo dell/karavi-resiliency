@@ -107,6 +107,13 @@ Feature: Controller Monitor
       | vxflex | "node1"  | 3    | 2    | 1    | 2       | "Unmount"  | "RemoveDir" | "none"         | "none"                | "Couldn't completely cleanup node" |
       | vxflex | "node1"  | 3    | 2    | 1    | 2       | "Unmount"  | "RemoveDir" | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
       | vxflex | "node1"  | 3    | 2    | 1    | 2       | "Unmount"  | "RemoveDir" | "K8sTaint"     | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
+      | pstore | "node1"  | 3    | 2    | 1    | 3       | "none"     | "none"      | "none"         | "none"                | "none"                             |
+      | pstore | "node1"  | 3    | 2    | 1    | 2       | "none"     | "none"      | "none"         | "none"                | "Couldn't completely cleanup node" |
+      | pstore | "node1"  | 3    | 2    | 1    | 2       | "none"     | "none"      | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
+      | pstore | "node1"  | 3    | 2    | 1    | 2       | "none"     | "none"      | "none"         | "NodeUnstageVolume"   | "Couldn't completely cleanup node" |
+      | pstore | "node1"  | 3    | 2    | 1    | 2       | "Unmount"  | "none"      | "none"         | "none"                | "Couldn't completely cleanup node" |
+      | pstore | "node1"  | 3    | 2    | 1    | 2       | "none"     | "RemoveDir" | "none"         | "none"                | "Couldn't completely cleanup node" |
+      | pstore | "node1"  | 3    | 2    | 1    | 2       | "none"     | "none"      | "K8sTaint"     | "none"                | "Couldn't completely cleanup node" |
 
 
   @node-mode
