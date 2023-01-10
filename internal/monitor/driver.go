@@ -301,6 +301,7 @@ func (d *PStoreDriver) FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID
 func getPrivateMountDir(defaultDir string) string {
 	privateMountDir := os.Getenv("X_CSI_PRIVATE_MOUNT_DIR")
 	if privateMountDir == "" {
+		log.Debugf("Returning defaultDir: %s", defaultDir)
 		return defaultDir
 	}
 	return privateMountDir
