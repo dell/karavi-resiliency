@@ -2,8 +2,7 @@ general:
   vulnerabilities:
     # No fixes for these at this time
     - CVE-2022-2526
-    - CVE-2022-2175
-    - CVE-2022-42898
+    # - CVE-2022-2175
 
     # Disputed CVEs
     - CVE-2019-1010022
