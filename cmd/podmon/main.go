@@ -125,6 +125,9 @@ func main() {
 		// added condition to create instance of PowerScale driver
 		log.Infof("CSI Driver for PowerScale")
 		monitor.Driver = new(monitor.PScaleDriver)
+	case strings.Contains(*args.driverPath, "powerstore"):
+		log.Infof("CSI Driver for PowerStore")
+		monitor.Driver = new(monitor.PStoreDriver)
 	default:
 		log.Infof("CSI Driver for VxFlex OS")
 		monitor.Driver = new(monitor.VxflexDriver)
