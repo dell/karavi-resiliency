@@ -241,3 +241,68 @@ func (d *PScaleDriver) NodeUnstageExcludedError(err error) bool {
 func (d *PScaleDriver) FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID string) error {
 	return nil
 }
+
+// PStoreDriver provides a Driver instance for the Powerstore architecture.
+type PStoreDriver struct {
+}
+
+// GetDriverName returns the driver name string
+func (d *PStoreDriver) GetDriverName() string {
+	return "powerstore"
+}
+
+// GetDriverMountDir returns the mount directory used for a PV by a pod.
+func (d *PStoreDriver) GetDriverMountDir(volumeHandle, pvName, podUUID string) string {
+	privateMountDir := getPrivateMountDir("/var/lib/kubelet")
+	privateMountDir = fmt.Sprintf("%s/pods/%s/volumes/kubernetes.io~csi/%s/mount", privateMountDir, podUUID, pvName)
+	log.Debugf("privateMountDir: %s", privateMountDir)
+	return privateMountDir
+}
+
+// GetDriverBlockDev Returns the block device used for a PV by a pod.
+func (d *PStoreDriver) GetDriverBlockDev(volumeHandle, pvName, podUUID string) string {
+	privateMountDir := getPrivateMountDir("/var/lib/kubelet")
+	privateBlockDev := fmt.Sprintf("%s/plugins/kubernetes.io/csi/volumeDevices/publish/%s/%s", privateMountDir, pvName, podUUID)
+	log.Debugf("privateBlockDev: %s", privateBlockDev)
+	return privateBlockDev
+}
+
+// GetStagingMountDir Returns the staging directory used by NodeUnstage for a mount device.
+func (d *PStoreDriver) GetStagingMountDir(volumeHandle, pvName string) string {
+	privateMountDir := getPrivateMountDir("/var/lib/kubelet")
+	stagingMountDev := fmt.Sprintf("%s/plugins/kubernetes.io/csi/pv/%s/globalmount", privateMountDir, pvName)
+	log.Debugf("stagingMountDev: %s", stagingMountDev)
+	return stagingMountDev
+}
+
+// GetStagingBlockDir Returns the staging directory used by NodeUnstage for a block device.
+func (d *PStoreDriver) GetStagingBlockDir(volumeHandle, pvName string) string {
+	privateMountDir := getPrivateMountDir("/var/lib/kubelet")
+	stagingBlockDir := fmt.Sprintf("%s/plugins/kubernetes.io/csi/volumeDevices/staging/%s", privateMountDir, pvName)
+	log.Debugf("stagingBlockDir: %s", stagingBlockDir)
+	return stagingBlockDir
+}
+
+// NodeUnpublishExcludedError filters out NodeUnpublish errors that should be excluded
+func (d *PStoreDriver) NodeUnpublishExcludedError(err error) bool {
+	return false
+}
+
+// NodeUnstageExcludedError filters out NodeStage errors that should be excluded
+func (d *PStoreDriver) NodeUnstageExcludedError(err error) bool {
+	return false
+}
+
+// FinalCleanup handles any driver specific final cleanup.
+func (d *PStoreDriver) FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID string) error {
+	return nil
+}
+
+func getPrivateMountDir(defaultDir string) string {
+	privateMountDir := os.Getenv("X_CSI_PRIVATE_MOUNT_DIR")
+	if privateMountDir == "" {
+		log.Debugf("Returning defaultDir: %s", defaultDir)
+		return defaultDir
+	}
+	return privateMountDir
+}
