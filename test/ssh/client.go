@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2021-2022 Dell Inc., or its subsidiaries. All Rights Reserved.
+* Copyright (c) 2021-2023 Dell Inc., or its subsidiaries. All Rights Reserved.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -78,6 +78,7 @@ type Wrapper struct {
 }
 
 // SessionWrapper interface for SSH session operations
+//
 //go:generate mockgen -destination=mocks/mock_session_wrapper.go -package=mocks podmon/test/ssh SessionWrapper
 type SessionWrapper interface {
 	CombinedOutput(string) ([]byte, error)
@@ -86,6 +87,7 @@ type SessionWrapper interface {
 }
 
 // ClientWrapper interface for creating an SSH session
+//
 //go:generate mockgen -destination=mocks/mock_client_wrapper.go -package=mocks podmon/test/ssh ClientWrapper
 type ClientWrapper interface {
 	GetSession(string) (SessionWrapper, error)

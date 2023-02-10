@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2021-2022 Dell Inc., or its subsidiaries. All Rights Reserved.
+* Copyright (c) 2021-2023 Dell Inc., or its subsidiaries. All Rights Reserved.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -67,28 +67,28 @@ const (
 	driverPodLabelValue                            = "dell-storage"
 )
 
-//K8sAPI is reference to the internal Kubernetes wrapper client
+// K8sAPI is reference to the internal Kubernetes wrapper client
 var K8sAPI k8sapi.K8sAPI = &k8sapi.K8sClient
 
-//LeaderElection is a reference to function returning a leaderElection object
+// LeaderElection is a reference to function returning a leaderElection object
 var LeaderElection = k8sLeaderElection
 
-//StartAPIMonitorFn is are reference to the function that initiates the APIMonitor
+// StartAPIMonitorFn is are reference to the function that initiates the APIMonitor
 var StartAPIMonitorFn = monitor.StartAPIMonitor
 
-//StartPodMonitorFn is are reference to the function that initiates the PodMonitor
+// StartPodMonitorFn is are reference to the function that initiates the PodMonitor
 var StartPodMonitorFn = monitor.StartPodMonitor
 
-//StartNodeMonitorFn is are reference to the function that initiates the NodeMonitor
+// StartNodeMonitorFn is are reference to the function that initiates the NodeMonitor
 var StartNodeMonitorFn = monitor.StartNodeMonitor
 
-//ArrayConnMonitorFc is are reference to the function that initiates the ArrayConnectivityMonitor
+// ArrayConnMonitorFc is are reference to the function that initiates the ArrayConnectivityMonitor
 var ArrayConnMonitorFc = monitor.PodMonitor.ArrayConnectivityMonitor
 
-//PodMonWait is reference to a function that handles podmon monitoring loop
+// PodMonWait is reference to a function that handles podmon monitoring loop
 var PodMonWait = podMonWait
 
-//GetCSIClient is reference to a function that returns a new CSIClient
+// GetCSIClient is reference to a function that returns a new CSIClient
 var GetCSIClient = csiapi.NewCSIClient
 var createArgsOnce sync.Once
 
@@ -206,7 +206,7 @@ func main() {
 	}
 }
 
-//PodmonArgs is structure holding the podmon command arguments
+// PodmonArgs is structure holding the podmon command arguments
 type PodmonArgs struct {
 	arrayConnectivityPollRate                *int    // time in seconds
 	arrayConnectivityConnectionLossThreshold *int    // number of failed attempts before declaring connection loss
