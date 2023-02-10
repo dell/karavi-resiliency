@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2021-2022 Dell Inc., or its subsidiaries. All Rights Reserved.
+* Copyright (c) 2021-2023 Dell Inc., or its subsidiaries. All Rights Reserved.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ import (
 // MaxCrashLoopBackOffRetry is the maximum number of times for a pod to be deleted in response to a CrashLoopBackOff
 const MaxCrashLoopBackOffRetry = 5
 
-//ControllerPodInfo has information for tracking health of the system
+// ControllerPodInfo has information for tracking health of the system
 type ControllerPodInfo struct { // information controller keeps on hand about a pod
 	PodKey            string            // the Pod Key (namespace/name) of the pod
 	Node              *v1.Node          // the associated node structure
@@ -506,7 +506,7 @@ type nodeArrayConnectivityCache struct {
 
 var connectivityCache nodeArrayConnectivityCache
 
-//ArrayConnectivityConnectionLossThreshold is the number of consecutive samples that must fail before we declare connectivity loss
+// ArrayConnectivityConnectionLossThreshold is the number of consecutive samples that must fail before we declare connectivity loss
 var ArrayConnectivityConnectionLossThreshold = 3
 
 // CheckConnectivity returns true if the node has connectivity to the arrayID supplied
