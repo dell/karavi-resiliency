@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2021-2022 Dell Inc., or its subsidiaries. All Rights Reserved.
+* Copyright (c) 2021-2023 Dell Inc., or its subsidiaries. All Rights Reserved.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,9 +23,10 @@ import (
 )
 
 // ContainerInfo is the information obtained for each container:
-//   ID is the ContainerID that will match the ID in the Pod's container list.
-//   Name is the name of the container.
-//   State is the ContainerState.
+//
+//	ID is the ContainerID that will match the ID in the Pod's container list.
+//	Name is the name of the container.
+//	State is the ContainerState.
 type ContainerInfo struct {
 	ID    string
 	Name  string

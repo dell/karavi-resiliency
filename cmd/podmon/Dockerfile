@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022 Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright (c) 2021-2023 Dell Inc., or its subsidiaries. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-FROM registry.access.redhat.com/ubi8/ubi:8.7-1054
+FROM registry.access.redhat.com/ubi8/ubi:8.7-1054.1675788412
 LABEL vendor="Dell Inc." \
       name="csm-resiliency" \
       summary="Dell Container Storage Modules (CSM) for Resiliency" \

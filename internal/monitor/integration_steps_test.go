@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2021-2022 Dell Inc., or its subsidiaries. All Rights Reserved.
+* Copyright (c) 2021-2023 Dell Inc., or its subsidiaries. All Rights Reserved.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1055,9 +1055,9 @@ func (i *integration) copyOverTestScripts(address string) error {
 	return i.copyOverTestScriptsToNode(address)
 }
 
-//copyOverTestScriptsNode copies over the scripts to the node at 'address'.
-//This will use internal SSH library to do the set up and copying to the
-//specified node.
+// copyOverTestScriptsNode copies over the scripts to the node at 'address'.
+// This will use internal SSH library to do the set up and copying to the
+// specified node.
 func (i *integration) copyOverTestScriptsToNode(address string) error {
 	info := ssh.AccessInfo{
 		Hostname: address,
@@ -1111,10 +1111,10 @@ func (i *integration) copyOverTestScriptsToNode(address string) error {
 	return nil
 }
 
-//copyOverTestScriptsToOpenshift will copy over script files onto the Openshift node at 'address'.
-//This depends on the Bastion node having the script files copied over already. Then for each
-//script file, we will use the 'scp' command from the Bastion node to copy over the files from
-//there to the Openshift node.
+// copyOverTestScriptsToOpenshift will copy over script files onto the Openshift node at 'address'.
+// This depends on the Bastion node having the script files copied over already. Then for each
+// script file, we will use the 'scp' command from the Bastion node to copy over the files from
+// there to the Openshift node.
 func (i *integration) copyOverTestScriptsToOpenshift(address string) error {
 	//SSH and SCP are all done through the Bastion node
 	info := ssh.AccessInfo{

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2021-2022 Dell Inc., or its subsidiaries. All Rights Reserved.
+* Copyright (c) 2021-2023 Dell Inc., or its subsidiaries. All Rights Reserved.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-//K8sAPI provides an API interface to kubernetes.
+// K8sAPI provides an API interface to kubernetes.
 type K8sAPI interface {
 	// Connect connects to the Kubernetes system API
 	Connect(kubeconfig *string) error

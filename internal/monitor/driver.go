@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2021-2022 Dell Inc., or its subsidiaries. All Rights Reserved.
+* Copyright (c) 2021-2023 Dell Inc., or its subsidiaries. All Rights Reserved.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package monitor
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"podmon/internal/utils"
@@ -30,25 +31,26 @@ type drivertype interface {
 	GetDriverMountDir(volumeHandle, pvName, podUUID string) string
 	GetDriverBlockDev(volumeHandle, pvName, podUUID string) string
 	GetStagingMountDir(volumeHandle, pvName string) string
+	GetStagingMountDirAfter125(volumeHandle, pvName string) string
 	GetStagingBlockDir(volumeHandle, pvName string) string
 	NodeUnpublishExcludedError(err error) bool
 	NodeUnstageExcludedError(err error) bool
 	FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID string) error
 }
 
-//Driver is an instance of the drivertype interface to provide driver specific functions.
+// Driver is an instance of the drivertype interface to provide driver specific functions.
 var Driver drivertype
 
-//VxflexDriver provides a Driver instance for the PowerFlex (VxFlex) architecture.
+// VxflexDriver provides a Driver instance for the PowerFlex (VxFlex) architecture.
 type VxflexDriver struct {
 }
 
-//GetDriverName returns the driver name string
+// GetDriverName returns the driver name string
 func (d *VxflexDriver) GetDriverName() string {
 	return "vxflexos"
 }
 
-//GetDriverMountDir returns the Vxflex private mount directory.
+// GetDriverMountDir returns the Vxflex private mount directory.
 func (d *VxflexDriver) GetDriverMountDir(volumeHandle, pvName, podUUID string) string {
 	privateMountDir := os.Getenv("X_CSI_PRIVATE_MOUNT_DIR")
 	if privateMountDir == "" {
@@ -77,6 +79,20 @@ func (d *VxflexDriver) GetStagingMountDir(volumeHandle, pvName string) string {
 	return stagingMountDir
 }
 
+// GetStagingMountDirAfter125 Returns the staging directory used by NodeUnstage for a mount device.
+func (d *VxflexDriver) GetStagingMountDirAfter125(volumeHandle, pvName string) string {
+	result := sha256.Sum256([]byte(fmt.Sprintf("%s", volumeHandle)))
+	volSha := fmt.Sprintf("%x", result)
+
+	stagingMountDir := os.Getenv("X_CSI_PRIVATE_MOUNT_DIR")
+	if stagingMountDir == "" {
+		stagingMountDir = "/var/lib/kubelet/plugins/vxflexos.emc.dell.com/disks"
+	}
+	stagingMountDir = fmt.Sprintf("%s/%s", stagingMountDir, volSha)
+	log.Debugf("stagingMountDev: %s", stagingMountDir)
+	return stagingMountDir
+}
+
 // GetStagingBlockDir Returns the staging directory used by NodeUnstage for a block device.
 func (d *VxflexDriver) GetStagingBlockDir(volumeHandle, pvName string) string {
 	stagingBlockDir := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/volumeDevices/staging/%s", pvName)
@@ -99,16 +115,16 @@ func (d *VxflexDriver) FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID
 	return nil
 }
 
-//UnityDriver provides a Driver instance for the Unity architecture.
+// UnityDriver provides a Driver instance for the Unity architecture.
 type UnityDriver struct {
 }
 
-//GetDriverName returns the driver name string
+// GetDriverName returns the driver name string
 func (d *UnityDriver) GetDriverName() string {
 	return "unity"
 }
 
-//GetDriverMountDir returns the Unity private mount directory.
+// GetDriverMountDir returns the Unity private mount directory.
 func (d *UnityDriver) GetDriverMountDir(volumeHandle, pvName, podUUID string) string {
 	privateMountDir := fmt.Sprintf("/var/lib/kubelet/pods/%s/volumes/kubernetes.io~csi/%s/mount", podUUID, pvName)
 	log.Debugf("privateMountDir: %s", privateMountDir)
@@ -124,9 +140,19 @@ func (d *UnityDriver) GetDriverBlockDev(volumeHandle, pvName, podUUID string) st
 
 // GetStagingMountDir Returns the staging directory used by NodeUnstage for a mount device.
 func (d *UnityDriver) GetStagingMountDir(volumeHandle, pvName string) string {
-	stagingMountDev := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/pv/%s/globalmount", pvName)
-	log.Debugf("stagingMountDev: %s", stagingMountDev)
-	return stagingMountDev
+	stagingMountDir := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/pv/%s/globalmount", pvName)
+	log.Debugf("stagingMountDev: %s", stagingMountDir)
+	return stagingMountDir
+}
+
+// GetStagingMountDirAfter125 Returns the staging directory used by NodeUnstage for a mount device.
+func (d *UnityDriver) GetStagingMountDirAfter125(volumeHandle, pvName string) string {
+	result := sha256.Sum256([]byte(fmt.Sprintf("%s", volumeHandle)))
+	volSha := fmt.Sprintf("%x", result)
+
+	stagingMountDir := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/csi-unity.dellemc.com/%s/globalmount", volSha)
+	log.Debugf("stagingMountDev: %s", stagingMountDir)
+	return stagingMountDir
 }
 
 // GetStagingBlockDir Returns the staging directory used by NodeUnstage for a block device.
@@ -192,16 +218,16 @@ var (
 	unMountPath          = utils.Unmount
 )
 
-//PScaleDriver provides a Driver instance for the PowerScale architecture.
+// PScaleDriver provides a Driver instance for the PowerScale architecture.
 type PScaleDriver struct {
 }
 
-//GetDriverName returns the driver name string
+// GetDriverName returns the driver name string
 func (d *PScaleDriver) GetDriverName() string {
 	return "isilon"
 }
 
-//GetDriverMountDir returns the PowerScale private mount directory.
+// GetDriverMountDir returns the PowerScale private mount directory.
 func (d *PScaleDriver) GetDriverMountDir(volumeHandle, pvName, podUUID string) string {
 	privateMountDir := os.Getenv("X_CSI_PRIVATE_MOUNT_DIR")
 	if privateMountDir == "" {
@@ -219,6 +245,11 @@ func (d *PScaleDriver) GetDriverBlockDev(volumeHandle, pvName, podUUID string) s
 
 // GetStagingMountDir Returns the staging directory used by NodeUnstage for a mount device.
 func (d *PScaleDriver) GetStagingMountDir(volumeHandle, pvName string) string {
+	return ""
+}
+
+// GetStagingMountDirAfter125 Returns the staging directory used by NodeUnstage for a mount device.
+func (d *PScaleDriver) GetStagingMountDirAfter125(volumeHandle, pvName string) string {
 	return ""
 }
 
@@ -273,6 +304,16 @@ func (d *PStoreDriver) GetStagingMountDir(volumeHandle, pvName string) string {
 	stagingMountDev := fmt.Sprintf("%s/plugins/kubernetes.io/csi/pv/%s/globalmount", privateMountDir, pvName)
 	log.Debugf("stagingMountDev: %s", stagingMountDev)
 	return stagingMountDev
+}
+
+// GetStagingMountDirAfter125 Returns the staging directory used by NodeUnstage for a mount device.
+func (d *PStoreDriver) GetStagingMountDirAfter125(volumeHandle, pvName string) string {
+	result := sha256.Sum256([]byte(fmt.Sprintf("%s", volumeHandle)))
+	volSha := fmt.Sprintf("%x", result)
+
+	stagingMountDir := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/csi-powerstore.dellemc.com/%s/globalmount", volSha)
+	log.Debugf("stagingMountDev: %s", stagingMountDir)
+	return stagingMountDir
 }
 
 // GetStagingBlockDir Returns the staging directory used by NodeUnstage for a block device.

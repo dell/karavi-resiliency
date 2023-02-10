@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2021-2022 Dell Inc., or its subsidiaries. All Rights Reserved.
+* Copyright (c) 2021-2023 Dell Inc., or its subsidiaries. All Rights Reserved.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-//K8sMock is a mock structure used for testing
+// K8sMock is a mock structure used for testing
 type K8sMock struct {
 	KeyToPod               map[string]*v1.Pod
 	KeyToPVC               map[string]*v1.PersistentVolumeClaim
@@ -67,12 +67,12 @@ type K8sMock struct {
 	Watcher *watch.RaceFreeFakeWatcher
 }
 
-//Initialize initial the mock structure
+// Initialize initial the mock structure
 func (mock *K8sMock) Initialize() {
 	mock.Watcher = watch.NewRaceFreeFake()
 }
 
-//AddPod creates unique functions for managing mocked database.
+// AddPod creates unique functions for managing mocked database.
 func (mock *K8sMock) AddPod(pod *v1.Pod) {
 	key := mock.getKey(pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 	if mock.KeyToPod == nil {
@@ -81,7 +81,7 @@ func (mock *K8sMock) AddPod(pod *v1.Pod) {
 	mock.KeyToPod[key] = pod
 }
 
-//AddPVC adds mock PVCs for testing
+// AddPVC adds mock PVCs for testing
 func (mock *K8sMock) AddPVC(pvc *v1.PersistentVolumeClaim) {
 	if mock.KeyToPVC == nil {
 		mock.KeyToPVC = make(map[string]*v1.PersistentVolumeClaim)
@@ -90,7 +90,7 @@ func (mock *K8sMock) AddPVC(pvc *v1.PersistentVolumeClaim) {
 	mock.KeyToPVC[key] = pvc
 }
 
-//AddPV adds mock PVs for testing
+// AddPV adds mock PVs for testing
 func (mock *K8sMock) AddPV(pv *v1.PersistentVolume) {
 	if mock.NameToPV == nil {
 		mock.NameToPV = make(map[string]*v1.PersistentVolume)
@@ -98,7 +98,7 @@ func (mock *K8sMock) AddPV(pv *v1.PersistentVolume) {
 	mock.NameToPV[pv.ObjectMeta.Name] = pv
 }
 
-//AddVA adds mock VAs for testing
+// AddVA adds mock VAs for testing
 func (mock *K8sMock) AddVA(va *storagev1.VolumeAttachment) {
 	if mock.NameToVolumeAttachment == nil {
 		mock.NameToVolumeAttachment = make(map[string]*storagev1.VolumeAttachment)
@@ -106,7 +106,7 @@ func (mock *K8sMock) AddVA(va *storagev1.VolumeAttachment) {
 	mock.NameToVolumeAttachment[va.ObjectMeta.Name] = va
 }
 
-//AddNode adds mock Nodes for testing
+// AddNode adds mock Nodes for testing
 func (mock *K8sMock) AddNode(node *v1.Node) {
 	if mock.NameToNode == nil {
 		mock.NameToNode = make(map[string]*v1.Node)
@@ -308,7 +308,7 @@ func (mock *K8sMock) GetPersistentVolume(ctx context.Context, pvName string) (*v
 	return pv, nil
 }
 
-//GetPersistentVolumeClaim returns the PVC of the given namespace/pvcName.
+// GetPersistentVolumeClaim returns the PVC of the given namespace/pvcName.
 func (mock *K8sMock) GetPersistentVolumeClaim(ctx context.Context, namespace, pvcName string) (*v1.PersistentVolumeClaim, error) {
 	var pvc *v1.PersistentVolumeClaim
 	if mock.InducedErrors.GetPersistentVolumeClaim {
@@ -341,7 +341,7 @@ func (mock *K8sMock) GetNode(ctx context.Context, nodeName string) (*v1.Node, er
 	return node, nil
 }
 
-//GetNodeWithTimeout returns the node with the specified nodeName but using a timeout duration rather than a context.
+// GetNodeWithTimeout returns the node with the specified nodeName but using a timeout duration rather than a context.
 func (mock *K8sMock) GetNodeWithTimeout(duration time.Duration, nodeName string) (*v1.Node, error) {
 	if mock.InducedErrors.GetNodeWithTimeout {
 		mock.FailCount++
@@ -391,7 +391,7 @@ func (mock *K8sMock) getKey(namespace, name string) string {
 	return namespace + "/" + name
 }
 
-//SetupPodWatch returns a mock watcher
+// SetupPodWatch returns a mock watcher
 func (mock *K8sMock) SetupPodWatch(ctx context.Context, namespace string, listOptions metav1.ListOptions) (watch.Interface, error) {
 	if mock.InducedErrors.Watch {
 		return nil, errors.New("included Watch error")
@@ -399,7 +399,7 @@ func (mock *K8sMock) SetupPodWatch(ctx context.Context, namespace string, listOp
 	return mock.Watcher, nil
 }
 
-//SetupNodeWatch returns a mock watcher
+// SetupNodeWatch returns a mock watcher
 func (mock *K8sMock) SetupNodeWatch(ctx context.Context, listOptions metav1.ListOptions) (watch.Interface, error) {
 	if mock.InducedErrors.Watch {
 		return nil, errors.New("included Watch error")
@@ -407,7 +407,7 @@ func (mock *K8sMock) SetupNodeWatch(ctx context.Context, listOptions metav1.List
 	return mock.Watcher, nil
 }
 
-//TaintNode mocks tainting a node
+// TaintNode mocks tainting a node
 func (mock *K8sMock) TaintNode(ctx context.Context, nodeName, taintKey string, effect v1.TaintEffect, remove bool) error {
 	if mock.InducedErrors.TaintNode {
 		return errors.New("induced taint node error")
