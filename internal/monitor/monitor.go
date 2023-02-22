@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2021-2022 Dell Inc., or its subsidiaries. All Rights Reserved.
+* Copyright (c) 2021-2023 Dell Inc., or its subsidiaries. All Rights Reserved.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -88,7 +88,7 @@ func SetArrayConnectivityPollRate(rate time.Duration) {
 	arrayConnectivityPollRate = rate
 }
 
-//PodMonitorType structure is tracking data for the pod monitor
+// PodMonitorType structure is tracking data for the pod monitor
 type PodMonitorType struct {
 	Mode                          string   // controller, node, or standalone
 	PodKeyMap                     sync.Map // podkey to *v1.Pod in controller (temporal) or *NodePodInfo in node
@@ -101,19 +101,19 @@ type PodMonitorType struct {
 	DriverPathStr                 string   // CSI Driver path string for parsing csi.volume.kubernetes.io/nodeid annotation
 }
 
-//PodMonitor is a reference to tracking data for the pod monitor
+// PodMonitor is a reference to tracking data for the pod monitor
 var PodMonitor PodMonitorType
 
-//K8sAPI is a reference to the internal k8s API wrapper
+// K8sAPI is a reference to the internal k8s API wrapper
 var K8sAPI k8sapi.K8sAPI
 
-//CSIApi is a reference to the internal CSI API wrapper
+// CSIApi is a reference to the internal CSI API wrapper
 var CSIApi csiapi.CSIApi
 
-//CSIVolumePathFormat is a formatter string used for producing the full path of a volume mount
+// CSIVolumePathFormat is a formatter string used for producing the full path of a volume mount
 var CSIVolumePathFormat = "/var/lib/kubelet/pods/%s/volumes/kubernetes.io~csi"
 
-//CSIDevicePathFormat is a formatter string used for producing the full path of a block volume
+// CSIDevicePathFormat is a formatter string used for producing the full path of a block volume
 var CSIDevicePathFormat = "/var/lib/kubelet/pods/%s/volumeDevices/kubernetes.io~csi"
 
 func getPodKey(pod *v1.Pod) string {
@@ -137,7 +137,7 @@ type Monitor struct {
 	Watcher  watch.Interface
 }
 
-//Lock acquires a sync lock based on the pod reference and key
+// Lock acquires a sync lock based on the pod reference and key
 func Lock(podkey string, pod *v1.Pod, delay time.Duration) {
 	_, loaded := PodMonitor.PodKeyMap.LoadOrStore(podkey, pod)
 	for loaded {
@@ -146,7 +146,7 @@ func Lock(podkey string, pod *v1.Pod, delay time.Duration) {
 	}
 }
 
-//Unlock returns a sync lock based on a pod key reference
+// Unlock returns a sync lock based on a pod key reference
 func Unlock(podkey string) {
 	PodMonitor.PodKeyMap.Delete(podkey)
 }
@@ -203,7 +203,7 @@ func podMonitorHandler(eventType watch.EventType, object interface{}) error {
 	return nil
 }
 
-//StartPodMonitor starts the PodMonitor so that it is processing pods which might have problems.
+// StartPodMonitor starts the PodMonitor so that it is processing pods which might have problems.
 // The labelKey and labelValue are used for filtering.
 func StartPodMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, labelValue string, restartDelay time.Duration) {
 	log.Infof("attempting to start PodMonitor\n")
@@ -263,7 +263,7 @@ func nodeMonitorHandler(eventType watch.EventType, object interface{}) error {
 	return nil
 }
 
-//StartNodeMonitor starts the NodeMonitor so that it is process nodes which might go offline.
+// StartNodeMonitor starts the NodeMonitor so that it is process nodes which might go offline.
 func StartNodeMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, labelValue string, restartDelay time.Duration) {
 	log.Printf("attempting to start NodeMonitor\n")
 	nodeMonitor := Monitor{Client: client}

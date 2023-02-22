@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2021-2022 Dell Inc., or its subsidiaries. All Rights Reserved.
+* Copyright (c) 2021-2023 Dell Inc., or its subsidiaries. All Rights Reserved.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,16 +36,16 @@ import (
 	cri "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 )
 
-//APICheckInterval interval to wait before calling node API after successful call
+// APICheckInterval interval to wait before calling node API after successful call
 var APICheckInterval = NodeAPIInterval
 
-//APICheckRetryTimeout retry wait after failure
+// APICheckRetryTimeout retry wait after failure
 var APICheckRetryTimeout = ShortTimeout
 
-//APICheckFirstTryTimeout retry wait after the first failure
+// APICheckFirstTryTimeout retry wait after the first failure
 var APICheckFirstTryTimeout = MediumTimeout
 
-//APIMonitorWait a function reference that can control the API monitor loop
+// APIMonitorWait a function reference that can control the API monitor loop
 var APIMonitorWait = internalAPIMonitorWait
 
 // TaintCountDelay delays pod cleanup until at least TaintCountDelay iterations of the apiMonitorLoop have executed,
@@ -252,21 +252,21 @@ func (pm *PodMonitorType) nodeModePodHandler(pod *v1.Pod, eventType watch.EventT
 	return nil
 }
 
-//MountPathVolumeInfo holds the mount path and volume information
+// MountPathVolumeInfo holds the mount path and volume information
 type MountPathVolumeInfo struct {
 	Path     string
 	VolumeID string
 	PVName   string
 }
 
-//BlockPathVolumeInfo holds the block path and volume information
+// BlockPathVolumeInfo holds the block path and volume information
 type BlockPathVolumeInfo struct {
 	Path     string
 	VolumeID string
 	PVName   string
 }
 
-//NodePodInfo information used for monitoring a node
+// NodePodInfo information used for monitoring a node
 type NodePodInfo struct { // information we keep on hand about a pod
 	Pod     *v1.Pod               // Copy of the pod itself
 	PodUID  string                // Pod user id
@@ -374,10 +374,10 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 	return false
 }
 
-//RemoveDir reference to a function used to clean up directories
+// RemoveDir reference to a function used to clean up directories
 var RemoveDir = os.Remove
 
-//RemoveDev reference to a function used to remove devices
+// RemoveDev reference to a function used to remove devices
 var RemoveDev = os.Remove
 
 func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo) error {
@@ -390,14 +390,23 @@ func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo
 
 	// Clean up volume mounts
 	for _, mntInfo := range podInfo.Mounts {
-		// TODO Add check if path exists, if not skip
 		// Call NodeUnpublish volume for mount
 		err := pm.callNodeUnpublishVolume(fields, mntInfo.Path, mntInfo.VolumeID)
 		if err != nil && !Driver.NodeUnpublishExcludedError(err) {
 			log.WithFields(fields).Errorf("NodeUnpublishVolume failed: %s %s %s", mntInfo.Path, mntInfo.VolumeID, err)
 			returnErr = err
 		} else {
+			// Upto k8s 1.24 release
 			stagingDir := Driver.GetStagingMountDir(mntInfo.VolumeID, mntInfo.PVName)
+			if stagingDir != "" {
+				err = pm.callNodeUnstageVolume(fields, stagingDir, mntInfo.VolumeID)
+				if err != nil && !Driver.NodeUnstageExcludedError(err) {
+					log.WithFields(fields).Errorf("NodeUnstageVolume failed: %s %s %s", mntInfo.Path, mntInfo.VolumeID, err)
+					returnErr = err
+				}
+			}
+			// For k8s 1.25 release and later
+			stagingDir = Driver.GetStagingMountDirAfter125(mntInfo.VolumeID, mntInfo.PVName)
 			if stagingDir != "" {
 				err = pm.callNodeUnstageVolume(fields, stagingDir, mntInfo.VolumeID)
 				if err != nil && !Driver.NodeUnstageExcludedError(err) {

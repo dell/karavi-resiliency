@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2021-2022 Dell Inc., or its subsidiaries. All Rights Reserved.
+* Copyright (c) 2021-2023 Dell Inc., or its subsidiaries. All Rights Reserved.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ import (
 	"k8s.io/client-go/tools/record"
 )
 
-//Client holds a reference to a Kubernetes client
+// Client holds a reference to a Kubernetes client
 type Client struct {
 	Client                    *kubernetes.Clientset
 	Lock                      sync.Mutex
@@ -61,20 +61,20 @@ const (
 	taintedWithPodmon   = "podmon"
 )
 
-//K8sClient references the k8sapi.Client
+// K8sClient references the k8sapi.Client
 var K8sClient Client
 
-//GetClient returns instance of Kubernetes.Clientset
+// GetClient returns instance of Kubernetes.Clientset
 func (api *Client) GetClient() *kubernetes.Clientset {
 	return api.Client
 }
 
-//GetContext returns clientContext and cancel function based on the duration
+// GetContext returns clientContext and cancel function based on the duration
 func (api *Client) GetContext(duration time.Duration) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), duration)
 }
 
-//DeletePod deletes a Pod referenced by a namespace and name
+// DeletePod deletes a Pod referenced by a namespace and name
 func (api *Client) DeletePod(ctx context.Context, namespace, name string, podUID types.UID, force bool) error {
 	deleteOptions := metav1.DeleteOptions{}
 	deleteOptions.Preconditions = &metav1.Preconditions{}
@@ -91,7 +91,7 @@ func (api *Client) DeletePod(ctx context.Context, namespace, name string, podUID
 	return err
 }
 
-//GetPod returns a Pod object referenced by the namespace and name
+// GetPod returns a Pod object referenced by the namespace and name
 func (api *Client) GetPod(ctx context.Context, namespace, name string) (*v1.Pod, error) {
 	getopt := metav1.GetOptions{}
 	pod, err := api.Client.CoreV1().Pods(namespace).Get(ctx, name, getopt)
@@ -139,7 +139,7 @@ func (api *Client) GetCachedVolumeAttachment(ctx context.Context, pvName, nodeNa
 	return api.volumeAttachmentCache[key], nil
 }
 
-//GetVolumeAttachments retrieves all the volume attachments
+// GetVolumeAttachments retrieves all the volume attachments
 func (api *Client) GetVolumeAttachments(ctx context.Context) (*storagev1.VolumeAttachmentList, error) {
 	volumeAttachments, err := api.Client.StorageV1().VolumeAttachments().List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -273,7 +273,7 @@ func (api *Client) GetPersistentVolume(ctx context.Context, pvName string) (*v1.
 	return pv, err
 }
 
-//GetPersistentVolumeClaim returns a PVC object given its namespace and name
+// GetPersistentVolumeClaim returns a PVC object given its namespace and name
 func (api *Client) GetPersistentVolumeClaim(ctx context.Context, namespace, pvcName string) (*v1.PersistentVolumeClaim, error) {
 	var err error
 	if api.Client == nil {
@@ -288,7 +288,7 @@ func (api *Client) GetPersistentVolumeClaim(ctx context.Context, namespace, pvcN
 	return pvc, err
 }
 
-//GetNode returns a Node object given its name
+// GetNode returns a Node object given its name
 func (api *Client) GetNode(ctx context.Context, nodeName string) (*v1.Node, error) {
 	node, err := api.Client.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
@@ -297,14 +297,14 @@ func (api *Client) GetNode(ctx context.Context, nodeName string) (*v1.Node, erro
 	return node, err
 }
 
-//GetNodeWithTimeout returns a Node object given its name waiting for certain duration before timing out
+// GetNodeWithTimeout returns a Node object given its name waiting for certain duration before timing out
 func (api *Client) GetNodeWithTimeout(duration time.Duration, nodeName string) (*v1.Node, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
 	return api.GetNode(ctx, nodeName)
 }
 
-//Connect connect establishes a connection with the k8s API server.
+// Connect connect establishes a connection with the k8s API server.
 func (api *Client) Connect(kubeconfig *string) error {
 	var err error
 	var client *kubernetes.Clientset
@@ -337,7 +337,7 @@ func (api *Client) Connect(kubeconfig *string) error {
 	return nil
 }
 
-//GetVolumeHandleFromVA returns a the CSI.VolumeHandle string for a given VolumeAttachment
+// GetVolumeHandleFromVA returns a the CSI.VolumeHandle string for a given VolumeAttachment
 func (api *Client) GetVolumeHandleFromVA(ctx context.Context, va *storagev1.VolumeAttachment) (string, error) {
 	pvname, err := api.GetPVNameFromVA(va)
 	if err != nil {
@@ -354,7 +354,7 @@ func (api *Client) GetVolumeHandleFromVA(ctx context.Context, va *storagev1.Volu
 	return "", fmt.Errorf("PV is not a CSI volume")
 }
 
-//GetPVNameFromVA returns the PV name given a VolumeAttachment object reference
+// GetPVNameFromVA returns the PV name given a VolumeAttachment object reference
 func (api *Client) GetPVNameFromVA(va *storagev1.VolumeAttachment) (string, error) {
 	if va.Spec.Source.PersistentVolumeName != nil {
 		return *va.Spec.Source.PersistentVolumeName, nil
@@ -362,20 +362,20 @@ func (api *Client) GetPVNameFromVA(va *storagev1.VolumeAttachment) (string, erro
 	return "", fmt.Errorf("Could not find PersistentVolume from VolumeAttachment %s", va.ObjectMeta.Name)
 }
 
-//SetupPodWatch returns a watch.Interface given the namespace and list options
+// SetupPodWatch returns a watch.Interface given the namespace and list options
 func (api *Client) SetupPodWatch(ctx context.Context, namespace string, listOptions metav1.ListOptions) (watch.Interface, error) {
 	watcher, err := api.Client.CoreV1().Pods(namespace).Watch(ctx, listOptions)
 	return watcher, err
 }
 
-//SetupNodeWatch returns a watch.Interface given the list options
+// SetupNodeWatch returns a watch.Interface given the list options
 func (api *Client) SetupNodeWatch(ctx context.Context, listOptions metav1.ListOptions) (watch.Interface, error) {
 	watcher, err := api.Client.CoreV1().Nodes().Watch(ctx, listOptions)
 	return watcher, err
 }
 
-//TaintNode applies the specified 'taintKey' string and 'effect' to the node with 'nodeName'
-//The 'remove' flag indicates if the taint should be removed from the node, if it exists.
+// TaintNode applies the specified 'taintKey' string and 'effect' to the node with 'nodeName'
+// The 'remove' flag indicates if the taint should be removed from the node, if it exists.
 func (api *Client) TaintNode(ctx context.Context, nodeName, taintKey string, effect v1.TaintEffect, remove bool) error {
 	node, err := api.GetNode(ctx, nodeName)
 	if err != nil {
@@ -419,9 +419,9 @@ func (api *Client) TaintNode(ctx context.Context, nodeName, taintKey string, eff
 	return err
 }
 
-//updateTaint adds or removes the specified taint key with the effect against the node
-//Returns a string indicating the operation or message and a boolean value indicating
-//if the taint should be Patched.
+// updateTaint adds or removes the specified taint key with the effect against the node
+// Returns a string indicating the operation or message and a boolean value indicating
+// if the taint should be Patched.
 func updateTaint(node *v1.Node, taintKey string, effect v1.TaintEffect, remove bool) (string, bool) {
 	// Init parameters
 	theTaint := v1.Taint{
@@ -474,7 +474,7 @@ func updateTaint(node *v1.Node, taintKey string, effect v1.TaintEffect, remove b
 	return taintOperation, shouldPatchNode
 }
 
-//taintExists checks if the node contains the taint 'key' with the specified 'effect'
+// taintExists checks if the node contains the taint 'key' with the specified 'effect'
 func taintExists(node *v1.Node, key string, effect v1.TaintEffect) bool {
 	for _, taint := range node.Spec.Taints {
 		if taint.Key == key && taint.Effect == effect {
