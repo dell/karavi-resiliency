@@ -1,5 +1,5 @@
 <!--
- Copyright (c) 2021-2022 Dell Inc., or its subsidiaries. All Rights Reserved.
+ Copyright (c) 2021-2023 Dell Inc., or its subsidiaries. All Rights Reserved.
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -16,15 +16,15 @@
 
 # Scale Testing
 
-This page describes a script based facility for running scalability testing. Currently it supports PowerFlex, Unity and PowerScale.
+This page describes a script based facility for running scalability testing. Currently it supports PowerFlex, Unity, PowerScale and PowerStore.
 
-It is comprised of multiple scripts that work together. The top level script is _scaleup-powerflex.sh_ / _scaleup-unity.sh_/ _scaleup-powerscale.sh_.
+It is comprised of multiple scripts that work together. The top level script is _scaleup-powerflex.sh_ / _scaleup-unity.sh_/ _scaleup-powerscale.sh_ / _scaleup-powerstore.sh_.
 It uses the scripts in podmontest _insv.sh_ and _uns.sh_ to deploy or terminate podmontest pods.
 The number of pods deployed is configurable, and the scaleup-powerflex.sh script starts at a small scale
 and gradually scales up the number of deployed pods from a minimal amount to the maximum number of protected
 pods to be tested.
 
-At each number of pods to be tested, scaleup-powerflex.sh/scaleup-unity.sh/scaleup-powerscale.sh invokes _nway.sh_ which runs the actual testing.
+At each number of pods to be tested, scaleup-powerflex.sh/scaleup-unity.sh/scaleup-powerscale.sh/scaleup-powerstore.sh invokes _nway.sh_ which runs the actual testing.
 Nway.sh provides up to 10 groups of nodes that are failed as a unit- so you can divide your cluster into
 any number of groups between 2 and 10. These are configured in the NODELIST1... NODELIST10 variables.
 The test fails each configured group in a successive iteration (empty groups are skipped).

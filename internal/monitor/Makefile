@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022 Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright (c) 2021-2023 Dell Inc., or its subsidiaries. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -50,6 +50,13 @@ powerscale-integration-test:
 	SCRIPTS_DIR="../../test/sh" \
 	go test -timeout 6h -test.v -test.run "^\QTestPowerScaleFirstCheck\E|\QTestPowerScaleIntegration\E"
 
+powerstore-integration-test:
+	RESILIENCY_INT_TEST="true" \
+	RESILIENCY_TEST_CLEANUP="true" \
+	POLL_K8S="true" \
+	SCRIPTS_DIR="../../test/sh" \
+	go test -timeout 6h -test.v -test.run "^\QTestPowerStoreFirstCheck\E|\QTestPowerStoreIntegration\E"
+
 
 powerflex-short-integration-test:
 	RESILIENCY_SHORT_INT_TEST="true" \
@@ -72,6 +79,13 @@ powerscale-short-integration-test:
 	SCRIPTS_DIR="../../test/sh" \
 	go test -timeout 6h -test.v -test.run "^\QTestPowerScaleShortCheck\E|\QTestPowerScaleShortIntegration\E"
 
+powerstore-short-integration-test:
+	RESILIENCY_SHORT_INT_TEST="true" \
+	RESILIENCY_TEST_CLEANUP="true" \
+	POLL_K8S="true" \
+	SCRIPTS_DIR="../../test/sh" \
+	go test -timeout 6h -test.v -test.run "^\QTestPowerStoreShortCheck\E|\QTestPowerStoreShortIntegration\E"
+
 powerflex-array-interface-test:
 	RESILIENCY_INT_TEST="true" \
 	RESILIENCY_TEST_CLEANUP="true" \
@@ -88,3 +102,13 @@ unity-array-interface-test:
 	INTERFACE_A=${INTERFACE1} \
 	INTERFACE_B=${INTERFACE2} \
 	go test -timeout 6h -test.v -test.run "^\QTestUnityFirstCheck\E|\QTestUnityArrayInterfaceDown\E"
+
+powerstore-array-interface-test:
+	RESILIENCY_INT_TEST="true" \
+	RESILIENCY_TEST_CLEANUP="true" \
+	POLL_K8S="true" \
+	SCRIPTS_DIR="../../test/sh" \
+	INTERFACE_A=${INTERFACE1} \
+	INTERFACE_B=${INTERFACE2} \
+	INTERFACE_C=${INTERFACE3} \
+	go test -timeout 6h -test.v -test.run "^\QTestPowerStoreFirstCheck\E|\QTestPowerStoreArrayInterfaceDown\E"
