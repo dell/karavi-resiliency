@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2021-2022 Dell Inc., or its subsidiaries. All Rights Reserved.
+* Copyright (c) 2021-2023 Dell Inc., or its subsidiaries. All Rights Reserved.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -95,7 +95,7 @@ func (f *feature) aControllerMonitorisilon() error {
 }
 
 func (f *feature) aControllerMonitorPstore() error {
-	return f.aControllerMonitor("pstore")
+	return f.aControllerMonitor("powerstore")
 }
 
 func (f *feature) aControllerMonitor(driver string) error {
@@ -111,7 +111,7 @@ func (f *feature) aControllerMonitor(driver string) error {
 		Driver = new(UnityDriver)
 	case "isilon":
 		Driver = new(PScaleDriver)
-	case "pstore":
+	case "powerstore":
 		Driver = new(PStoreDriver)
 	default:
 		Driver = new(VxflexDriver)
@@ -1150,7 +1150,7 @@ func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^a controller monitor unity$`, f.aControllerMonitorUnity)
 	context.Step(`^a controller monitor vxflex$`, f.aControllerMonitorVxflex)
 	context.Step(`^a controller monitor isilon$`, f.aControllerMonitorisilon)
-	context.Step(`^a controller monitor pstore$`, f.aControllerMonitorPstore)
+	context.Step(`^a controller monitor powerstore$`, f.aControllerMonitorPstore)
 	context.Step(`^a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)"$`, f.aPodForNodeWithVolumesCondition)
 	context.Step(`^a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)" affinity "([^"]*)"$`, f.aPodForNodeWithVolumesConditionAffinity)
 	context.Step(`^I call controllerCleanupPod for node "([^"]*)"$`, f.iCallControllerCleanupPodForNode)

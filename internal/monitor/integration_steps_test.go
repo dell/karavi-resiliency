@@ -102,6 +102,7 @@ const (
 	PowerflexNS         = "pmtv"
 	UnityNS             = "pmtu"
 	PowerScaleNS        = "pmti"
+	PowerStoreNS        = "pmtps"
 )
 
 // Used for stopping the test from continuing
@@ -402,7 +403,9 @@ func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, 
 	case "isilon":
 		deployScript = "insi.sh"
 		cleanUpWait = 60 * time.Second
-
+	case "powerstore":
+		deployScript = "insps.sh"
+		cleanUpWait = 60 * time.Second
 	}
 
 	// Set test namespace prefix is based on the driver type.
@@ -419,6 +422,9 @@ func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, 
 		case "isilon":
 			i.testNamespacePrefix[PowerScaleNS] = true
 			prefix = PowerScaleNS
+		case "powerstore":
+			i.testNamespacePrefix[PowerStoreNS] = true
+			prefix = PowerStoreNS
 		}
 	} else {
 		i.testNamespacePrefix[UnprotectedPodsNS] = true
@@ -1518,7 +1524,7 @@ func (i *integration) getExpectedTaints(nodeName string) string {
 		return i.customTaints
 	}
 	// Should minimally expect to the the Kubernetes unreachable taint on the failed node
-	theseTaints := "node.kubernetes.io/unreachable,offline.vxflexos.storage.dell.com,offline.unity.storage.dell.com,offline.isilon.storage.dell.com"
+	theseTaints := "node.kubernetes.io/unreachable,offline.vxflexos.storage.dell.com,offline.unity.storage.dell.com,offline.isilon.storage.dell.com,offline.powerstore.storage.dell.com"
 	if i.nodeHadPodsRunning(nodeName) {
 		// If the test failed some node(s) that had labeled pods in it, then we
 		// expect the podmon taint to be cleaned up as well.
