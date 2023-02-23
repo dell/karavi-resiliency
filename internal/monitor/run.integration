@@ -52,6 +52,7 @@ while [ $ITER -le $ITERATIONS ]; do
   run_e2e_test "powerflex" "vxflexos" "pmtv"
   run_e2e_test "unity" "unity" "pmtu"
   run_e2e_test "powerscale" "isilon" "pmti"
+  run_e2e_test "powerstore" "powerstore" "pmtps"
 
   sleep "$SLEEP_TIME"
   sh $RESILIENCY/tools/monx.sh --once
