@@ -120,12 +120,8 @@ Feature: Integration Test
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
       # Small number of pods, increasing number of vols and devs
       | ""         | "1-2"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 600      | 900        | 900     | 900           |
-#      | ""         | "1-2"       | "2-2" | "2-2" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 240      | 900        | 900     | 900           |
-#      | ""         | "1-2"       | "4-4" | "4-4" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 240      | 900        | 900     | 900           |
       # Slightly more pods, increasing number of vols and devs
-#      | ""         | "3-5"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 240      | 900        | 900     | 900           |
       | ""         | "3-5"       | "2-2" | "2-2" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 600      | 900        | 900     | 900           |
-#      | ""         | "3-5"       | "4-4" | "4-4" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 240      | 1500       | 900     | 900           |
 
   @powerscale-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
@@ -190,12 +186,8 @@ Feature: Integration Test
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
       # Small number of pods, increasing number of vols and devs
       | ""         | "1-2"       | "1-1" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "interfacedown" | 600      | 900        | 900     | 900           |
-#      | ""         | "1-2"       | "2-2" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "interfacedown" | 240      | 900        | 900     | 900           |
-#      | ""         | "1-2"       | "4-4" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "interfacedown" | 240      | 900        | 900     | 900           |
       # Slightly more pods, increasing number of vols and devs
-#      | ""         | "3-5"       | "1-1" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "interfacedown" | 240      | 900        | 900     | 900           |
       | ""         | "3-5"       | "2-2" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "interfacedown" | 600      | 900        | 900     | 900           |
-#      | ""         | "3-5"       | "4-4" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "interfacedown" | 240      | 1500       | 900     | 900           |
 
 @unity-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node kubelet down)
@@ -524,40 +516,6 @@ Feature: Integration Test
       | ""         | "1-1"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 600      | 900        | 900     | 900           |
 #      | ""         | "1-1"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot"        | 240      | 900        | 900     | 900           |
 
-#  @unity-integration
-#  Scenario Outline: Short failure window tests
-#    Given a kubernetes <kubeConfig>
-#    And cluster is clean of test pods
-#    And wait <nodeCleanSecs> to see there are no taints
-#    And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
-#    Then validate that all pods are running within <deploySecs> seconds
-#    When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
-#    Then validate that all pods are running within <runSecs> seconds
-#    And labeled pods are on a different node
-#    And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
-#    Then finally cleanup everything
-#    Examples:
-#      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
-#      | ""         | "1-2"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 60       | 900        | 900     | 900           |
-#      | ""         | "1-2"       | "1-1" | "1-1" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "reboot"        | 60       | 900        | 900     | 900           |
-#
-#  @unity-integration
-#  Scenario Outline: Short failure window tests
-#    Given a kubernetes <kubeConfig>
-#    And cluster is clean of test pods
-#    And wait <nodeCleanSecs> to see there are no taints
-#    And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
-#    Then validate that all pods are running within <deploySecs> seconds
-#    When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
-#    Then validate that all pods are running within <runSecs> seconds
-#    And labeled pods are on a different node
-#    And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
-#    Then finally cleanup everything
-#    Examples:
-#      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
-#      | ""         | "1-2"       | "1-1" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "interfacedown" | 60       | 900        | 900     | 900           |
-#      | ""         | "1-2"       | "1-1" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "reboot"        | 60       | 900        | 900     | 900           |
-
   @powerflex-short-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
     Given a kubernetes <kubeConfig>
@@ -648,7 +606,7 @@ Feature: Integration Test
       | ""         | "1-1"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 120      | 240        | 300     | 600           |
       | ""         | "2-2"       | "2-2" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 120      | 240        | 300     | 600           |
 
-@powerflex-short-integration
+  @powerflex-short-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node kubelet down)
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
@@ -759,9 +717,8 @@ Feature: Integration Test
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
        #Small number of pods, increasing number of vols and devs
-      | ""         | "1-2"       | "1-1" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600          |
-   #   | ""         | "1-2"       | "2-2" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 600      | 900        | 900     | 900           |
-   #   | ""         | "1-2"       | "4-4" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 120      | 240        | 300     | 600           |
+      | ""         | "1-2"       | "1-1" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600           |
+      | ""         | "1-2"       | "2-2" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 600      | 900        | 900     | 900           |
       # Slightly more pods, increasing number of vols and devs
       | ""         | "3-5"       | "1-1" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 240      | 900        | 900     | 900           |
     # | ""         | "3-5"       | "2-2" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 240      | 240        | 300     | 600           |
@@ -868,7 +825,7 @@ Feature: Integration Test
       #| ""         | "1-2"       | "1-1" | "0-0" | "powerstore"  | "powerstore-nvmetcp"  | "one-third" | "zero"  | "driverpod" | "offline.powerstore.storage.dell.com" | 120      | 300        | 300     | 600           | 
       #| ""         | "1-3"       | "2-2" | "0-0" | "powerstore"  | "powerstore-nvmetcp"  | "one-third" | "zero"  | "driverpod" | "offline.powerstore.storage.dell.com" | 120      | 300        | 300     | 600           |
 
-@powerstore-short-integration
+  @powerstore-short-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (driver pods down)
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
@@ -884,3 +841,39 @@ Feature: Integration Test
       | ""         | "1-1"       | "1-1" | "0-0" | "powerstore"  | "powerstore-nfs"      | "one-third" | "zero"  | "driverpod" | "offline.powerstore.storage.dell.com" | 120      | 300        | 300     | 600           |
       | ""         | "1-1"       | "1-1" | "0-0" | "powerstore"  | "powerstore-iscsi"    | "one-third" | "zero"  | "driverpod" | "offline.powerstore.storage.dell.com" | 120      | 300        | 300     | 600           |
       #| ""         | "1-1"       | "1-1" | "0-0" | "powerstore"  | "powerstore-nvmetcp"  | "one-third" | "zero"  | "driverpod" | "offline.powerstore.storage.dell.com" | 120      | 300        | 300     | 600           |
+
+  @powerscale-short-integration
+    Scenario Outline: Basic node failover testing using test StatefulSet pods (node slow reboots)
+      Given a kubernetes <kubeConfig>
+      And cluster is clean of test pods
+      And wait <nodeCleanSecs> to see there are no taints
+      And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
+      Then validate that all pods are running within <deploySecs> seconds
+      When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
+      Then validate that all pods are running within <runSecs> seconds
+      And labeled pods are on a different node
+      And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
+      Then finally cleanup everything
+      Examples:
+        | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
+        | ""         | "1-2"       | "1-1" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600          |
+        | ""         | "1-2"       | "2-2" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 600      | 900        | 900     | 900           |
+
+
+  @powerscale-short-integration
+    Scenario Outline: Basic node failover testing using test StatefulSet pods (node kubelet down)
+      Given a kubernetes <kubeConfig>
+      And cluster is clean of test pods
+      And wait <nodeCleanSecs> to see there are no taints
+      And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
+      Then validate that all pods are running within <deploySecs> seconds
+      When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
+      Then validate that all pods are running within <runSecs> seconds
+      And labeled pods are on a different node
+      And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
+      Then finally cleanup everything
+
+      Examples:
+        | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure       | failSecs | deploySecs | runSecs | nodeCleanSecs |
+        | ""         | "1-2"       | "1-1" | "0-0" | "isilon"   | "isilon"     | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
+        | ""         | "3-5"       | "1-1" | "0-0" | "isilon"   | "isilon"     | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
