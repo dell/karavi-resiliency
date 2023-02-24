@@ -74,7 +74,7 @@ spec:
             imagePullPolicy: IfNotPresent
             command: [ "/podmontest" ]
             args:
-              - "-doexit=true"
+              - "-doexit=false"
             env:
               - name: ROOT_DIR
                 value: "/"
