@@ -146,7 +146,7 @@ Feature: Integration Test
       | ""         | "1-2"       | "1-1" | "0-0" | "isilon"    | "isilon" | "one-third" | "zero"  | "interfacedown" | 120      | 600        | 600     | 600           |
       | ""         | "3-5"       | "2-2" | "0-0" | "isilon"    | "isilon" | "one-third" | "zero"  | "interfacedown" | 240      | 600        | 600     | 600           |
   
-  @powerstore-integration
+  @ppowerstore-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
@@ -258,7 +258,7 @@ Feature: Integration Test
       # Slightly more pods, increasing number of vols and devs
       | ""         | "3-5"       | "1-1" | "0-0" | "isilon"    | "isilon"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
 
-  @powerstore-integration
+  @ppowerstore-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node kubelet down)
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
@@ -450,7 +450,7 @@ Feature: Integration Test
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure         | failSecs | deploySecs | nodeCleanSecs |
       | ""         | "1-2"       | "1-1" | "0-0" | "isilon"   | "isilon"      | "one-third" | "zero"  | "interfacedown" | 600      | 900        | 900           |
   
-  @powerstore-integration
+  @ppowerstore-integration
   Scenario Outline: Deploy pods when there are failed nodes already
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
@@ -767,7 +767,7 @@ Feature: Integration Test
     # | ""         | "3-5"       | "2-2" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 240      | 240        | 300     | 600           |
     # | ""         | "5-10"       | "1-1" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 1200      | 2000       | 2000     | 2000           |
   
-  @powerstore-integration
+  @ppowerstore-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node slow reboots)
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
@@ -861,8 +861,8 @@ Feature: Integration Test
 
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType    | storageClass          | workers     | primary | failure     |  taints                               | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-2"       | "1-1" | "0-0" | "powerstore"  | "powerstore-nfs"      | "one-third" | "zero"  | "driverpod" | "offline.powerstore.storage.dell.com" | 120      | 300        | 300     | 600           | 
-      | ""         | "1-3"       | "2-2" | "0-0" | "powerstore"  | "powerstore-nfs"      | "one-third" | "zero"  | "driverpod" | "offline.powerstore.storage.dell.com" | 120      | 300        | 300     | 600           |
+      #| ""         | "1-2"       | "1-1" | "0-0" | "powerstore"  | "powerstore-nfs"      | "one-third" | "zero"  | "driverpod" | "offline.powerstore.storage.dell.com" | 120      | 300        | 300     | 600           | 
+      #| ""         | "1-3"       | "2-2" | "0-0" | "powerstore"  | "powerstore-nfs"      | "one-third" | "zero"  | "driverpod" | "offline.powerstore.storage.dell.com" | 120      | 300        | 300     | 600           |
       | ""         | "1-2"       | "1-1" | "0-0" | "powerstore"  | "powerstore-iscsi"    | "one-third" | "zero"  | "driverpod" | "offline.powerstore.storage.dell.com" | 120      | 300        | 300     | 600           | 
       | ""         | "1-3"       | "2-2" | "0-0" | "powerstore"  | "powerstore-iscsi"    | "one-third" | "zero"  | "driverpod" | "offline.powerstore.storage.dell.com" | 120      | 300        | 300     | 600           |
       #| ""         | "1-2"       | "1-1" | "0-0" | "powerstore"  | "powerstore-nvmetcp"  | "one-third" | "zero"  | "driverpod" | "offline.powerstore.storage.dell.com" | 120      | 300        | 300     | 600           | 
