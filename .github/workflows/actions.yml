@@ -42,7 +42,7 @@ jobs:
           repository: 'dell/dell-csi-extensions'
           path: dell-csi-extensions
       - name: Run unit tests and check package coverage
-        uses: dell/common-github-actions/go-code-tester@4a9594c799b4759e84cf63c1f58ec64b8867c81a
+        uses: dell/common-github-actions/go-code-tester@df80ac2854b35fba5d37f58b904e1ff1c5379353
         with:
           threshold: 90
           skip-list: "podmon/test/ssh"
