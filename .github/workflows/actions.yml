@@ -42,7 +42,7 @@ jobs:
           repository: 'dell/dell-csi-extensions'
           path: dell-csi-extensions
       - name: Run unit tests and check package coverage
-        uses: dell/common-github-actions/go-code-tester@df80ac2854b35fba5d37f58b904e1ff1c5379353
+        uses: dell/common-github-actions/go-code-tester@b023ce052dba24aa5f25ff2d83164f0d5884d999
         with:
           threshold: 90
           skip-list: "podmon/test/ssh"
@@ -73,7 +73,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.20+
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v4
         with:
           go-version: ^1.20
         id: go
