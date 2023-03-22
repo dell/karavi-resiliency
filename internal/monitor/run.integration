@@ -36,7 +36,6 @@ run_e2e_test() {
   RC=$?
   echo "E2E test for $storage_type had Return code: " $RC
 
-  date
   sh $RESILIENCY/tools/monx.sh --once
 
   # Collect logs
