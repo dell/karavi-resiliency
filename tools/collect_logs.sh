@@ -43,7 +43,7 @@ for param in $*; do
 done
 
 [ "$ns" = "" ] && echo "Required argument: --ns driver_namespace" && exit 2
-echo "Collecting logs driver namespace %ns podmon label $podmon_label"
+echo "Collecting logs driver namespace $ns podmon label $podmon_label"
 
 getpods() {
 	pods=$(kubectl get pods -n $ns | awk '/^NAME/ { next; }; /.*/ { print $1}')
