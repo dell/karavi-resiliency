@@ -1150,7 +1150,7 @@ func (i *integration) copyOverTestScriptsToOpenshift(address string) error {
 	}
 
 	// Use SCP to copy the script files on the Bastion node into the /tmp dir of the Openshift node.
-	copyFileCmd := fmt.Sprintf("scp -r %s core@%s:%s", remoteScriptDir, address, "/usr/tmp")
+	copyFileCmd := fmt.Sprintf("scp -r %s %s core@%s:%s", sshOptions, remoteScriptDir, address, "/usr/tmp")
 	log.Info(copyFileCmd)
 	err := client.Run(copyFileCmd)
 	if err != nil {
