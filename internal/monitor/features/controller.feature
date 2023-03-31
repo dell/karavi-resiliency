@@ -76,7 +76,7 @@ Feature: Controller Monitor
     Given a controller monitor "vxflex"
     And I induce error "CSIExtensionsNotPresent"
     And a pod for node <podnode> with <nvol> volumes condition "Ready" affinity <affin>
-    And I call controllerModePodHandler with event "Update"
+    And I call controllerModePodHandler with event "Updated"
     And I induce error "PodNotReady"
     And a node <podnode> with taint <nodetaint>
     And I induce error <error>
