@@ -90,6 +90,10 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 		if err != nil {
 			log.Errorf("GetNode failed: %s: %s", pod.Spec.NodeName, err)
 		} else {
+			if cm.GetNodeUid(pod.Spec.NodeName) != string(node.ObjectMeta.UID) {
+				log.Info("Updating NodeUid from GetNode: %s -> %s", pod.Spec.NodeName, node.ObjectMeta.UID)
+				cm.StoreNodeUid(pod.Spec.NodeName, string(node.ObjectMeta.UID))
+			}
 
 			// Determine if node tainted
 			taintnosched := nodeHasTaint(node, nodeUnreachableTaint, v1.TaintEffectNoSchedule)
@@ -511,6 +515,11 @@ var ArrayConnectivityConnectionLossThreshold = 3
 
 // CheckConnectivity returns true if the node has connectivity to the arrayID supplied
 func (nacc *nodeArrayConnectivityCache) CheckConnectivity(cm *PodMonitorType, node *v1.Node, arrayID string) bool {
+	nodeUid := cm.GetNodeUid(node.ObjectMeta.Name)
+	if nodeUid == "" || nodeUid != string(node.ObjectMeta.UID) {
+		log.Infof("node %s has stale node uid %s- skipping connectivity check and assuming connected", node.ObjectMeta.Name, string(node.ObjectMeta.UID))
+		return true
+	}
 	key := node.ObjectMeta.Name + ":" + arrayID
 	if nacc.nodeArrayConnectivitySampled[key] == false {
 		// Determine connectivity
