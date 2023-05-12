@@ -162,8 +162,8 @@ func (pm *PodMonitorType) GetNodeUid(nodeName string) string {
 	if !ok {
 		return ""
 	}
-	uid := any.(types.UID)
-	return string(uid)
+	uid := fmt.Sprintf("%v", any)
+	return uid
 }
 
 func (pm *PodMonitorType) ClearNodeUid(nodeName, oldNodeUid string) bool {
@@ -279,14 +279,14 @@ func nodeMonitorHandler(eventType watch.EventType, object interface{}) error {
 		pm := &PodMonitor
 		switch eventType {
 		case watch.Added:
-			log.Info("Node created: %s %s", node.ObjectMeta.Name, node.ObjectMeta.UID)
+			log.Infof("Node created: %s %s", node.ObjectMeta.Name, node.ObjectMeta.UID)
 			pm.StoreNodeUid(node.ObjectMeta.Name, string(node.ObjectMeta.UID))
 		case watch.Modified:
-			log.Info("Node updated: %s %s", node.ObjectMeta.Name, node.ObjectMeta.UID)
+			log.Infof("Node updated: %s %s", node.ObjectMeta.Name, node.ObjectMeta.UID)
 			pm.StoreNodeUid(node.ObjectMeta.Name, string(node.ObjectMeta.UID))
 		case watch.Deleted:
 			oldUid := string(node.ObjectMeta.UID)
-			log.Info("Node deleted: %s previously %s", node.ObjectMeta.Name, oldUID)
+			log.Infof("Node deleted: %s previously %s", node.ObjectMeta.Name, oldUID)
 			pm.ClearNodeUid(node.ObjectMeta.Name, oldUid)
 		}
 		// Get the CSI annotations for nodeID

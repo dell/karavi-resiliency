@@ -91,7 +91,7 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 			log.Errorf("GetNode failed: %s: %s", pod.Spec.NodeName, err)
 		} else {
 			if cm.GetNodeUid(pod.Spec.NodeName) != string(node.ObjectMeta.UID) {
-				log.Info("Updating NodeUid from GetNode: %s -> %s", pod.Spec.NodeName, node.ObjectMeta.UID)
+				log.Infof("Updating NodeUid from GetNode: %s -> %s", pod.Spec.NodeName, node.ObjectMeta.UID)
 				cm.StoreNodeUid(pod.Spec.NodeName, string(node.ObjectMeta.UID))
 			}
 
@@ -115,7 +115,8 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 
 			// If ready, we want to save the PodKeyToControllerPodInfo
 			// It will use these items to clean up pods if the array reports no connectivity.
-			if ready {
+			// Update podInfo if pod is evict from a node to another node
+			if ready || (eventType == watch.Modified) {
 				arrayIDs, pvcCount, err := cm.podToArrayIDs(ctx, pod)
 				if err != nil {
 					log.Errorf("Could not determine pod to arrayIDs: %s", err)
@@ -141,8 +142,10 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 					PodAffinityLabels: podAffinityLabels,
 				}
 				cm.PodKeyToControllerPodInfo.Store(podKey, podInfo)
-				// Delete (reset) the CrashLoopBackOff counter since we're running.
-				cm.PodKeyToCrashLoopBackOffCount.Delete(podKey)
+				if ready {
+					// Delete (reset) the CrashLoopBackOff counter since we're running.
+					cm.PodKeyToCrashLoopBackOffCount.Delete(podKey)
+				}
 			}
 
 			log.Infof("podMonitorHandler: namespace: %s name: %s nodename: %s initialized: %t ready: %t taints [nosched: %t noexec: %t podmon: %t ]",
