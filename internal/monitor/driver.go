@@ -197,17 +197,10 @@ func (d *UnityDriver) FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID 
 
 		blockDev := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/volumeDevices/%s/dev/%s", pvName, podUUID)
 		err = unMountPath(blockDev, 1)
-		if err != nil {
-			log.Infof("error in unmount block device in FinalCleanup: %s path: %s", err, blockDev)
-		} else {
-			log.Infof("sucessfully unmounted block device: %s", blockDev)
-		}
+		log.Infof("unmount block device in FinalCleanup path: %s error: %s", blockDev, err)
+
 		err = RemoveDev(blockDev)
-		if err != nil {
-			log.Infof("error remove block device FinalCleanup: %s path: %s", err, blockDev)
-		} else {
-			log.Infof("removed block device: %s", blockDev)
-		}
+		log.Infof("remove block device FinalCleanup path: %s error: %s", blockDev, err)
 	}
 	return nil
 }

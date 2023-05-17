@@ -149,6 +149,9 @@ func (f *feature) aPodForNodeWithVolumesCondition(node string, nvolumes int, con
 	pod := f.createPod(node, nvolumes, condition, "false")
 	f.pod = pod
 	f.k8sapiMock.AddPod(pod)
+	node1, _ := f.k8sapiMock.GetNode(context.Background(), node)
+	f.node = node1
+	f.k8sapiMock.AddNode(node1)
 	return nil
 }
 

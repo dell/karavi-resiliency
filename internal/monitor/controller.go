@@ -141,6 +141,7 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 					ArrayIDs:          arrayIDs,
 					PodAffinityLabels: podAffinityLabels,
 				}
+				log.Debugf("Updating protected pod info podKey %s pvcCount %d arrayIDs %v", podKey, pvcCount, arrayIDs)
 				cm.PodKeyToControllerPodInfo.Store(podKey, podInfo)
 				if ready {
 					// Delete (reset) the CrashLoopBackOff counter since we're running.

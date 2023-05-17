@@ -29,7 +29,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 )
@@ -154,10 +153,12 @@ func Unlock(podkey string) {
 }
 
 func (pm *PodMonitorType) StoreNodeUid(nodeName, uid string) {
+	log.Infof("StoreNodeUid added node: %s uid: %s", nodeName, uid)
 	pm.NodeNameToUid.Store(nodeName, uid)
 }
 
 func (pm *PodMonitorType) GetNodeUid(nodeName string) string {
+	log.Infof("GetNodeUid added node: %s", nodeName)
 	any, ok := pm.NodeNameToUid.Load(nodeName)
 	if !ok {
 		return ""
@@ -169,7 +170,7 @@ func (pm *PodMonitorType) GetNodeUid(nodeName string) string {
 func (pm *PodMonitorType) ClearNodeUid(nodeName, oldNodeUid string) bool {
 	// Replace with CompareAndSwap in go version 1.20
 	oldUID, ok := pm.NodeNameToUid.Load(nodeName)
-	old := oldUID.(types.UID)
+	old := fmt.Sprintf("%v", oldUID)
 	if ok && string(old) == oldNodeUid {
 		pm.NodeNameToUid.Store(nodeName, "")
 		return true
@@ -279,14 +280,14 @@ func nodeMonitorHandler(eventType watch.EventType, object interface{}) error {
 		pm := &PodMonitor
 		switch eventType {
 		case watch.Added:
-			log.Infof("Node created: %s %s", node.ObjectMeta.Name, node.ObjectMeta.UID)
+			log.Debugf("Node created: %s %s", node.ObjectMeta.Name, node.ObjectMeta.UID)
 			pm.StoreNodeUid(node.ObjectMeta.Name, string(node.ObjectMeta.UID))
 		case watch.Modified:
-			log.Infof("Node updated: %s %s", node.ObjectMeta.Name, node.ObjectMeta.UID)
+			log.Debugf("Node updated: %s %s", node.ObjectMeta.Name, node.ObjectMeta.UID)
 			pm.StoreNodeUid(node.ObjectMeta.Name, string(node.ObjectMeta.UID))
 		case watch.Deleted:
 			oldUid := string(node.ObjectMeta.UID)
-			log.Infof("Node deleted: %s previously %s", node.ObjectMeta.Name, oldUID)
+			log.Debugf("Node deleted: %s previously %s", node.ObjectMeta.Name, oldUID)
 			pm.ClearNodeUid(node.ObjectMeta.Name, oldUid)
 		}
 		// Get the CSI annotations for nodeID
