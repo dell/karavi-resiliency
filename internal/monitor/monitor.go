@@ -171,15 +171,7 @@ func (pm *PodMonitorType) GetNodeUID(nodeName string) string {
 
 // ClearNodeUID remove the node name UID on node
 func (pm *PodMonitorType) ClearNodeUID(nodeName, oldNodeUID string) bool {
-	// Replace with CompareAndSwap in go version 1.20
-	oldUID, ok := pm.NodeNameToUID.Load(nodeName)
-	old := fmt.Sprintf("%v", oldUID)
-	if ok && string(old) == oldNodeUID {
-		pm.NodeNameToUID.Store(nodeName, "")
-		return true
-	}
-	return false
-	// return pm.NodeNameToUid.CompareAndSwap(oldNodeUid, "")
+	return pm.NodeNameToUID.CompareAndSwap(nodeName, oldNodeUID, "")
 }
 
 // Watch watches a watcher result channel. Upon receiving an event, the fn WatchFunc is invoked.Load
@@ -301,7 +293,7 @@ func nodeMonitorHandler(eventType watch.EventType, object interface{}) error {
 		taintnosched := nodeHasTaint(node, nodeUnreachableTaint, v1.TaintEffectNoSchedule)
 		taintnoexec := nodeHasTaint(node, nodeUnreachableTaint, v1.TaintEffectNoExecute)
 
-		log.Infof("node name: %s uid %s nodsched %t noexec %t", node.ObjectMeta.Name, string(node.ObjectMeta.UID), taintnosched, taintnoexec)
+		log.Infof("node name: %s uid %s nosched %t noexec %t", node.ObjectMeta.Name, string(node.ObjectMeta.UID), taintnosched, taintnoexec)
 	}
 	return nil
 }
