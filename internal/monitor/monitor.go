@@ -99,7 +99,7 @@ type PodMonitorType struct {
 	SkipArrayConnectionValidation bool     // skip validation array connection lost
 	CSIExtensionsPresent          bool     // the CSI PodmonExtensions are present
 	DriverPathStr                 string   // CSI Driver path string for parsing csi.volume.kubernetes.io/nodeid annotation
-	NodeNameToUid                 sync.Map // Node.ObjectMeta.Name to Node.ObjectMeta.Uid
+	NodeNameToUID                 sync.Map // Node.ObjectMeta.Name to Node.ObjectMeta.Uid
 }
 
 // PodMonitor is a reference to tracking data for the pod monitor
@@ -152,14 +152,16 @@ func Unlock(podkey string) {
 	PodMonitor.PodKeyMap.Delete(podkey)
 }
 
-func (pm *PodMonitorType) StoreNodeUid(nodeName, uid string) {
+// StoreNodeUID store node name and UID
+func (pm *PodMonitorType) StoreNodeUID(nodeName, uid string) {
 	log.Infof("StoreNodeUid added node: %s uid: %s", nodeName, uid)
-	pm.NodeNameToUid.Store(nodeName, uid)
+	pm.NodeNameToUID.Store(nodeName, uid)
 }
 
-func (pm *PodMonitorType) GetNodeUid(nodeName string) string {
+// GetNodeUID returns the node UID
+func (pm *PodMonitorType) GetNodeUID(nodeName string) string {
 	log.Infof("GetNodeUid added node: %s", nodeName)
-	any, ok := pm.NodeNameToUid.Load(nodeName)
+	any, ok := pm.NodeNameToUID.Load(nodeName)
 	if !ok {
 		return ""
 	}
@@ -167,12 +169,13 @@ func (pm *PodMonitorType) GetNodeUid(nodeName string) string {
 	return uid
 }
 
-func (pm *PodMonitorType) ClearNodeUid(nodeName, oldNodeUid string) bool {
+// ClearNodeUID remove the node name UID on node
+func (pm *PodMonitorType) ClearNodeUID(nodeName, oldNodeUID string) bool {
 	// Replace with CompareAndSwap in go version 1.20
-	oldUID, ok := pm.NodeNameToUid.Load(nodeName)
+	oldUID, ok := pm.NodeNameToUID.Load(nodeName)
 	old := fmt.Sprintf("%v", oldUID)
-	if ok && string(old) == oldNodeUid {
-		pm.NodeNameToUid.Store(nodeName, "")
+	if ok && string(old) == oldNodeUID {
+		pm.NodeNameToUID.Store(nodeName, "")
 		return true
 	}
 	return false
@@ -281,14 +284,13 @@ func nodeMonitorHandler(eventType watch.EventType, object interface{}) error {
 		switch eventType {
 		case watch.Added:
 			log.Debugf("Node created: %s %s", node.ObjectMeta.Name, node.ObjectMeta.UID)
-			pm.StoreNodeUid(node.ObjectMeta.Name, string(node.ObjectMeta.UID))
+			pm.StoreNodeUID(node.ObjectMeta.Name, string(node.ObjectMeta.UID))
 		case watch.Modified:
 			log.Debugf("Node updated: %s %s", node.ObjectMeta.Name, node.ObjectMeta.UID)
-			pm.StoreNodeUid(node.ObjectMeta.Name, string(node.ObjectMeta.UID))
+			pm.StoreNodeUID(node.ObjectMeta.Name, string(node.ObjectMeta.UID))
 		case watch.Deleted:
-			oldUid := string(node.ObjectMeta.UID)
 			log.Debugf("Node deleted: %s previously %s", node.ObjectMeta.Name, oldUID)
-			pm.ClearNodeUid(node.ObjectMeta.Name, oldUid)
+			pm.ClearNodeUID(node.ObjectMeta.Name, oldUID)
 		}
 		// Get the CSI annotations for nodeID
 		volumeIDs := make([]string, 0)
