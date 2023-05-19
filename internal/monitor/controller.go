@@ -60,7 +60,7 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 		pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, pod.Spec.NodeName, pod.Status.Message, pod.Status.Reason, eventType)
 
 	driverNamespace := os.Getenv("MY_POD_NAMESPACE")
-	log.Infof("podMonitorHandler-controller: driverNamespace %s", driverNamespace)
+	log.Debugf("podMonitorHandler-controller: driverNamespace %s", driverNamespace)
 	// For driver pod
 	if driverNamespace == pod.ObjectMeta.Namespace {
 		return cm.controllerModeDriverPodHandler(pod, eventType)
