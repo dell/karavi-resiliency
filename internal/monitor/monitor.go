@@ -154,13 +154,13 @@ func Unlock(podkey string) {
 
 // StoreNodeUID store node name and UID
 func (pm *PodMonitorType) StoreNodeUID(nodeName, uid string) {
-	log.Infof("StoreNodeUid added node: %s uid: %s", nodeName, uid)
+	log.Debugf("StoreNodeUid added node: %s uid: %s", nodeName, uid)
 	pm.NodeNameToUID.Store(nodeName, uid)
 }
 
 // GetNodeUID returns the node UID
 func (pm *PodMonitorType) GetNodeUID(nodeName string) string {
-	log.Infof("GetNodeUid added node: %s", nodeName)
+	log.Debugf("GetNodeUid added node: %s", nodeName)
 	any, ok := pm.NodeNameToUID.Load(nodeName)
 	if !ok {
 		return ""
