@@ -30,6 +30,7 @@ Feature: Controller Monitor
     Given a controller monitor "vxflex"
     And a pod for node <podnode> with <nvol> volumes condition <condition> affinity <affin>
     And a node <podnode> with taint <nodetaint>
+    And I send a node event type "Modify"
     And I induce error <error>
     When I call controllerModePodHandler with event <eventtype>
     Then the pod is cleaned <cleaned>
@@ -60,6 +61,7 @@ Feature: Controller Monitor
     And I induce error "CSIExtensionsNotPresent"
     And a pod for node <podnode> with <nvol> volumes condition <condition> affinity <affin>
     And a node <podnode> with taint <nodetaint>
+    And I send a node event type "Modify"
     And I induce error <error>
     When I call controllerModePodHandler with event <eventtype>
     Then the pod is cleaned <cleaned>
@@ -79,6 +81,7 @@ Feature: Controller Monitor
     And I call controllerModePodHandler with event "Updated"
     And I induce error "PodNotReady"
     And a node <podnode> with taint <nodetaint>
+    And I send a node event type "Modify"
     And I induce error <error>
     When I call controllerModePodHandler with event <eventtype>
     Then the pod is cleaned <cleaned>
@@ -107,6 +110,8 @@ Feature: Controller Monitor
     Given a controller monitor "vxflex"
     And a pod for node <podnode> with <nvol> volumes condition <condition> affinity <affin>
     And I induce error <error>
+    And a node <podnode> with taint "none"
+    And I send a node event type "Modify"
     When I call controllerModePodHandler with event "Updated"
     And I call ArrayConnectivityMonitor
     Then the pod is cleaned <cleaned>
