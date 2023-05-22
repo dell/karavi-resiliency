@@ -99,6 +99,7 @@ type PodMonitorType struct {
 	SkipArrayConnectionValidation bool     // skip validation array connection lost
 	CSIExtensionsPresent          bool     // the CSI PodmonExtensions are present
 	DriverPathStr                 string   // CSI Driver path string for parsing csi.volume.kubernetes.io/nodeid annotation
+	NodeNameToUID                 sync.Map // Node.ObjectMeta.Name to Node.ObjectMeta.Uid
 }
 
 // PodMonitor is a reference to tracking data for the pod monitor
@@ -151,7 +152,29 @@ func Unlock(podkey string) {
 	PodMonitor.PodKeyMap.Delete(podkey)
 }
 
-// Watch watches a watcher result channel. Upon receiving an event, the fn WatchFunc is invoked.
+// StoreNodeUID store node name and UID
+func (pm *PodMonitorType) StoreNodeUID(nodeName, uid string) {
+	log.Debugf("StoreNodeUid added node: %s uid: %s", nodeName, uid)
+	pm.NodeNameToUID.Store(nodeName, uid)
+}
+
+// GetNodeUID returns the node UID
+func (pm *PodMonitorType) GetNodeUID(nodeName string) string {
+	log.Debugf("GetNodeUid added node: %s", nodeName)
+	any, ok := pm.NodeNameToUID.Load(nodeName)
+	if !ok {
+		return ""
+	}
+	uid := fmt.Sprintf("%v", any)
+	return uid
+}
+
+// ClearNodeUID remove the node name UID on node
+func (pm *PodMonitorType) ClearNodeUID(nodeName, oldNodeUID string) bool {
+	return pm.NodeNameToUID.CompareAndSwap(nodeName, oldNodeUID, "")
+}
+
+// Watch watches a watcher result channel. Upon receiving an event, the fn WatchFunc is invoked.Load
 func (pm *Monitor) Watch(fn WatchFunc) error {
 	defer pm.Watcher.Stop()
 	for {
@@ -247,8 +270,20 @@ func nodeMonitorHandler(eventType watch.EventType, object interface{}) error {
 		log.Info("nodeMonitorHandler nil node")
 		return nil
 	}
+	oldUID := string(node.ObjectMeta.UID)
 	if node != nil {
 		pm := &PodMonitor
+		switch eventType {
+		case watch.Added:
+			log.Debugf("Node created: %s %s", node.ObjectMeta.Name, node.ObjectMeta.UID)
+			pm.StoreNodeUID(node.ObjectMeta.Name, string(node.ObjectMeta.UID))
+		case watch.Modified:
+			log.Debugf("Node updated: %s %s", node.ObjectMeta.Name, node.ObjectMeta.UID)
+			pm.StoreNodeUID(node.ObjectMeta.Name, string(node.ObjectMeta.UID))
+		case watch.Deleted:
+			log.Debugf("Node deleted: %s previously %s", node.ObjectMeta.Name, oldUID)
+			pm.ClearNodeUID(node.ObjectMeta.Name, oldUID)
+		}
 		// Get the CSI annotations for nodeID
 		volumeIDs := make([]string, 0)
 		// Print out whether the host is connected or not...
@@ -258,7 +293,7 @@ func nodeMonitorHandler(eventType watch.EventType, object interface{}) error {
 		taintnosched := nodeHasTaint(node, nodeUnreachableTaint, v1.TaintEffectNoSchedule)
 		taintnoexec := nodeHasTaint(node, nodeUnreachableTaint, v1.TaintEffectNoExecute)
 
-		log.Infof("node name: %s nodsched %t noexec %t", node.ObjectMeta.Name, taintnosched, taintnoexec)
+		log.Infof("node name: %s uid %s nosched %t noexec %t", node.ObjectMeta.Name, string(node.ObjectMeta.UID), taintnosched, taintnoexec)
 	}
 	return nil
 }

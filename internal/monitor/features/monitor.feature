@@ -55,6 +55,7 @@ Feature: Monitor generic code
   Scenario Outline: Test Lock/Unlock and getPodKey
     Given a controller monitor "vxflex"
     And a pod for node <podnode> with <nvol> volumes condition ""
+    And I send a node event type "Modify"
     When I call test lock and getPodKey
    # The previous step will fail if there is an error
 
