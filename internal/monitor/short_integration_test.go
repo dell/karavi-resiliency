@@ -253,7 +253,7 @@ func TestPowerScaleShortIntegration(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        "pretty,junit:powerscale-short-check-junit-report.xml,cucumber:powerscale-short-integration-cucumber-report.json",
+		Format:        "pretty,junit:powerscale-short-integration-junit-report.xml,cucumber:powerscale-short-integration-cucumber-report.json",
 		Paths:         []string{"features"},
 		Tags:          "powerscale-short-integration",
 		StopOnFailure: stopOnFailure,
