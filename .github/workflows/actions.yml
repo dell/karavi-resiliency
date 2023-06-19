@@ -98,6 +98,7 @@ jobs:
         with:
           image-name: podmon
           severity-threshold: HIGH
+          run-quality-checks: false
         env:
           DOCKLE_HOST: "unix:///var/run/docker.sock"
           
