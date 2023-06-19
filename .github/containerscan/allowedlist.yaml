@@ -1,6 +1,6 @@
 general:
   vulnerabilities:
-    # No fixes for these at this time
+    # No fixes for these at thiss time
 
     # Disputed CVEs
     - CVE-2019-1010022

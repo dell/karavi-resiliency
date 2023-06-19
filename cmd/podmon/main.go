@@ -88,7 +88,7 @@ var ArrayConnMonitorFc = monitor.PodMonitor.ArrayConnectivityMonitor
 // PodMonWait is reference to a function that handles podmon monitoring loop
 var PodMonWait = podMonWait
 
-// GetCSIClient is reference to a function that returns a nefw CSIClient
+// GetCSIClient is reference to a function that returns a new CSIClient
 var GetCSIClient = csiapi.NewCSIClient
 var createArgsOnce sync.Once
 
