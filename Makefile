@@ -13,7 +13,7 @@
 # limitations under the License.
 # Includes the following generated file to get semantic version information
 all:
-	(cd cmd/podmon; make clean build docker push)
+	(cd cmd/podmon; make clean build-base-image build podman push)
 
 check:
 	@scripts/check.sh ./internal/monitor ./internal/k8sapi ./internal/csiapi ./internal/criapi ./cmd/podmon  

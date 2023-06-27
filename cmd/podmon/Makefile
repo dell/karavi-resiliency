@@ -16,7 +16,8 @@ MAJOR=0
 MINOR=0
 PATCH=54
 VERSION?="v$(MAJOR).$(MINOR).$(PATCH)"
-REGISTRY?="${REGISTRY_HOST}:${REGISTRY_PORT}/podmon"
+REGISTRY?="${REGISTRY_HOST}:${REGISTRY_PORT}/podmontest"
+BASEIMAGE?="${REGISTRY_HOST}:${REGISTRY_PORT}/resiliency-micro:latest"
 
 clean:
 	go clean ./...
@@ -24,11 +25,14 @@ clean:
 build:
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64  go build -a -ldflags '-w' ./...
 
-docker:
-	docker build --no-cache -t "$(REGISTRY):$(VERSION)" --label commit=$(shell git log --max-count 1 --format="%H") .
+build-base-image:
+	sh ../../scripts/buildubimicro.sh $(BASEIMAGE)
+
+podman:
+	podman build --no-cache -t "$(REGISTRY):$(VERSION)" --build-arg BASEIMAGE=$(BASEIMAGE) --label commit=$(shell git log --max-count 1 --format="%H") .
 
 push:
-	docker push "$(REGISTRY):$(VERSION)"
+	podman push "$(REGISTRY):$(VERSION)"
 
 unit-test:
 	go test -race -v -coverprofile=c.out ./...
