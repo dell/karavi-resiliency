@@ -111,7 +111,7 @@ func TestPowerScaleFirstCheck(t *testing.T) {
 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
 
 	godogOptions := godog.Options{
-		Format:        "pretty,cucumber:powerscale-first-check-cucumber-report.json",
+		Format:        "pretty,junit:powerscale-first-check-junit-report.xml,cucumber:powerscale-first-check-cucumber-report.json",
 		Paths:         []string{"features"},
 		Tags:          "powerscale-int-setup-check",
 		StopOnFailure: stopOnFailure,
@@ -259,7 +259,7 @@ func TestPowerScaleIntegration(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        "pretty,cucumber:powerscale-integration-cucumber-report.json",
+		Format:        "pretty,junit:powerscale-integration-junit-report.xml,cucumber:powerscale-integration-cucumber-report.json",
 		Paths:         []string{"features"},
 		Tags:          "powerscale-integration",
 		StopOnFailure: stopOnFailure,
