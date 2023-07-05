@@ -17,7 +17,7 @@
 # Dell Container Storage Modules (CSM) for Resiliency
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-v2.0%20adopted-ff69b4.svg)](https://github.com/dell/csm/blob/main/docs/CODE_OF_CONDUCT.md)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Docker Pulls](https://img.shields.io/docker/pulls/dellemc/podmon)](https://hub.docker.com/r/dellemc/podmon)
+[![Podmam Pulls](https://img.shields.io/docker/pulls/dellemc/podmon)](https://hub.docker.com/r/dellemc/podmon)
 [![Go version](https://img.shields.io/github/go-mod/go-version/dell/karavi-resiliency)](go.mod)
 [![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/v/release/dell/karavi-resiliency?include_prereleases&label=latest&style=flat-square)](https://github.com/dell/karavi-resiliency/releases/latest)
 [![Releases](https://img.shields.io/badge/Releases-green.svg)](https://github.com/dell/karavi-resiliency/releases)
@@ -47,19 +47,21 @@ If you wish to clone and build CSM for Resiliency, a Linux host is required with
 
 | Component       | Version   | Additional Information                                                                                                                     |
 | --------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Docker          | v19+      | [Docker installation](https://docs.docker.com/engine/install/)                                                                                                    |
-| Golang          | v1.18+    | [Golang installation](https://github.com/travis-ci/gimme)                                                                                                         |
-| git             | latest    | [Git installation](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)                                                                              |
+| Podman          | v4.4.1+   | [Podman installation](https://podman.io/docs/installation)                                                                                                    |
+| Buildah         | v1.29.1+  | [Buildah installation](https://www.redhat.com/sysadmin/getting-started-buildah)                                                                               |
+| Golang          | v1.18+    | [Golang installation](https://github.com/travis-ci/gimme)                                                                                                     |
+| git             | latest    | [Git installation](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)                                                                             |
 
 Once all prerequisites are on the Linux host, follow the steps below to clone, build and deploy CSM for Resiliency:
 
 1. Clone the repository: `git clone https://github.com/dell/karavi-resiliency.git`
-2. Define and export the following environment variables to point to your Docker registry:
+2. Define and export the following environment variables to point to your Podman registry:
 
     ```
     export REGISTRY_HOST=<registry host>
     export REGISTRY_PORT=<registry port>
     export VERSION=<version>
+    export BASE_IMAGE=<image>
     ```
 3. At the root of the source tree, run the following to build and deploy: `make`
 
