@@ -61,7 +61,6 @@ Once all prerequisites are on the Linux host, follow the steps below to clone, b
     export REGISTRY_HOST=<registry host>
     export REGISTRY_PORT=<registry port>
     export VERSION=<version>
-    export BASE_IMAGE=<image>
     ```
 3. At the root of the source tree, run the following to build and deploy: `make`
 
