@@ -96,7 +96,7 @@ jobs:
       - name: Image scanner
         uses: Azure/container-scan@v0
         with:
-          image-name: podmon
+          image-name:  localhost/podmon
           severity-threshold: HIGH
         env:
           DOCKLE_HOST: "unix:///var/run/docker.sock"
