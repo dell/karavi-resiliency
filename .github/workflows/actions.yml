@@ -92,7 +92,7 @@ jobs:
       - name: Mod tidy
         run: go mod tidy
       - name: Build podmon Docker Image
-        run: cd cmd/podmon ; export REGISTRY_HOST=localhost ; export REGISTRY_PORT=8080 ; make clean build-base-image build; podman build -t podmon . --build-arg BASEIMAGE="localhost:8080/resiliency-ubimicro"
+        run: cd cmd/podmon ; chmod +x ../../scripts/buildubimicro.sh ; export REGISTRY_HOST=localhost ; export REGISTRY_PORT=8080 ; make clean build-base-image build ; podman build -t podmon . --build-arg BASEIMAGE="localhost:8080/resiliency-ubimicro"
       - name: Image scanner
         uses: Azure/container-scan@v0
         with:
