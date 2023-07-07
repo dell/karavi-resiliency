@@ -17,7 +17,7 @@ MINOR=0
 PATCH=54
 VERSION?="v$(MAJOR).$(MINOR).$(PATCH)"
 REGISTRY?="${REGISTRY_HOST}:${REGISTRY_PORT}/podmontest"
-BASEIMAGE?="${REGISTRY_HOST}:${REGISTRY_PORT}/resiliency-micro:latest"
+BASEIMAGE?="localhost/resiliency-micro:latest"
 
 clean:
 	go clean ./...
@@ -26,7 +26,7 @@ build:
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64  go build -a -ldflags '-w' ./...
 
 build-base-image:
-	../../scripts/buildubimicro.sh "registry.access.redhat.com/ubi8-micro:8.8-3"
+	sh ../../scripts/buildubimicro.sh "registry.access.redhat.com/ubi8-micro:8.8-3"
 
 podman:
 	podman build --no-cache -t "$(REGISTRY):$(VERSION)" --build-arg BASEIMAGE=$(BASEIMAGE) --label commit=$(shell git log --max-count 1 --format="%H") .
