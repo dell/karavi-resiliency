@@ -92,12 +92,12 @@ jobs:
       - name: Mod tidy
         run: go mod tidy
       - name: Build podmon Docker Image
-        run: cd cmd/podmon ; chmod +x ../../scripts/buildubimicro.sh ; buildah unshare ../../scripts/buildubimicro.sh "registry.access.redhat.com/ubi8-micro:8.8-3" ; make clean build ; podman build -t podmon . --build-arg BASEIMAGE="localhost/resiliency-ubimicro"
+        run: cd cmd/podmon ; chmod +x ../../scripts/buildubimicro.sh ; buildah unshare ../../scripts/buildubimicro.sh "registry.access.redhat.com/ubi8-micro:8.8-3" ; make clean build ; podman build -t docker.io/podmon . --build-arg BASEIMAGE="localhost/resiliency-ubimicro" ; podman save docker.io/library/podmon -o /tmp/podmon.tar ; docker load -i /tmp/podmon.tar
       - name: Image scanner
         uses: Azure/container-scan@v0
         with:
-          image-name:  localhost/podmon
+          image-name:  podmon
           severity-threshold: HIGH
         env:
-          DOCKLE_HOST: "unix:///var/run/podman.sock"
+          DOCKLE_HOST: "unix:///var/run/docker.sock"
           
