@@ -99,5 +99,5 @@ jobs:
           image-name:  localhost/podmon
           severity-threshold: HIGH
         env:
-          DOCKLE_HOST: "unix:///var/run/docker.sock"
+          DOCKLE_HOST: "unix:///var/run/podman.sock"
           
