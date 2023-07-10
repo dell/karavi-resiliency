@@ -88,7 +88,7 @@ jobs:
       - name: Install Mockgen
         run: go get github.com/golang/mock/mockgen@v1.6.0
       - name: Get dependencies
-        run: go mod download ; sudo apt update ; sudo apt -y install dnf ; sudo apt install nextgen-yum4
+        run: go mod download ; sudo apt update ; sudo apt -y install dnf
       - name: Mod tidy
         run: go mod tidy
       - name: Build podmon Docker Image
