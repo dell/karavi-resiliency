@@ -1,4 +1,5 @@
-# Copyright (c) 2021-2023 Dell Inc., or its subsidiaries. All Rights Reserved.
+#!/bin/sh
+# Copyright (c) 2023 Dell Inc., or its subsidiaries. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,13 +12,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG BASEIMAGE
-FROM $BASEIMAGE AS final
-LABEL vendor="Dell Inc." \
-      name="csm-resiliency" \
-      summary="Dell Container Storage Modules (CSM) for Resiliency" \
-      description="Makes Kubernetes applications, including those that utilize persistent storage, more resilient to various failures" \
-      version="2.0.0" \
-      license="Apache-2.0"
-COPY podmon /podmon
-ENTRYPOINT [ "/podmon" ]
+
+microcontainer=$(buildah from $1)
+micromount=$(buildah mount $microcontainer)
+dnf install --installroot $micromount --releasever=8 --nodocs --setopt install_weak_deps=false openssl nettle gnutls systemd -y
+dnf clean all --installroot $micromount
+buildah umount $microcontainer
+buildah commit $microcontainer resiliency-ubimicro
