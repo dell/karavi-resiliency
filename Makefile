@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022 Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright (c) 2021-2023 Dell Inc., or its subsidiaries. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 # limitations under the License.
 # Includes the following generated file to get semantic version information
 all:
-	(cd cmd/podmon; make clean build docker push)
+	(cd cmd/podmon; make clean build-base-image build podman push)
 
 check:
 	@scripts/check.sh ./internal/monitor ./internal/k8sapi ./internal/csiapi ./internal/criapi ./cmd/podmon  

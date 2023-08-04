@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022 Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright (c) 2021-2023 Dell Inc., or its subsidiaries. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ MINOR=0
 PATCH=54
 VERSION?="v$(MAJOR).$(MINOR).$(PATCH)"
 REGISTRY?="${REGISTRY_HOST}:${REGISTRY_PORT}/podmon"
+BASEIMAGE?="resiliency-micro:latest"
 
 clean:
 	go clean ./...
@@ -24,11 +25,14 @@ clean:
 build:
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64  go build -a -ldflags '-w' ./...
 
-docker:
-	docker build --no-cache -t "$(REGISTRY):$(VERSION)" --label commit=$(shell git log --max-count 1 --format="%H") .
+build-base-image:
+	sh ../../scripts/buildubimicro.sh "registry.access.redhat.com/ubi9-micro:9.2-9"
+
+podman:
+	podman build --no-cache -t "$(REGISTRY):$(VERSION)" --build-arg BASEIMAGE=$(BASEIMAGE) --label commit=$(shell git log --max-count 1 --format="%H") .
 
 push:
-	docker push "$(REGISTRY):$(VERSION)"
+	podman push "$(REGISTRY):$(VERSION)"
 
 unit-test:
 	go test -race -v -coverprofile=c.out ./...
