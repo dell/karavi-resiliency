@@ -1102,7 +1102,7 @@ func (i *integration) copyOverTestScriptsToNode(address string) error {
 		}
 	}
 
-	// After copying the files, add execute permissions and list the directory
+	// After copying the files, add execute permissions and list thee directory
 	lsDirCmd := fmt.Sprintf("chmod +x %s/* ; ls -ltr %s", remoteScriptDir, remoteScriptDir)
 	if lsErr := client.Run(lsDirCmd); lsErr == nil {
 		for _, out := range client.GetOutput() {
