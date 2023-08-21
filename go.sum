@@ -72,6 +72,8 @@ github.com/dell/dell-csi-extensions/podmon v1.1.3 h1:fpv5CaiBSfd2SQDHGEzpTUYncRj
 github.com/dell/dell-csi-extensions/podmon v1.1.3/go.mod h1:eZQK/0uQp7VIAHDQIHIqDtvjgIKXaWFIKcW8eTUhQ98=
 github.com/dell/gofsutil v1.12.0 h1:oo2YHfGFKHvHS1urtqjOIKpaHwcdyqacwKHLXzUg33M=
 github.com/dell/gofsutil v1.12.0/go.mod h1:mGMN5grVDtHv2imNw5+gFr2RmCqeyYgBFBldUbHtV78=
+github.com/dell/gofsutil v1.12.1-0.20230821144029-8dba6ce1390b h1:g37lmiM0b1RHVVnz6RdW2hIup1kzg7lAfiM0mB8fEPo=
+github.com/dell/gofsutil v1.12.1-0.20230821144029-8dba6ce1390b/go.mod h1:UPRuS1blrPnfT2K3nWRrLHIosZsBznDglovA6DRMmUI=
 github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815/go.mod h1:WwZ+bS3ebgob9U8Nd0kOddGdZWjyMGR8Wziv+TBNwSE=
 github.com/emicklei/go-restful/v3 v3.10.0 h1:X4gma4HM7hFm6WMeAsTfqA0GOfdNoCzBIkHGoRLGXuM=
 github.com/emicklei/go-restful/v3 v3.10.0/go.mod h1:6n3XBCmQQb25CM2LCACGz8ukIrRry+4bhvbpWn3mrbc=

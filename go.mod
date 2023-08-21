@@ -1,13 +1,13 @@
 module podmon
 
-go 1.20
+go 1.21
 
 require (
 	github.com/bramvdbogaerde/go-scp v0.0.0-20201229172121-7a6c0268fa67
 	github.com/container-storage-interface/spec v1.7.0
 	github.com/cucumber/godog v0.12.6
 	github.com/dell/dell-csi-extensions/podmon v1.1.3
-	github.com/dell/gofsutil v1.12.0
+	github.com/dell/gofsutil v1.12.1-0.20230821144029-8dba6ce1390b
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/golang/mock v1.6.0
 	github.com/kubernetes-csi/csi-lib-utils v0.13.0
