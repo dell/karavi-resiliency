@@ -21,7 +21,6 @@ import (
 	"crypto/rand"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -66,7 +65,7 @@ func readExistingEntries(rootDir string) bool {
 	reportedOtherKeys := make(map[string]bool)
 	initialPod := true
 
-	entries, err := ioutil.ReadDir(rootDir)
+	entries, err := os.ReadDir(rootDir)
 	if err != nil {
 		fmt.Printf("Couldn't read %s\n", rootDir)
 		return true
@@ -136,7 +135,7 @@ var counter int
 
 func makeEntry(podTag, rootDir string, index int, initialPod bool) {
 	tag := fmt.Sprintf("%x %s\n", podTag, time.Now().Format(time.Stamp))
-	entries, err := ioutil.ReadDir(rootDir)
+	entries, err := os.ReadDir(rootDir)
 	if err != nil {
 		fmt.Printf("Couldn't read %s\n", rootDir)
 		return

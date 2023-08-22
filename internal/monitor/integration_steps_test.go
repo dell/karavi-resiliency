@@ -19,7 +19,6 @@ package monitor
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"os"
 	"os/exec"
@@ -1091,7 +1090,7 @@ func (i *integration) copyOverTestScriptsToNode(address string) error {
 		return mkDirErr
 	}
 
-	files, err := ioutil.ReadDir(i.scriptsDir)
+	files, err := os.ReadDir(i.scriptsDir)
 	if err != nil {
 		return err
 	}
