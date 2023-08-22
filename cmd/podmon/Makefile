@@ -17,7 +17,7 @@ MINOR=0
 PATCH=54
 VERSION?="v$(MAJOR).$(MINOR).$(PATCH)"
 REGISTRY?="${REGISTRY_HOST}:${REGISTRY_PORT}/podmon"
-BASEIMAGE?="resiliency-micro:latest"
+BASEIMAGE?="resiliency-ubimicro:latest"
 
 clean:
 	go clean ./...
