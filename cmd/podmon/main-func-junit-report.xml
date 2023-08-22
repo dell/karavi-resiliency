@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="main-func" tests="54" skipped="0" failures="0" errors="0" time="0.483286779">
+  <testsuite name="Podmon Main" tests="54" skipped="0" failures="0" errors="0" time="0.479054473">
+    <testcase name="Test the main routine in node mode #1" status="passed" time="0.019877765"></testcase>
+    <testcase name="Test the main routine in node mode #2" status="passed" time="0.00294311"></testcase>
+    <testcase name="Test the main routine in node mode #3" status="passed" time="0.00308379"></testcase>
+    <testcase name="Test the main routine in node mode #4" status="passed" time="0.003031747"></testcase>
+    <testcase name="Test the main routine in node mode #5" status="passed" time="0.002877664"></testcase>
+    <testcase name="Test the main routine in node mode #6" status="passed" time="0.003030703"></testcase>
+    <testcase name="Test the main routine in controller mode #1" status="passed" time="0.003619452"></testcase>
+    <testcase name="Test the main routine in controller mode #2" status="passed" time="0.003032069"></testcase>
+    <testcase name="Test the main routine in controller mode #3" status="passed" time="0.004871505"></testcase>
+    <testcase name="Test the main routine in controller mode #4" status="passed" time="0.003084817"></testcase>
+    <testcase name="Test the main routine in controller mode #5" status="passed" time="0.003935394"></testcase>
+    <testcase name="Test the main routine in controller mode #6" status="passed" time="0.003822016"></testcase>
+    <testcase name="Test the main routine in controller mode #7" status="passed" time="0.003626354"></testcase>
+    <testcase name="Test the main routine in standalone mode #1" status="passed" time="0.003030823"></testcase>
+    <testcase name="Test the main routine in standalone mode #2" status="passed" time="0.003046677"></testcase>
+    <testcase name="Test the main routine in standalone mode #3" status="passed" time="0.002789373"></testcase>
+    <testcase name="Test the main routine in standalone mode #4" status="passed" time="0.003784517"></testcase>
+    <testcase name="Test the main routine in standalone mode #5" status="passed" time="0.007893009"></testcase>
+    <testcase name="Test the main routine in standalone mode #6" status="passed" time="0.002667314"></testcase>
+    <testcase name="Test the main routine with negative test cases #1" status="passed" time="0.00237588"></testcase>
+    <testcase name="Test the main routine with negative test cases #2" status="passed" time="0.003388869"></testcase>
+    <testcase name="Test the main routine with negative test cases #3" status="passed" time="0.003505954"></testcase>
+    <testcase name="Test the main routine with negative test cases #4" status="passed" time="0.002999585"></testcase>
+    <testcase name="Test the main routine with negative test cases #5" status="passed" time="0.004038186"></testcase>
+    <testcase name="Test the main routine with negative test cases #6" status="passed" time="0.003448504"></testcase>
+    <testcase name="Test the main routine with negative test cases #7" status="passed" time="0.004543781"></testcase>
+    <testcase name="Test the main routine with negative test cases #8" status="passed" time="0.00429105"></testcase>
+    <testcase name="Test the main routine with negative test cases #9" status="passed" time="0.004250826"></testcase>
+    <testcase name="Test the main routine with negative test cases #10" status="passed" time="0.005130552"></testcase>
+    <testcase name="Check on CSIExtensionsPresent flag #1" status="passed" time="0.006670451"></testcase>
+    <testcase name="Check on CSIExtensionsPresent flag #2" status="passed" time="0.004682631"></testcase>
+    <testcase name="Check on CSIExtensionsPresent flag #3" status="passed" time="0.003694796"></testcase>
+    <testcase name="Check on CSIExtensionsPresent flag #4" status="passed" time="0.004976284"></testcase>
+    <testcase name="Check on CSIExtensionsPresent flag #5" status="passed" time="0.004254145"></testcase>
+    <testcase name="Check on CSIExtensionsPresent flag #6" status="passed" time="0.003455147"></testcase>
+    <testcase name="Different driver paths #1" status="passed" time="0.004513485"></testcase>
+    <testcase name="Different driver paths #2" status="passed" time="0.003875614"></testcase>
+    <testcase name="Different driver paths #3" status="passed" time="0.003813858"></testcase>
+    <testcase name="Different driver paths #4" status="passed" time="0.003191517"></testcase>
+    <testcase name="Test using driver ConfigMap #1" status="passed" time="0.00401591"></testcase>
+    <testcase name="Test using driver ConfigMap #2" status="passed" time="0.020347144"></testcase>
+    <testcase name="Test using driver ConfigMap #3" status="passed" time="0.006182396"></testcase>
+    <testcase name="Test using driver ConfigMap #4" status="passed" time="0.004870607"></testcase>
+    <testcase name="Test using driver ConfigMap #5" status="passed" time="0.004729531"></testcase>
+    <testcase name="Test using driver ConfigMap #6" status="passed" time="0.001188471"></testcase>
+    <testcase name="Test using driver ConfigMap #7" status="passed" time="0.021168472"></testcase>
+    <testcase name="Test using driver ConfigMap #8" status="passed" time="0.023151191"></testcase>
+    <testcase name="Test using driver ConfigMap #9" status="passed" time="0.016468361"></testcase>
+    <testcase name="Test using driver ConfigMap #10" status="passed" time="0.017909229"></testcase>
+    <testcase name="Test using driver ConfigMap #11" status="passed" time="0.018344097"></testcase>
+    <testcase name="Test using driver ConfigMap #12" status="passed" time="0.018723458"></testcase>
+    <testcase name="Test using driver ConfigMap #13" status="passed" time="0.023112467"></testcase>
+    <testcase name="Test using driver ConfigMap #14" status="passed" time="0.023663804"></testcase>
+    <testcase name="Test using driver ConfigMap #15" status="passed" time="0.020299889"></testcase>
+  </testsuite>
+</testsuites>
