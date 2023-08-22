@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"podmon/internal/criapi"
 	"podmon/internal/k8sapi"
@@ -178,7 +177,7 @@ func (pm *PodMonitorType) nodeModePodHandler(pod *v1.Pod, eventType watch.EventT
 			// Scan for mounts
 			csiVolumesPath := fmt.Sprintf(CSIVolumePathFormat, string(pod.ObjectMeta.UID))
 			log.Debugf("csiVolumesPath: %s", csiVolumesPath)
-			volumeEntries, err := ioutil.ReadDir(csiVolumesPath)
+			volumeEntries, err := os.ReadDir(csiVolumesPath)
 			if err != nil && !os.IsNotExist(err) {
 				log.WithFields(fields).Errorf("Couldn't read directory %s: %s", csiVolumesPath, err.Error())
 				return err
@@ -206,7 +205,7 @@ func (pm *PodMonitorType) nodeModePodHandler(pod *v1.Pod, eventType watch.EventT
 			// Scan for block devices
 			csiDevicesPath := fmt.Sprintf(CSIDevicePathFormat, string(pod.ObjectMeta.UID))
 			log.Infof("csiDevicesPath: %s", csiDevicesPath)
-			deviceEntries, err := ioutil.ReadDir(csiDevicesPath)
+			deviceEntries, err := os.ReadDir(csiDevicesPath)
 			if err != nil && !os.IsNotExist(err) {
 				log.WithFields(fields).Errorf("Couldn't read directory %s: %s", csiDevicesPath, err.Error())
 				return err
