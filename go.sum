@@ -62,10 +62,10 @@ github.com/cucumber/messages-go/v16 v16.0.1/go.mod h1:EJcyR5Mm5ZuDsKJnT2N9KRnBK3
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/dell/dell-csi-extensions/podmon v1.1.4-0.20230821201344-ea25f89d957e h1:2Ctt6HbPkoa296Q4DXyFV3zmnzsLuh7QKDV0Dge+rxw=
-github.com/dell/dell-csi-extensions/podmon v1.1.4-0.20230821201344-ea25f89d957e/go.mod h1:MXkd5u3Vt876LEqDeqywlK0Re/IA0FZlHKFWvvdhyzI=
-github.com/dell/gofsutil v1.12.1-0.20230828060700-f7f26c1aa088 h1:vGEyMv0umlTsq0C9p9r/9ckK6n75RAUaO3lGN3wkdoo=
-github.com/dell/gofsutil v1.12.1-0.20230828060700-f7f26c1aa088/go.mod h1:UPRuS1blrPnfT2K3nWRrLHIosZsBznDglovA6DRMmUI=
+github.com/dell/dell-csi-extensions/podmon v1.2.0 h1:bYoTPMz/ILl8+cjK+zkwqX5FfiOB8H4Qa2C17sKzsV4=
+github.com/dell/dell-csi-extensions/podmon v1.2.0/go.mod h1:MXkd5u3Vt876LEqDeqywlK0Re/IA0FZlHKFWvvdhyzI=
+github.com/dell/gofsutil v1.13.0 h1:kAW+3YbO02GMPJTRy5H9hSsYYq4kip9gCAIffMFFOX4=
+github.com/dell/gofsutil v1.13.0/go.mod h1:UPRuS1blrPnfT2K3nWRrLHIosZsBznDglovA6DRMmUI=
 github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815/go.mod h1:WwZ+bS3ebgob9U8Nd0kOddGdZWjyMGR8Wziv+TBNwSE=
 github.com/emicklei/go-restful/v3 v3.10.0 h1:X4gma4HM7hFm6WMeAsTfqA0GOfdNoCzBIkHGoRLGXuM=
 github.com/emicklei/go-restful/v3 v3.10.0/go.mod h1:6n3XBCmQQb25CM2LCACGz8ukIrRry+4bhvbpWn3mrbc=

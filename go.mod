@@ -6,8 +6,8 @@ require (
 	github.com/bramvdbogaerde/go-scp v0.0.0-20201229172121-7a6c0268fa67
 	github.com/container-storage-interface/spec v1.7.0
 	github.com/cucumber/godog v0.12.6
-	github.com/dell/dell-csi-extensions/podmon v1.1.4-0.20230821201344-ea25f89d957e
-	github.com/dell/gofsutil v1.12.1-0.20230828060700-f7f26c1aa088
+	github.com/dell/dell-csi-extensions/podmon v1.2.0
+	github.com/dell/gofsutil v1.13.0
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/golang/mock v1.6.0
 	github.com/kubernetes-csi/csi-lib-utils v0.13.0
