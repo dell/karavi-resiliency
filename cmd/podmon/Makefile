@@ -26,7 +26,7 @@ build:
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64  go build -a -ldflags '-w' ./...
 
 build-base-image:
-	sh ../../scripts/buildubimicro.sh "registry.access.redhat.com/ubi9-micro:9.2-9"
+	sh ../../scripts/buildubimicro.sh "registry.access.redhat.com/ubi9-micro:9.2"
 
 podman:
 	podman build --no-cache -t "$(REGISTRY):$(VERSION)" --build-arg BASEIMAGE=$(BASEIMAGE) --label commit=$(shell git log --max-count 1 --format="%H") .
