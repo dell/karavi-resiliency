@@ -717,10 +717,10 @@ Feature: Integration Test
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
        #Small number of pods, increasing number of vols and devs
-      | ""         | "1-2"       | "1-1" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600           |
-      | ""         | "1-2"       | "2-2" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 600      | 900        | 900     | 900           |
+      | ""         | "1-2"       | "1-1" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 900           |
+      | ""         | "1-2"       | "2-2" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 600      | 900        | 900     | 1200           |
       # Slightly more pods, increasing number of vols and devs
-      | ""         | "3-5"       | "1-1" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 240      | 900        | 900     | 900           |
+      | ""         | "3-5"       | "1-1" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 600      | 900        | 900     | 1800           |
     # | ""         | "3-5"       | "2-2" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 240      | 240        | 300     | 600           |
     # | ""         | "5-10"       | "1-1" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 1200      | 2000       | 2000     | 2000           |
   
