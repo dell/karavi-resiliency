@@ -11,7 +11,7 @@ require (
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/golang/mock v1.6.0
 	github.com/kubernetes-csi/csi-lib-utils v0.13.0
-	github.com/sirupsen/logrus v1.8.1
+	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.15.0
 	github.com/stretchr/testify v1.8.1
 	golang.org/x/crypto v0.14.0
