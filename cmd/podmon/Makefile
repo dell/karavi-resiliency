@@ -25,8 +25,9 @@ clean:
 build:
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64  go build -a -ldflags '-w' ./...
 
-build-base-image:
-	sh ../../scripts/buildubimicro.sh "registry.access.redhat.com/ubi9-micro:9.2"
+build-base-image: download-csm-common
+	$(eval include csm-common.mk)
+	sh ../../scripts/buildubimicro.sh $(DEFAULT_BASEIMAGE)
 
 podman:
 	podman build --no-cache -t "$(REGISTRY):$(VERSION)" --build-arg BASEIMAGE=$(BASEIMAGE) --label commit=$(shell git log --max-count 1 --format="%H") .
@@ -41,3 +42,5 @@ godog:
 	go clean -cache
 	go test -v -coverprofile=c.out -test.run TestMain ./...
 
+download-csm-common:
+	curl -O -L https://raw.githubusercontent.com/dell/csm/main/config/csm-common.mk
