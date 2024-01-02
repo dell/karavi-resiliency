@@ -5,8 +5,9 @@ run:
   skip-dirs-use-default: true
   modules-download-mode: readonly
   skip-dirs:
-    - go/pkg
-    - go/src
+    - go/pkg  # remove third party mod lib from scanning
+    - go/src  # remove third party mod lib from scanning
+    - hostedtoolcache  # remove the mod caches from scanning
 
 issues:
   max-issues-per-linter: 0
