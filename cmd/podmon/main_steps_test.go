@@ -20,12 +20,13 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"podmon/internal/csiapi"
-	"podmon/internal/k8sapi"
-	"podmon/internal/monitor"
 	"strings"
 	"sync"
 	"time"
+
+	"podmon/internal/csiapi"
+	"podmon/internal/k8sapi"
+	"podmon/internal/monitor"
 
 	"github.com/cucumber/godog"
 	"github.com/dell/gofsutil"
@@ -44,8 +45,10 @@ type mainFeature struct {
 	failStartAPIMonitor bool
 }
 
-var saveOriginalArgs sync.Once
-var originalArgs []string
+var (
+	saveOriginalArgs sync.Once
+	originalArgs     []string
+)
 
 func (m *mainFeature) aPodmonInstance() error {
 	if m.loghook == nil {
@@ -85,7 +88,6 @@ func (le *mockLeaderElect) Run() error {
 }
 
 func (le *mockLeaderElect) WithNamespace(namespace string) {
-
 }
 
 func (m *mainFeature) mockGetCSIClient(csiSock string, clientOpts ...grpc.DialOption) (csiapi.CSIApi, error) {
@@ -142,7 +144,7 @@ func (m *mainFeature) theLastLogMessageContains(errormsg string) error {
 }
 
 func (m *mainFeature) csiExtensionsPresentIsFalse(expectedStr string) error {
-	var expected = strings.ToLower(expectedStr) == "true"
+	expected := strings.ToLower(expectedStr) == "true"
 	return monitor.AssertExpectedAndActual(assert.Equal, expected, monitor.PodMonitor.CSIExtensionsPresent,
 		fmt.Sprintf("Expected CSIExtensionsPresent flag to be %s, but was %v",
 			expectedStr, monitor.PodMonitor.CSIExtensionsPresent))

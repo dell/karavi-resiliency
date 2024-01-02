@@ -100,8 +100,8 @@ type K8sAPI interface {
 	// SetupNodeWatch setups up a node watch.
 	SetupNodeWatch(ctx context.Context, listOptions metav1.ListOptions) (watch.Interface, error)
 
-	//TaintNode applies the specified 'taintKey' string and 'effect' to the node with 'nodeName'
-	//The 'remove' flag indicates if the taint should be removed from the node, if it exists.
+	// TaintNode applies the specified 'taintKey' string and 'effect' to the node with 'nodeName'
+	// The 'remove' flag indicates if the taint should be removed from the node, if it exists.
 	TaintNode(ctx context.Context, nodeName, taintKey string, effect v1.TaintEffect, remove bool) error
 
 	// CreateEvent creates an event on a runtime object.

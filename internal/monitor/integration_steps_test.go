@@ -23,12 +23,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"podmon/internal/k8sapi"
-	"podmon/test/ssh"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"podmon/internal/k8sapi"
+	"podmon/test/ssh"
 
 	"github.com/cucumber/godog"
 	log "github.com/sirupsen/logrus"
@@ -108,18 +109,24 @@ const (
 var stopTestRequested bool
 
 // Workaround for non-inclusive word scan
-var primary = []byte{'m', 'a', 's', 't', 'e', 'r'}
-var primaryLabelKey = fmt.Sprintf("node-role.kubernetes.io/%s", string(primary))
-var controlPlane = "node-role.kubernetes.io/control-plane"
+var (
+	primary         = []byte{'m', 'a', 's', 't', 'e', 'r'}
+	primaryLabelKey = fmt.Sprintf("node-role.kubernetes.io/%s", string(primary))
+	controlPlane    = "node-role.kubernetes.io/control-plane"
+)
 
 // These are for tracking to which nodes the tests upload scripts.
 // With multiple scenarios, we want to do this only once.
-var nodesWithScripts map[string]bool
-var nodesWithScriptsInitOnce sync.Once
+var (
+	nodesWithScripts         map[string]bool
+	nodesWithScriptsInitOnce sync.Once
+)
 
 // Parameters for use with the background poller
-var k8sPollInterval = 2 * time.Second
-var pollTick *time.Ticker
+var (
+	k8sPollInterval = 2 * time.Second
+	pollTick        *time.Ticker
+)
 
 // sshOptions used in SSH cli commands to K8s nodes
 var sshOptions = fmt.Sprintf("-o 'ConnectTimeout=%d' -o 'UserKnownHostsFile /dev/null' -o 'StrictHostKeyChecking no'", sshTimeoutValue)
@@ -1121,7 +1128,7 @@ func (i *integration) copyOverTestScriptsToNode(address string) error {
 // script file, we will use the 'scp' command from the Bastion node to copy over the files from
 // there to the Openshift node.
 func (i *integration) copyOverTestScriptsToOpenshift(address string) error {
-	//SSH and SCP are all done through the Bastion node
+	// SSH and SCP are all done through the Bastion node
 	info := ssh.AccessInfo{
 		Hostname: i.bastionNode,
 		Port:     "22",

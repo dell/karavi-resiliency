@@ -18,11 +18,12 @@ package ssh_test
 
 import (
 	"fmt"
-	"podmon/test/ssh"
-	"podmon/test/ssh/mocks"
 	"strings"
 	"testing"
 	"time"
+
+	"podmon/test/ssh"
+	"podmon/test/ssh/mocks"
 
 	"github.com/golang/mock/gomock"
 )
@@ -41,7 +42,8 @@ func TestCommandExecution_Run(t *testing.T) {
 	verifyThisOutput := func(t *testing.T,
 		expectedOutput []string, actualOutput []string,
 		expectedErrors []string, actualErrors []string,
-		expectedError error, actualError error) {
+		expectedError error, actualError error,
+	) {
 		if len(expectedOutput) > 0 {
 			if len(expectedOutput) != len(actualOutput) {
 				t.Fatalf("expected output '%s', but received '%s'",
@@ -74,7 +76,8 @@ func TestCommandExecution_Run(t *testing.T) {
 	verifyReturnedErrorSimilar := func(t *testing.T,
 		expectedOutput []string, actualOutput []string,
 		expectedErrors []string, actualErrors []string,
-		expectedError error, actualError error) {
+		expectedError error, actualError error,
+	) {
 		if expectedError != nil && !strings.Contains(actualError.Error(), expectedError.Error()) {
 			t.Fatalf("expected error was '%s', but actual error was '%s'",
 				expectedError.Error(), actualError.Error())

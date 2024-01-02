@@ -25,8 +25,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const enableIntTestVar = "RESILIENCY_INT_TEST"
-const enableStopOnFailure = "RESILIENCY_INT_TEST_STOP_ON_FAILURE"
+const (
+	enableIntTestVar    = "RESILIENCY_INT_TEST"
+	enableStopOnFailure = "RESILIENCY_INT_TEST_STOP_ON_FAILURE"
+)
 
 var setupIsGood = false
 

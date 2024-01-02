@@ -21,11 +21,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
+	"time"
+
 	"podmon/internal/criapi"
 	"podmon/internal/k8sapi"
 	"podmon/internal/utils"
-	"strings"
-	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/dell/gofsutil"
@@ -141,7 +142,7 @@ func (pm *PodMonitorType) nodeModePodHandler(pod *v1.Pod, eventType watch.EventT
 	nodeName := os.Getenv("KUBE_NODE_NAME")
 	driverNamespace := os.Getenv("MY_POD_NAMESPACE")
 	if driverNamespace == pod.ObjectMeta.Namespace {
-		//driver pod, no need to protect at node
+		// driver pod, no need to protect at node
 		return nil
 	}
 

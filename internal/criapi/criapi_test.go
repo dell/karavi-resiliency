@@ -22,8 +22,9 @@ package criapi
 import (
 	"context"
 	"fmt"
-	"k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 	"testing"
+
+	"k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 )
 
 func TestListContainers(t *testing.T) {
