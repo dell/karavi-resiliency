@@ -87,20 +87,20 @@ func (le *mockLeaderElect) Run() error {
 	return nil
 }
 
-func (le *mockLeaderElect) WithNamespace(namespace string) {
+func (le *mockLeaderElect) WithNamespace(_ string) {
 }
 
-func (m *mainFeature) mockGetCSIClient(csiSock string, clientOpts ...grpc.DialOption) (csiapi.CSIApi, error) {
+func (m *mainFeature) mockGetCSIClient(_ string, _ ...grpc.DialOption) (csiapi.CSIApi, error) {
 	return m.csiapiMock, nil
 }
 
-func (m *mainFeature) mockStartPodMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, labelValue string, duration time.Duration) {
+func (m *mainFeature) mockStartPodMonitor(_ k8sapi.K8sAPI, _ kubernetes.Interface, _, _ string, _ time.Duration) {
 }
 
-func (m *mainFeature) mockStartNodeMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, labelValue string, duration time.Duration) {
+func (m *mainFeature) mockStartNodeMonitor(_ k8sapi.K8sAPI, _ kubernetes.Interface, _, _ string, _ time.Duration) {
 }
 
-func (m *mainFeature) mockStartAPIMonitor(api k8sapi.K8sAPI, first, retry, interval time.Duration, waiter func(interval time.Duration) bool) error {
+func (m *mainFeature) mockStartAPIMonitor(_ k8sapi.K8sAPI, _, _, _ time.Duration, _ func(interval time.Duration) bool) error {
 	if m.failStartAPIMonitor {
 		return fmt.Errorf("induced StorageAPIMonitor failure")
 	}
@@ -111,7 +111,7 @@ func (m *mainFeature) mockPodMonWait() bool {
 	return true
 }
 
-func (m *mainFeature) mockLeaderElection(runFunc func(ctx context.Context)) leaderElection {
+func (m *mainFeature) mockLeaderElection(_ func(ctx context.Context)) leaderElection {
 	return m.leaderElect
 }
 

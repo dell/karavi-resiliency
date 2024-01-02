@@ -47,7 +47,7 @@ func (mock *MockClient) Close() error {
 }
 
 // ListContainers would list individual containers but is not implemented for the mock client.
-func (mock *MockClient) ListContainers(ctx context.Context, req *v1alpha2.ListContainersRequest) (*v1alpha2.ListContainersResponse, error) {
+func (mock *MockClient) ListContainers(_ context.Context, _ *v1alpha2.ListContainersRequest) (*v1alpha2.ListContainersResponse, error) {
 	return nil, errors.New("unimplemented")
 }
 
@@ -58,7 +58,7 @@ func (mock *MockClient) ChooseCRIPath() (string, error) {
 
 // GetContainerInfo gets current status of all the containers on this server using CRI interface.
 // The result is a map of ID to a structure containing the ID, Name, and State.
-func (mock *MockClient) GetContainerInfo(ctx context.Context) (map[string]*ContainerInfo, error) {
+func (mock *MockClient) GetContainerInfo(_ context.Context) (map[string]*ContainerInfo, error) {
 	if mock.InducedErrors.GetContainerInfo {
 		return mock.MockContainerInfos, errors.New("GetContainerInfo induced error")
 	}
