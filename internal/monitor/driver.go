@@ -20,8 +20,9 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
-	"podmon/internal/utils"
 	"strings"
+
+	"podmon/internal/utils"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -42,8 +43,7 @@ type drivertype interface {
 var Driver drivertype
 
 // VxflexDriver provides a Driver instance for the PowerFlex (VxFlex) architecture.
-type VxflexDriver struct {
-}
+type VxflexDriver struct{}
 
 // GetDriverName returns the driver name string
 func (d *VxflexDriver) GetDriverName() string {
@@ -116,8 +116,7 @@ func (d *VxflexDriver) FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID
 }
 
 // UnityDriver provides a Driver instance for the Unity architecture.
-type UnityDriver struct {
-}
+type UnityDriver struct{}
 
 // GetDriverName returns the driver name string
 func (d *UnityDriver) GetDriverName() string {
@@ -182,7 +181,7 @@ func (d *UnityDriver) NodeUnstageExcludedError(err error) bool {
 
 // FinalCleanup handles any driver specific final cleanup.
 func (d *UnityDriver) FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID string) error {
-	if rawBlock { //Do this cleanup on raw device block
+	if rawBlock { // Do this cleanup on raw device block
 		loopBackDev, err := getLoopBackDevice(pvName)
 		if err != nil || loopBackDev == "" {
 			// nothing to clean
@@ -212,8 +211,7 @@ var (
 )
 
 // PScaleDriver provides a Driver instance for the PowerScale architecture.
-type PScaleDriver struct {
-}
+type PScaleDriver struct{}
 
 // GetDriverName returns the driver name string
 func (d *PScaleDriver) GetDriverName() string {
@@ -267,8 +265,7 @@ func (d *PScaleDriver) FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID
 }
 
 // PStoreDriver provides a Driver instance for the Powerstore architecture.
-type PStoreDriver struct {
-}
+type PStoreDriver struct{}
 
 // GetDriverName returns the driver name string
 func (d *PStoreDriver) GetDriverName() string {

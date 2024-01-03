@@ -20,12 +20,13 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"podmon/internal/csiapi"
-	"podmon/internal/k8sapi"
-	"podmon/internal/monitor"
 	"strings"
 	"sync"
 	"time"
+
+	"podmon/internal/csiapi"
+	"podmon/internal/k8sapi"
+	"podmon/internal/monitor"
 
 	"github.com/cucumber/godog"
 	"github.com/dell/gofsutil"
@@ -44,8 +45,10 @@ type mainFeature struct {
 	failStartAPIMonitor bool
 }
 
-var saveOriginalArgs sync.Once
-var originalArgs []string
+var (
+	saveOriginalArgs sync.Once
+	originalArgs     []string
+)
 
 func (m *mainFeature) aPodmonInstance() error {
 	if m.loghook == nil {
@@ -84,21 +87,20 @@ func (le *mockLeaderElect) Run() error {
 	return nil
 }
 
-func (le *mockLeaderElect) WithNamespace(namespace string) {
-
+func (le *mockLeaderElect) WithNamespace(_ string) {
 }
 
-func (m *mainFeature) mockGetCSIClient(csiSock string, clientOpts ...grpc.DialOption) (csiapi.CSIApi, error) {
+func (m *mainFeature) mockGetCSIClient(_ string, _ ...grpc.DialOption) (csiapi.CSIApi, error) {
 	return m.csiapiMock, nil
 }
 
-func (m *mainFeature) mockStartPodMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, labelValue string, duration time.Duration) {
+func (m *mainFeature) mockStartPodMonitor(_ k8sapi.K8sAPI, _ kubernetes.Interface, _, _ string, _ time.Duration) {
 }
 
-func (m *mainFeature) mockStartNodeMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, labelValue string, duration time.Duration) {
+func (m *mainFeature) mockStartNodeMonitor(_ k8sapi.K8sAPI, _ kubernetes.Interface, _, _ string, _ time.Duration) {
 }
 
-func (m *mainFeature) mockStartAPIMonitor(api k8sapi.K8sAPI, first, retry, interval time.Duration, waiter func(interval time.Duration) bool) error {
+func (m *mainFeature) mockStartAPIMonitor(_ k8sapi.K8sAPI, _, _, _ time.Duration, _ func(interval time.Duration) bool) error {
 	if m.failStartAPIMonitor {
 		return fmt.Errorf("induced StorageAPIMonitor failure")
 	}
@@ -109,7 +111,7 @@ func (m *mainFeature) mockPodMonWait() bool {
 	return true
 }
 
-func (m *mainFeature) mockLeaderElection(runFunc func(ctx context.Context)) leaderElection {
+func (m *mainFeature) mockLeaderElection(_ func(ctx context.Context)) leaderElection {
 	return m.leaderElect
 }
 
@@ -142,7 +144,7 @@ func (m *mainFeature) theLastLogMessageContains(errormsg string) error {
 }
 
 func (m *mainFeature) csiExtensionsPresentIsFalse(expectedStr string) error {
-	var expected = strings.ToLower(expectedStr) == "true"
+	expected := strings.ToLower(expectedStr) == "true"
 	return monitor.AssertExpectedAndActual(assert.Equal, expected, monitor.PodMonitor.CSIExtensionsPresent,
 		fmt.Sprintf("Expected CSIExtensionsPresent flag to be %s, but was %v",
 			expectedStr, monitor.PodMonitor.CSIExtensionsPresent))

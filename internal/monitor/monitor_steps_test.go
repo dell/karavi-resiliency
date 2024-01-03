@@ -21,14 +21,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"podmon/internal/criapi"
-	"podmon/internal/csiapi"
-	"podmon/internal/k8sapi"
-	"podmon/internal/utils"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"podmon/internal/criapi"
+	"podmon/internal/csiapi"
+	"podmon/internal/k8sapi"
+	"podmon/internal/utils"
 
 	"github.com/cucumber/godog"
 	"github.com/dell/gofsutil"
@@ -196,12 +197,12 @@ func (f *feature) iHaveAPodsForNodeWithVolumesDevicesCondition(nPods int, nodeNa
 		mockCSIVolumePath := fmt.Sprintf(CSIVolumePathFormat, pod.UID)
 		mockCSIDevicePath := fmt.Sprintf(CSIDevicePathFormat, pod.UID)
 
-		err = os.Mkdir(mockCSIVolumePath, 0700)
+		err = os.Mkdir(mockCSIVolumePath, 0o700)
 		if err != nil {
 			return err
 		}
 
-		err = os.MkdirAll(mockCSIDevicePath, 0700)
+		err = os.MkdirAll(mockCSIDevicePath, 0o700)
 		if err != nil {
 			err = fmt.Errorf("Mkdir mockCSIDevicePath failed: %s", err)
 			return err
@@ -209,13 +210,13 @@ func (f *feature) iHaveAPodsForNodeWithVolumesDevicesCondition(nPods int, nodeNa
 
 		mockPaths = append(mockPaths, mockCSIVolumePath)
 		for _, pvName := range f.pvNames {
-			if err = os.Mkdir(filepath.Join(mockCSIVolumePath, pvName), 0700); err != nil {
+			if err = os.Mkdir(filepath.Join(mockCSIVolumePath, pvName), 0o700); err != nil {
 				return err
 			}
 		}
 		mockPaths = append(mockPaths, mockCSIDevicePath)
 		for _, pvName := range f.pvNames {
-			if _, err = utils.Creat(filepath.Join(mockCSIDevicePath, pvName), 060700); err != nil {
+			if _, err = utils.Creat(filepath.Join(mockCSIDevicePath, pvName), 0o60700); err != nil {
 				err = fmt.Errorf("Create mockCSIDevicePath failed: %s", err)
 				return err
 			}
@@ -480,12 +481,12 @@ func (f *feature) iCallNodeModePodHandlerForNodeWithEvent(nodeName, eventType st
 	mockCSIVolumePath := fmt.Sprintf(CSIVolumePathFormat, f.pod.UID)
 
 	if !f.failCSIVolumePathDirRead {
-		if err = os.Mkdir(mockCSIVolumePath, 0700); err != nil {
+		if err = os.Mkdir(mockCSIVolumePath, 0o700); err != nil {
 			return err
 		}
 		defer os.RemoveAll(mockCSIVolumePath)
 		for _, pvName := range f.pvNames {
-			if err = os.Mkdir(filepath.Join(mockCSIVolumePath, pvName), 0700); err != nil {
+			if err = os.Mkdir(filepath.Join(mockCSIVolumePath, pvName), 0o700); err != nil {
 				return err
 			}
 		}
@@ -1098,7 +1099,7 @@ func (f *feature) aDriverPodForNodeWithCondition(node, condition string) error {
 
 func (f *feature) iCallControllerModeDriverPodHandlerWithEvent(event string) error {
 	var eventType watch.EventType
-	PodmonDriverPodTaintKey = vxflexDriverPodTaint //assigned vxflex driver as default
+	PodmonDriverPodTaintKey = vxflexDriverPodTaint // assigned vxflex driver as default
 	switch event {
 	case "Added":
 		eventType = watch.Added
@@ -1118,7 +1119,7 @@ func (f *feature) iCallControllerModeDriverPodHandlerWithEvent(event string) err
 
 func (f *feature) theNodeIsTainted(nodename, boolean string) error {
 	node, _ := f.k8sapiMock.GetNode(context.Background(), nodename)
-	//node.Spec.Taints
+	// node.Spec.Taints
 	switch boolean {
 	case "true":
 		// check for taint

@@ -57,7 +57,7 @@ func (mock *CSIMock) Close() error {
 }
 
 // ControllerUnpublishVolume is a mock implementation of csiapi.CSIApi.ControllerUnpublishVolume
-func (mock *CSIMock) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
+func (mock *CSIMock) ControllerUnpublishVolume(_ context.Context, _ *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
 	rep := &csi.ControllerUnpublishVolumeResponse{}
 	if mock.InducedErrors.ControllerUnpublishVolume {
 		return rep, errors.New("ControllerUnpublishedVolume induced error")
@@ -66,7 +66,7 @@ func (mock *CSIMock) ControllerUnpublishVolume(ctx context.Context, req *csi.Con
 }
 
 // NodeUnpublishVolume is a mock implementation of csiapi.CSIApi.NodeUnpublishVolume
-func (mock *CSIMock) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
+func (mock *CSIMock) NodeUnpublishVolume(_ context.Context, _ *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
 	rep := &csi.NodeUnpublishVolumeResponse{}
 	if mock.InducedErrors.NodeUnpublishVolume {
 		return rep, errors.New("NodeUnpublishedVolume induced error")
@@ -78,7 +78,7 @@ func (mock *CSIMock) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpub
 }
 
 // NodeUnstageVolume is a mock implementation of csiapi.CSIApi.NodeUnstageVolume
-func (mock *CSIMock) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
+func (mock *CSIMock) NodeUnstageVolume(_ context.Context, _ *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
 	rep := &csi.NodeUnstageVolumeResponse{}
 	if mock.InducedErrors.NodeUnstageVolume {
 		return rep, errors.New("NodeUnstageedVolume induced error")
@@ -90,7 +90,7 @@ func (mock *CSIMock) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstage
 }
 
 // ValidateVolumeHostConnectivity is a mock implementation of csiapi.CSIApi.ValidateVolumeHostConnectivity
-func (mock *CSIMock) ValidateVolumeHostConnectivity(ctx context.Context, req *csiext.ValidateVolumeHostConnectivityRequest) (*csiext.ValidateVolumeHostConnectivityResponse, error) {
+func (mock *CSIMock) ValidateVolumeHostConnectivity(_ context.Context, _ *csiext.ValidateVolumeHostConnectivityRequest) (*csiext.ValidateVolumeHostConnectivityResponse, error) {
 	rep := &csiext.ValidateVolumeHostConnectivityResponse{}
 	if mock.InducedErrors.ValidateVolumeHostConnectivity {
 		return rep, errors.New("ValidateVolumeHostConnectivity induced error")

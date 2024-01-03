@@ -115,7 +115,7 @@ func (mock *K8sMock) AddNode(node *v1.Node) {
 }
 
 // Connect connects to the Kubernetes system API
-func (mock *K8sMock) Connect(kubeconfig *string) error {
+func (mock *K8sMock) Connect(_ *string) error {
 	if mock.InducedErrors.Connect {
 		return errors.New("induced Connect error")
 	}
@@ -134,7 +134,7 @@ func (mock *K8sMock) GetContext(duration time.Duration) (context.Context, contex
 }
 
 // DeletePod deletes a pod of the given namespace and name, an optionally uses force deletion.
-func (mock *K8sMock) DeletePod(ctx context.Context, namespace, name string, podUID types.UID, force bool) error {
+func (mock *K8sMock) DeletePod(_ context.Context, namespace, name string, _ types.UID, _ bool) error {
 	if mock.InducedErrors.DeletePod {
 		return errors.New("induced DeletePod error")
 	}
@@ -144,7 +144,7 @@ func (mock *K8sMock) DeletePod(ctx context.Context, namespace, name string, podU
 }
 
 // GetPod retrieves a pod of the give namespace and name
-func (mock *K8sMock) GetPod(ctx context.Context, namespace, name string) (*v1.Pod, error) {
+func (mock *K8sMock) GetPod(_ context.Context, namespace, name string) (*v1.Pod, error) {
 	var pod *v1.Pod
 	if mock.InducedErrors.GetPod {
 		return pod, errors.New("induced GetPod error")
@@ -160,7 +160,7 @@ func (mock *K8sMock) GetPod(ctx context.Context, namespace, name string) (*v1.Po
 
 // GetCachedVolumeAttachment will try to load the volumeattachment select by the persistent volume name and node name.
 // If found it is returned from the cache. If not found, the cache is reloaded and the result returned from the reloaded data.
-func (mock *K8sMock) GetCachedVolumeAttachment(ctx context.Context, pvName, nodeName string) (*storagev1.VolumeAttachment, error) {
+func (mock *K8sMock) GetCachedVolumeAttachment(_ context.Context, pvName, nodeName string) (*storagev1.VolumeAttachment, error) {
 	valist := &storagev1.VolumeAttachmentList{}
 	if mock.InducedErrors.GetVolumeAttachments {
 		return nil, errors.New("induced GetVolumeAttachments error")
@@ -175,7 +175,7 @@ func (mock *K8sMock) GetCachedVolumeAttachment(ctx context.Context, pvName, node
 }
 
 // GetVolumeAttachments gets all the volume attachments in the K8S system
-func (mock *K8sMock) GetVolumeAttachments(ctx context.Context) (*storagev1.VolumeAttachmentList, error) {
+func (mock *K8sMock) GetVolumeAttachments(_ context.Context) (*storagev1.VolumeAttachmentList, error) {
 	valist := &storagev1.VolumeAttachmentList{}
 	if mock.InducedErrors.GetVolumeAttachments {
 		return valist, errors.New("induced GetVolumeAttachments error")
@@ -188,7 +188,7 @@ func (mock *K8sMock) GetVolumeAttachments(ctx context.Context) (*storagev1.Volum
 }
 
 // DeleteVolumeAttachment deletes a volume attachment by name.
-func (mock *K8sMock) DeleteVolumeAttachment(ctx context.Context, va string) error {
+func (mock *K8sMock) DeleteVolumeAttachment(_ context.Context, va string) error {
 	if mock.InducedErrors.DeleteVolumeAttachment {
 		return errors.New("induced DeleteVolumeAttachment error")
 	}
@@ -197,7 +197,7 @@ func (mock *K8sMock) DeleteVolumeAttachment(ctx context.Context, va string) erro
 }
 
 // GetPersistentVolumeClaimsInNamespace returns all the pvcs in a namespace.
-func (mock *K8sMock) GetPersistentVolumeClaimsInNamespace(ctx context.Context, namespace string) (*v1.PersistentVolumeClaimList, error) {
+func (mock *K8sMock) GetPersistentVolumeClaimsInNamespace(_ context.Context, _ string) (*v1.PersistentVolumeClaimList, error) {
 	pvclist := &v1.PersistentVolumeClaimList{}
 	if mock.InducedErrors.GetPersistentVolumeClaimsInNamespace {
 		return pvclist, errors.New("induced GetPersistentVolumeClaimsInNamespace error")
@@ -299,7 +299,7 @@ func (mock *K8sMock) GetPersistentVolumeClaimName(ctx context.Context, pvName st
 }
 
 // GetPersistentVolume retrieves a persistent volume given the pv name.
-func (mock *K8sMock) GetPersistentVolume(ctx context.Context, pvName string) (*v1.PersistentVolume, error) {
+func (mock *K8sMock) GetPersistentVolume(_ context.Context, pvName string) (*v1.PersistentVolume, error) {
 	var pv *v1.PersistentVolume
 	if mock.InducedErrors.GetPersistentVolume {
 		return pv, errors.New("induced GetPersistentVolume error")
@@ -309,7 +309,7 @@ func (mock *K8sMock) GetPersistentVolume(ctx context.Context, pvName string) (*v
 }
 
 // GetPersistentVolumeClaim returns the PVC of the given namespace/pvcName.
-func (mock *K8sMock) GetPersistentVolumeClaim(ctx context.Context, namespace, pvcName string) (*v1.PersistentVolumeClaim, error) {
+func (mock *K8sMock) GetPersistentVolumeClaim(_ context.Context, namespace, pvcName string) (*v1.PersistentVolumeClaim, error) {
 	var pvc *v1.PersistentVolumeClaim
 	if mock.InducedErrors.GetPersistentVolumeClaim {
 		return pvc, errors.New("induced GetPersistentVolumeClaim error")
@@ -320,7 +320,7 @@ func (mock *K8sMock) GetPersistentVolumeClaim(ctx context.Context, namespace, pv
 }
 
 // GetNode returns the node with the specified nodeName.
-func (mock *K8sMock) GetNode(ctx context.Context, nodeName string) (*v1.Node, error) {
+func (mock *K8sMock) GetNode(_ context.Context, nodeName string) (*v1.Node, error) {
 	var node *v1.Node
 	if mock.InducedErrors.GetNode {
 		return node, errors.New("induced GetNode error")
@@ -393,7 +393,7 @@ func (mock *K8sMock) getKey(namespace, name string) string {
 }
 
 // SetupPodWatch returns a mock watcher
-func (mock *K8sMock) SetupPodWatch(ctx context.Context, namespace string, listOptions metav1.ListOptions) (watch.Interface, error) {
+func (mock *K8sMock) SetupPodWatch(_ context.Context, _ string, _ metav1.ListOptions) (watch.Interface, error) {
 	if mock.InducedErrors.Watch {
 		return nil, errors.New("included Watch error")
 	}
@@ -401,7 +401,7 @@ func (mock *K8sMock) SetupPodWatch(ctx context.Context, namespace string, listOp
 }
 
 // SetupNodeWatch returns a mock watcher
-func (mock *K8sMock) SetupNodeWatch(ctx context.Context, listOptions metav1.ListOptions) (watch.Interface, error) {
+func (mock *K8sMock) SetupNodeWatch(_ context.Context, _ metav1.ListOptions) (watch.Interface, error) {
 	if mock.InducedErrors.Watch {
 		return nil, errors.New("included Watch error")
 	}
@@ -437,7 +437,7 @@ func (mock *K8sMock) TaintNode(ctx context.Context, nodeName, taintKey string, e
 }
 
 // CreateEvent creates an event for the specified object.
-func (mock *K8sMock) CreateEvent(sourceComponent string, object runtime.Object, eventType, reason, messageFmt string, args ...interface{}) error {
+func (mock *K8sMock) CreateEvent(_ string, _ runtime.Object, _, _, _ string, _ ...interface{}) error {
 	if mock.InducedErrors.CreateEvent {
 		return errors.New("induced CreateEvent error")
 	}

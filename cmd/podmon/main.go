@@ -20,13 +20,14 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"podmon/internal/csiapi"
-	"podmon/internal/k8sapi"
-	"podmon/internal/monitor"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"podmon/internal/csiapi"
+	"podmon/internal/k8sapi"
+	"podmon/internal/monitor"
 
 	csiext "github.com/dell/dell-csi-extensions/podmon"
 	"github.com/fsnotify/fsnotify"
@@ -89,8 +90,10 @@ var ArrayConnMonitorFc = monitor.PodMonitor.ArrayConnectivityMonitor
 var PodMonWait = podMonWait
 
 // GetCSIClient is reference to a function that returns a new CSIClient
-var GetCSIClient = csiapi.NewCSIClient
-var createArgsOnce sync.Once
+var (
+	GetCSIClient   = csiapi.NewCSIClient
+	createArgsOnce sync.Once
+)
 
 func main() {
 	log.SetFormatter(&log.TextFormatter{
