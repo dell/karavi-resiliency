@@ -27,9 +27,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var (
-	execCommand = exec.Command
-)
+var execCommand = exec.Command
 
 // GetLoopBackDevice get the loopbackdevice for given pv
 func GetLoopBackDevice(pvname string) (string, error) {

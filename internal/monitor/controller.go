@@ -48,11 +48,13 @@ type ControllerPodInfo struct { // information controller keeps on hand about a 
 	PodAffinityLabels map[string]string // A list of pod affinity labels for the pod
 }
 
-const notFound = "not found"
-const hostNameTopologyKey = "kubernetes.io/hostname"
-const arrayIDVolumeAttribute = "arrayID"
-const storageSystemVolumeAttribute = "StorageSystem"
-const defaultArray = "default"
+const (
+	notFound                     = "not found"
+	hostNameTopologyKey          = "kubernetes.io/hostname"
+	arrayIDVolumeAttribute       = "arrayID"
+	storageSystemVolumeAttribute = "StorageSystem"
+	defaultArray                 = "default"
+)
 
 // controllerModePodHandler handles controller mode functionality when a pod event happens
 func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.EventType) error {
@@ -408,7 +410,6 @@ func (cm *PodMonitorType) podToArrayIDs(ctx context.Context, pod *v1.Pod) ([]str
 // If connectivity is lost, will initiate cleanup of the pods.
 // This is a never ending function, intended to be called as Go routine.
 func (cm *PodMonitorType) ArrayConnectivityMonitor() {
-
 	// Loop through all the monitored Pods making sure they still have array access
 	for {
 		podKeysToClean := make([]string, 0)
@@ -703,7 +704,7 @@ func (cm *PodMonitorType) controllerModeDriverPodHandler(pod *v1.Pod, eventType 
 			} else {
 				hasTaint := nodeHasTaint(node, PodmonDriverPodTaintKey, v1.TaintEffectNoSchedule)
 				log.Infof("Removing taint from node %s with %s", node.ObjectMeta.Name, PodmonDriverPodTaintKey)
-				//remove taint
+				// remove taint
 				if hasTaint {
 					err := taintNode(node.ObjectMeta.Name, PodmonDriverPodTaintKey, true)
 					if err != nil {

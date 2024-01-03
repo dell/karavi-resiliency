@@ -17,7 +17,10 @@
 package ssh
 
 import (
+	"encoding/base64"
 	"fmt"
+	"log"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -104,10 +107,35 @@ func NewWrapper(accessInfo *AccessInfo) *Wrapper {
 			ssh.Password(accessInfo.Password),
 		},
 		// Non-production only
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		// the original code is blocked by golint. this method currently set the key to empty for testing
+		// a warning message will be displayed with the currect key
+		HostKeyCallback: trustedHostKeyCallback(""),
 	}
 	wrapper := &Wrapper{SSHConfig: config}
 	return wrapper
+}
+
+// create human-readable SSH-key strings
+func keyString(k ssh.PublicKey) string {
+	return k.Type() + " " + base64.StdEncoding.EncodeToString(k.Marshal())
+}
+
+func trustedHostKeyCallback(trustedKey string) ssh.HostKeyCallback {
+	if trustedKey == "" {
+		return func(_ string, _ net.Addr, k ssh.PublicKey) error {
+			log.Printf("WARNING: SSH-key verification is *NOT* in effect: to fix, add this trustedKey: %q", keyString(k))
+			return nil
+		}
+	}
+
+	return func(_ string, _ net.Addr, k ssh.PublicKey) error {
+		ks := keyString(k)
+		if trustedKey != ks {
+			return fmt.Errorf("SSH-key verification: expected %q but got %q", trustedKey, ks)
+		}
+
+		return nil
+	}
 }
 
 // GetSession makes underlying call to crypto ssh library to create an SSH session

@@ -39,7 +39,7 @@ func (mock *Mock) GetLoopBackDevice(pv string) (string, error) {
 }
 
 // DeleteLoopBackDevice deletes a loopbackdevice.
-func (mock *Mock) DeleteLoopBackDevice(device string) ([]byte, error) {
+func (mock *Mock) DeleteLoopBackDevice(_ string) ([]byte, error) {
 	delSucc := []byte("loopbackdevice")
 	if mock.InducedErrors.DeleteLoopBackDevice {
 		return nil, errors.New("induced DeleteLoopBackDevice error")
@@ -48,7 +48,7 @@ func (mock *Mock) DeleteLoopBackDevice(device string) ([]byte, error) {
 }
 
 // Unmount is a wrapper around syscall.Unmount
-func (mock *Mock) Unmount(devName string, flags int) error {
+func (mock *Mock) Unmount(_ string, _ int) error {
 	if mock.InducedErrors.Unmount {
 		return errors.New("induced Unmount error")
 	}
@@ -56,7 +56,7 @@ func (mock *Mock) Unmount(devName string, flags int) error {
 }
 
 // Creat is a wrapper around syscall.Creat
-func (mock *Mock) Creat(filepath string, flags int) (int, error) {
+func (mock *Mock) Creat(_ string, _ int) (int, error) {
 	if mock.InducedErrors.Creat {
 		return 1, errors.New("induced Creat error")
 	}

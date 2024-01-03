@@ -32,9 +32,11 @@ const TAGSIZE = 16
 // InitialPod is the prefix for the initial-pod tag line
 const InitialPod = "initial-pod"
 
-var rootDir = "/"
-var enableDoExit bool
-var blockFiles map[string]*os.File
+var (
+	rootDir      = "/"
+	enableDoExit bool
+	blockFiles   map[string]*os.File
+)
 
 func main() {
 	var err error
@@ -72,7 +74,7 @@ func readExistingEntries(rootDir string) bool {
 	}
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), "data") {
-			f, err := os.OpenFile(rootDir+"/"+entry.Name()+"/log", os.O_RDONLY, 0644)
+			f, err := os.OpenFile(rootDir+"/"+entry.Name()+"/log", os.O_RDONLY, 0o644)
 			if err != nil {
 				fmt.Printf("Couldn't open %s %s\n", entry.Name(), err.Error())
 				continue
@@ -81,7 +83,7 @@ func readExistingEntries(rootDir string) bool {
 			scanner := bufio.NewScanner(f)
 			for scanner.Scan() {
 				line := scanner.Text()
-				//fmt.Printf("line: %s\n", line)
+				// fmt.Printf("line: %s\n", line)
 				if line == "" {
 					key = ""
 					computeTimeDelta = true
@@ -144,7 +146,7 @@ func makeEntry(podTag, rootDir string, index int, initialPod bool) {
 	doExit := false
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), "data") {
-			f, err := os.OpenFile(rootDir+"/"+entry.Name()+"/log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			f, err := os.OpenFile(rootDir+"/"+entry.Name()+"/log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 			if err != nil {
 				fmt.Printf("Couldn't open %s %s\n", entry.Name(), err.Error())
 				doExit = true
@@ -178,7 +180,7 @@ func makeEntry(podTag, rootDir string, index int, initialPod bool) {
 		if strings.HasPrefix(entry.Name(), "blockdata") {
 			var f *os.File
 			if index == 0 {
-				f, err = os.OpenFile(rootDir+"/"+entry.Name(), os.O_WRONLY, 0644)
+				f, err = os.OpenFile(rootDir+"/"+entry.Name(), os.O_WRONLY, 0o644)
 				if err != nil {
 					fmt.Printf("Couldn't open %s %s\n", entry.Name(), err.Error())
 				}

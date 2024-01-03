@@ -47,7 +47,7 @@ var CRIMaxConnectionRetry = 3
 var CRINewClientTimeout = 90 * time.Second
 
 // NewCRIClient returns a new client connection to the ContainerRuntimeInterface or an error
-func NewCRIClient(criSock string, clientOpts ...grpc.DialOption) (*Client, error) {
+func NewCRIClient(criSock string, _ ...grpc.DialOption) (*Client, error) {
 	var err error
 	ctx, cancel := context.WithTimeout(context.Background(), CRINewClientTimeout)
 	defer cancel()
@@ -93,7 +93,7 @@ func (cri *Client) ListContainers(ctx context.Context, req *v1alpha2.ListContain
 	return CRIClient.RuntimeServiceClient.ListContainers(ctx, req)
 }
 
-var knownPaths [3]string = [3]string{"/var/run/dockershim.sock", "/run/containerd/containerd.sock", "/run/crio/crio.sock"}
+var knownPaths = [3]string{"/var/run/dockershim.sock", "/run/containerd/containerd.sock", "/run/crio/crio.sock"}
 
 // ChooseCRIPath chooses an appropriate unix domain socket path to the CRI interface.
 // This is done according to the ordering described for the crictl command.
@@ -110,7 +110,7 @@ func (cri *Client) ChooseCRIPath() (string, error) {
 
 // GetContainerInfo gets current status of all the containers on this server using CRI interface.
 // The result is a map of ID to a structure containing the ID, Name, and State.
-func (cri *Client) GetContainerInfo(ctx context.Context) (map[string]*ContainerInfo, error) {
+func (cri *Client) GetContainerInfo(_ context.Context) (map[string]*ContainerInfo, error) {
 	result := make(map[string]*ContainerInfo)
 
 	path, err := cri.ChooseCRIPath()

@@ -19,11 +19,12 @@ package monitor
 import (
 	"context"
 	"fmt"
-	"podmon/internal/csiapi"
-	"podmon/internal/k8sapi"
 	"strings"
 	"sync"
 	"time"
+
+	"podmon/internal/csiapi"
+	"podmon/internal/k8sapi"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -50,27 +51,27 @@ var (
 	PodmonTaintKey = ""
 	// PodmonDriverPodTaintKey is the key for this driver's node pod taint.
 	PodmonDriverPodTaintKey = ""
-	//ShortTimeout used for initial try
+	// ShortTimeout used for initial try
 	ShortTimeout = 10 * time.Second
-	//MediumTimeout is a wait-backoff after the ShortTimeout
+	// MediumTimeout is a wait-backoff after the ShortTimeout
 	MediumTimeout = 30 * time.Second
-	//LongTimeout is a longer wait-backoff period
+	// LongTimeout is a longer wait-backoff period
 	LongTimeout = 180 * time.Second
-	//PendingRetryTime time between retry of certain CSI calls
+	// PendingRetryTime time between retry of certain CSI calls
 	PendingRetryTime = 30 * time.Second
-	//NodeAPIInterval time between NodeAPI checks
+	// NodeAPIInterval time between NodeAPI checks
 	NodeAPIInterval = 30 * time.Second
-	//CSIMaxRetries max times to retry certain CSI calls
+	// CSIMaxRetries max times to retry certain CSI calls
 	CSIMaxRetries = 3
-	//MonitorRestartTimeDelay time to wait before restarting monitor
+	// MonitorRestartTimeDelay time to wait before restarting monitor
 	MonitorRestartTimeDelay = 10 * time.Second
-	//LockSleepTimeDelay wait for lock retry
+	// LockSleepTimeDelay wait for lock retry
 	LockSleepTimeDelay = 1 * time.Second
 	// dynamicConfigUpdateMutex protects concurrently running threads that could be affected by dynamic configuration parameters.
 	dynamicConfigUpdateMutex sync.Mutex
 	// arrayConnectivityPollRate is the rate it polls to check array connectivity to nodes.
 	arrayConnectivityPollRate = ShortTimeout
-	//IgnoreVolumelessPods when set will keep labeled pods with no volumes from being force deleted on node or connectivity failures.
+	// IgnoreVolumelessPods when set will keep labeled pods with no volumes from being force deleted on node or connectivity failures.
 	IgnoreVolumelessPods bool
 )
 
