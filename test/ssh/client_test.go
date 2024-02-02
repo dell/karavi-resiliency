@@ -18,11 +18,12 @@ package ssh_test
 
 import (
 	"fmt"
-	"podmon/test/ssh"
-	"podmon/test/ssh/mocks"
 	"strings"
 	"testing"
 	"time"
+
+	"podmon/test/ssh"
+	"podmon/test/ssh/mocks"
 
 	"github.com/golang/mock/gomock"
 )

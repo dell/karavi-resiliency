@@ -57,6 +57,12 @@ powerstore-integration-test:
 	SCRIPTS_DIR="../../test/sh" \
 	go test -timeout 6h -test.v -test.run "^\QTestPowerStoreFirstCheck\E|\QTestPowerStoreIntegration\E"
 
+powermax-integration-test:
+	RESILIENCY_INT_TEST="true" \
+	RESILIENCY_TEST_CLEANUP="true" \
+	POLL_K8S="true" \
+	SCRIPTS_DIR="../../test/sh" \
+	go test -timeout 6h -test.v -test.run "^\QTestPowerMaxFirstCheck\E|\QTestPowerMaxIntegration\E"
 
 powerflex-short-integration-test:
 	RESILIENCY_SHORT_INT_TEST="true" \
@@ -86,6 +92,13 @@ powerstore-short-integration-test:
 	SCRIPTS_DIR="../../test/sh" \
 	go test -timeout 6h -test.v -test.run "^\QTestPowerStoreShortCheck\E|\QTestPowerStoreShortIntegration\E"
 
+powermax-short-integration-test:
+	RESILIENCY_SHORT_INT_TEST="true" \
+	RESILIENCY_TEST_CLEANUP="true" \
+	POLL_K8S="true" \
+	SCRIPTS_DIR="../../test/sh" \
+	go test -timeout 6h -test.v -test.run "^\QTestPowerMaxShortCheck\E|\QTestPowerMaxShortIntegration\E"
+
 powerflex-array-interface-test:
 	RESILIENCY_INT_TEST="true" \
 	RESILIENCY_TEST_CLEANUP="true" \
@@ -112,3 +125,13 @@ powerstore-array-interface-test:
 	INTERFACE_B=${INTERFACE2} \
 	INTERFACE_C=${INTERFACE3} \
 	go test -timeout 6h -test.v -test.run "^\QTestPowerStoreFirstCheck\E|\QTestPowerStoreArrayInterfaceDown\E"
+
+powermax-array-interface-test:
+	RESILIENCY_INT_TEST="true" \
+	RESILIENCY_TEST_CLEANUP="true" \
+	POLL_K8S="true" \
+	SCRIPTS_DIR="../../test/sh" \
+	INTERFACE_A=${INTERFACE1} \
+	INTERFACE_B=${INTERFACE2} \
+	INTERFACE_C=${INTERFACE3} \
+	go test -timeout 6h -test.v -test.run "^\QTestPowerMaxFirstCheck\E|\QTestPowerMaxArrayInterfaceDown\E"

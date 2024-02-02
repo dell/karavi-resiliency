@@ -23,12 +23,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"podmon/internal/k8sapi"
-	"podmon/test/ssh"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"podmon/internal/k8sapi"
+	"podmon/test/ssh"
 
 	"github.com/cucumber/godog"
 	log "github.com/sirupsen/logrus"
@@ -102,6 +103,7 @@ const (
 	UnityNS             = "pmtu"
 	PowerScaleNS        = "pmti"
 	PowerStoreNS        = "pmtps"
+	PowerMaxNS          = "pmtpm"
 )
 
 // Used for stopping the test from continuing
@@ -411,6 +413,9 @@ func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, 
 	case "powerstore":
 		deployScript = "insps.sh"
 		cleanUpWait = 60 * time.Second
+	case "powermax":
+		deployScript = "inspm.sh"
+		cleanUpWait = 60 * time.Second
 	}
 
 	// Set test namespace prefix is based on the driver type.
@@ -430,6 +435,9 @@ func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, 
 		case "powerstore":
 			i.testNamespacePrefix[PowerStoreNS] = true
 			prefix = PowerStoreNS
+		case "powermax":
+			i.testNamespacePrefix[PowerMaxNS] = true
+			prefix = PowerMaxNS
 		}
 	} else {
 		i.testNamespacePrefix[UnprotectedPodsNS] = true
@@ -1529,7 +1537,7 @@ func (i *integration) getExpectedTaints(nodeName string) string {
 		return i.customTaints
 	}
 	// Should minimally expect to the the Kubernetes unreachable taint on the failed node
-	theseTaints := "node.kubernetes.io/unreachable,offline.vxflexos.storage.dell.com,offline.unity.storage.dell.com,offline.isilon.storage.dell.com,offline.powerstore.storage.dell.com"
+	theseTaints := "node.kubernetes.io/unreachable,offline.vxflexos.storage.dell.com,offline.unity.storage.dell.com,offline.isilon.storage.dell.com,offline.powerstore.storage.dell.com,offline.powermax.storage.dell.com"
 	if i.nodeHadPodsRunning(nodeName) {
 		// If the test failed some node(s) that had labeled pods in it, then we
 		// expect the podmon taint to be cleaned up as well.

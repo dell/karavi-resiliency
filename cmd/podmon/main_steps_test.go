@@ -20,9 +20,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"podmon/internal/csiapi"
-	"podmon/internal/k8sapi"
-	"podmon/internal/monitor"
 	"strings"
 	"sync"
 	"time"
@@ -33,6 +30,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"k8s.io/client-go/kubernetes"
+
+	"podmon/internal/csiapi"
+	"podmon/internal/k8sapi"
+	"podmon/internal/monitor"
 )
 
 type mainFeature struct {

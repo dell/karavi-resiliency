@@ -20,13 +20,14 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"podmon/internal/csiapi"
-	"podmon/internal/k8sapi"
-	"podmon/internal/monitor"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"podmon/internal/csiapi"
+	"podmon/internal/k8sapi"
+	"podmon/internal/monitor"
 
 	csiext "github.com/dell/dell-csi-extensions/podmon"
 	"github.com/fsnotify/fsnotify"
@@ -130,6 +131,9 @@ func main() {
 	case strings.Contains(*args.driverPath, "powerstore"):
 		log.Infof("CSI Driver for PowerStore")
 		monitor.Driver = new(monitor.PStoreDriver)
+	case strings.Contains(*args.driverPath, "powermax"):
+		log.Infof("CSI Driver for PowerMax")
+		monitor.Driver = new(monitor.PMaxDriver)
 	default:
 		log.Infof("CSI Driver for VxFlex OS")
 		monitor.Driver = new(monitor.VxflexDriver)
