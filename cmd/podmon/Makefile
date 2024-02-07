@@ -12,28 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # Includes the following generated file to get semantic version information
-MAJOR=0
-MINOR=0
-PATCH=54
-VERSION?="v$(MAJOR).$(MINOR).$(PATCH)"
-REGISTRY?="${REGISTRY_HOST}:${REGISTRY_PORT}/podmon"
-BASEIMAGE?="resiliency-ubimicro:latest"
 
-clean:
-	go clean ./...
-
-build:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64  go build -a -ldflags '-w' ./...
-
-build-base-image: download-csm-common
-	$(eval include csm-common.mk)
-	sh ../../scripts/buildubimicro.sh $(DEFAULT_BASEIMAGE)
-
-podman:
-	podman build --no-cache -t "$(REGISTRY):$(VERSION)" --build-arg BASEIMAGE=$(BASEIMAGE) --label commit=$(shell git log --max-count 1 --format="%H") .
-
-push:
-	podman push "$(REGISTRY):$(VERSION)"
 
 unit-test:
 	go test -race -v -coverprofile=c.out ./...
@@ -41,6 +20,3 @@ unit-test:
 godog:
 	go clean -cache
 	go test -v -coverprofile=c.out -test.run TestMain ./...
-
-download-csm-common:
-	curl -O -L https://raw.githubusercontent.com/dell/csm/main/config/csm-common.mk

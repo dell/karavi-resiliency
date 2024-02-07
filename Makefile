@@ -12,11 +12,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # Includes the following generated file to get semantic version information
-all:
-	(cd cmd/podmon; make clean build-base-image build podman push)
+
+MAJOR=0
+MINOR=0
+PATCH=54
+VERSION?="v$(MAJOR).$(MINOR).$(PATCH)"
+REGISTRY?="${REGISTRY_HOST}:${REGISTRY_PORT}/podmon"
+BASEIMAGE?="resiliency-ubimicro:latest"
+
+all: clean podman push
 
 check:
 	@scripts/check.sh ./internal/monitor ./internal/k8sapi ./internal/csiapi ./internal/criapi ./cmd/podmon  
 
 unit-test:
 	(cd cmd/podmon; make unit-test)
+
+clean:
+	go clean ./...
+
+build:
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64  go build -a -ldflags '-w' ./...
+
+build-base-image: download-csm-common
+	$(eval include csm-common.mk)
+	sh ./scripts/buildubimicro.sh $(DEFAULT_BASEIMAGE)
+
+podman: build-base-image
+	podman build --no-cache -t "$(REGISTRY):$(VERSION)" --build-arg GOIMAGE=$(DEFAULT_GOIMAGE) --build-arg BASEIMAGE=$(BASEIMAGE) -f ./cmd/podmon/Dockerfile --label commit=$(shell git log --max-count 1 --format="%H") .
+
+push:
+	podman push "$(REGISTRY):$(VERSION)"
+
+download-csm-common:
+	curl -O -L https://raw.githubusercontent.com/dell/csm/main/config/csm-common.mk
