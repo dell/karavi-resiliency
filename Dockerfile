@@ -11,10 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+ARG GOIMAGE
 ARG BASEIMAGE
 
 # Build the module binary
-FROM golang:1.21 as builder
+FROM $GOIMAGE as builder
 
 WORKDIR /workspace
 COPY . .

@@ -32,14 +32,14 @@ clean:
 	go clean ./...
 
 build:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64  go build -a -ldflags '-w' ./...
+	GOOS=linux CGO_ENABLED=0 go build -o podmon ./cmd/podmon/
 
 build-base-image: download-csm-common
 	$(eval include csm-common.mk)
 	sh ./scripts/buildubimicro.sh $(DEFAULT_BASEIMAGE)
 
 podman: build-base-image
-	podman build --no-cache -t "$(REGISTRY):$(VERSION)" --build-arg GOIMAGE=$(DEFAULT_GOIMAGE) --build-arg BASEIMAGE=$(BASEIMAGE) -f ./cmd/podmon/Dockerfile --label commit=$(shell git log --max-count 1 --format="%H") .
+	podman build --no-cache -t "$(REGISTRY):$(VERSION)" --build-arg GOIMAGE=$(DEFAULT_GOIMAGE) --build-arg BASEIMAGE=$(BASEIMAGE) -f ./Dockerfile --label commit=$(shell git log --max-count 1 --format="%H") .
 
 push:
 	podman push "$(REGISTRY):$(VERSION)"

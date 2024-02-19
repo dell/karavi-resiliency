@@ -13,7 +13,6 @@
 # limitations under the License.
 # Includes the following generated file to get semantic version information
 
-
 unit-test:
 	go test -race -v -coverprofile=c.out ./...
 
