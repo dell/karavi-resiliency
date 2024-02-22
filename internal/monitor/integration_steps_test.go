@@ -23,13 +23,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"podmon/internal/k8sapi"
+	"podmon/test/ssh"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"podmon/internal/k8sapi"
-	"podmon/test/ssh"
 
 	"github.com/cucumber/godog"
 	log "github.com/sirupsen/logrus"
@@ -1010,7 +1009,7 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 		// For CSI driver pod run the script from test host not worker node
 		if failureType == "driverpod" {
 			var cmd *exec.Cmd
-			cmd = exec.Command(
+			cmd = exec.Command( // #nosec G204
 				"/bin/sh", fmt.Sprintf("%s/failpods.sh", i.scriptsDir),
 				"--ns", i.driverType,
 				"--timeoutseconds", fmt.Sprintf("%d", wait),
@@ -1654,13 +1653,13 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	if pollK8sStr := os.Getenv("POLL_K8S"); strings.ToLower(pollK8sStr) == "true" {
 		pollK8sEnabled = true
 	}
-	context.BeforeScenario(func(sc *godog.Scenario) {
+	context.BeforeScenario(func(_ *godog.Scenario) {
 		if pollK8sEnabled {
 			pollTick = time.NewTicker(k8sPollInterval)
 			go i.startK8sPoller()
 		}
 	})
-	context.AfterScenario(func(sc *godog.Scenario, err error) {
+	context.AfterScenario(func(_ *godog.Scenario, _ error) {
 		if pollK8sEnabled {
 			pollTick.Stop()
 		}
