@@ -10,9 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Checkout dell-csi-extensions
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: 'dell/dell-csi-extensions'
           path: dell-csi-extensions
@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Run the forbidden words scan
         uses: dell/common-github-actions/code-sanitizer@main
         with:
@@ -35,9 +35,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Checkout dell-csi-extensions
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: 'dell/dell-csi-extensions'
           path: dell-csi-extensions
@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Run Go Security
         uses: securego/gosec@master
         with:
@@ -62,7 +62,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Run malware scan
         uses: dell/common-github-actions/malware-scanner@main
         with:
@@ -79,9 +79,9 @@ jobs:
           cache: false
         id: go
       - name: Checkout the code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Checkout dell-csi-extensions
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: 'dell/dell-csi-extensions'
           path: dell-csi-extensions
@@ -93,10 +93,9 @@ jobs:
         run: go mod tidy
       - name: Build podmon Docker Image
         run: |
-         cd cmd/podmon
-         chmod +x ../../scripts/buildubimicro.sh
-         make clean build-base-image build
-         podman build -t docker.io/podmon . --build-arg BASEIMAGE="localhost/resiliency-ubimicro"
+         chmod +x ./scripts/buildubimicro.sh
+         make build-base-image
+         podman build -t docker.io/podmon -f ./Dockerfile --build-arg GOIMAGE=golang:1.21 --build-arg BASEIMAGE="localhost/resiliency-ubimicro"
          podman save docker.io/library/podmon -o /tmp/podmon.tar
          docker load -i /tmp/podmon.tar
       - name: Image scanner
@@ -106,4 +105,3 @@ jobs:
           severity-threshold: HIGH
         env:
           DOCKLE_HOST: "unix:///var/run/docker.sock"
-          
