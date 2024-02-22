@@ -11,7 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+ARG GOIMAGE
 ARG BASEIMAGE
+
+# Build the module binary
+FROM $GOIMAGE as builder
+
+WORKDIR /workspace
+COPY . .
+
+# Build the binary
+RUN GOOS=linux CGO_ENABLED=0 go build -o podmon ./cmd/podmon/
+
+# Stage to build the module image
 FROM $BASEIMAGE AS final
 LABEL vendor="Dell Inc." \
       name="csm-resiliency" \
@@ -19,5 +31,7 @@ LABEL vendor="Dell Inc." \
       description="Makes Kubernetes applications, including those that utilize persistent storage, more resilient to various failures" \
       version="2.0.0" \
       license="Apache-2.0"
-COPY podmon /podmon
+
+COPY --from=builder /workspace/podmon /
+
 ENTRYPOINT [ "/podmon" ]
