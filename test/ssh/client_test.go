@@ -41,7 +41,7 @@ func TestCommandExecution_Run(t *testing.T) {
 	verifyThisOutput := func(t *testing.T,
 		expectedOutput []string, actualOutput []string,
 		expectedErrors []string, actualErrors []string,
-		expectedError error, actualError error,
+		_ error, _ error,
 	) {
 		if len(expectedOutput) > 0 {
 			if len(expectedOutput) != len(actualOutput) {
@@ -73,8 +73,8 @@ func TestCommandExecution_Run(t *testing.T) {
 	}
 
 	verifyReturnedErrorSimilar := func(t *testing.T,
-		expectedOutput []string, actualOutput []string,
-		expectedErrors []string, actualErrors []string,
+		_ []string, _ []string,
+		_ []string, _ []string,
 		expectedError error, actualError error,
 	) {
 		if expectedError != nil && !strings.Contains(actualError.Error(), expectedError.Error()) {
@@ -108,7 +108,7 @@ func TestCommandExecution_Run(t *testing.T) {
 			mockClientWrapper.EXPECT().GetSession(gomock.Any()).Return(mockSessionWrapper, nil)
 			mockClientWrapper.EXPECT().Close().AnyTimes()
 			mockSessionWrapper.EXPECT().Close().AnyTimes()
-			mockSessionWrapper.EXPECT().CombinedOutput(gomock.Any()).Return(nil, nil).Do(func(s string) {
+			mockSessionWrapper.EXPECT().CombinedOutput(gomock.Any()).Return(nil, nil).Do(func(_ string) {
 				time.Sleep(1 * time.Second)
 			})
 

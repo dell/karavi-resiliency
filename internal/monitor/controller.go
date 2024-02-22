@@ -22,11 +22,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"podmon/internal/k8sapi"
 	"strings"
 	"sync"
 	"time"
-
-	"podmon/internal/k8sapi"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	csiext "github.com/dell/dell-csi-extensions/podmon"
@@ -419,7 +418,7 @@ func (cm *PodMonitorType) ArrayConnectivityMonitor() {
 		connectivityCache.ResetSampled()
 		// Internal function for iterating PodKeyToControllerPodInfo
 		// This will clean up Pods that have lost connectivity to at least one of their arrays
-		fnPodKeyToControllerPodInfo := func(key, value interface{}) bool {
+		fnPodKeyToControllerPodInfo := func(_, value interface{}) bool {
 			controllerPodInfo := value.(*ControllerPodInfo)
 			podKey := controllerPodInfo.PodKey
 			node := controllerPodInfo.Node

@@ -21,15 +21,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
-
 	"podmon/internal/criapi"
 	"podmon/internal/csiapi"
 	"podmon/internal/k8sapi"
 	"podmon/internal/utils"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/cucumber/godog"
 	"github.com/dell/gofsutil"
@@ -174,7 +173,7 @@ func (f *feature) aPodForNodeWithVolumesConditionAffinity(node string, nvolumes 
 	return nil
 }
 
-func (f *feature) iHaveAPodsForNodeWithVolumesDevicesCondition(nPods int, nodeName string, nvolumes, ndevices int, condition string) error {
+func (f *feature) iHaveAPodsForNodeWithVolumesDevicesCondition(nPods int, nodeName string, nvolumes, _ int, condition string) error {
 	var err error
 	// To test IgnoreVolumelessPods nvolumes is supplied 0 to induce it volumeless pod
 	if nvolumes == 0 {
@@ -1086,7 +1085,7 @@ func (f *feature) iCallGetPodAffinityLabels() error {
 	return nil
 }
 
-func (f *feature) aControllerMonitorNodePod(arg1 string) error {
+func (f *feature) aControllerMonitorNodePod(_ string) error {
 	return godog.ErrPending
 }
 

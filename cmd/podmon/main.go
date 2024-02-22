@@ -20,14 +20,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"podmon/internal/csiapi"
+	"podmon/internal/k8sapi"
+	"podmon/internal/monitor"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"podmon/internal/csiapi"
-	"podmon/internal/k8sapi"
-	"podmon/internal/monitor"
 
 	csiext "github.com/dell/dell-csi-extensions/podmon"
 	"github.com/fsnotify/fsnotify"
@@ -299,7 +298,7 @@ func setupDynamicConfigUpdate() error {
 	}
 
 	vc.WatchConfig()
-	vc.OnConfigChange(func(in fsnotify.Event) {
+	vc.OnConfigChange(func(_ fsnotify.Event) {
 		log.WithField("file", *args.driverConfigParamsFile).Infof("configuration file has changed")
 		if err := updateConfiguration(vc); err != nil {
 			log.Warn(err)
