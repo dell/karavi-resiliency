@@ -20,9 +20,8 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
-	"strings"
-
 	"podmon/internal/utils"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -51,7 +50,7 @@ func (d *VxflexDriver) GetDriverName() string {
 }
 
 // GetDriverMountDir returns the Vxflex private mount directory.
-func (d *VxflexDriver) GetDriverMountDir(volumeHandle, pvName, podUUID string) string {
+func (d *VxflexDriver) GetDriverMountDir(volumeHandle, _, _ string) string {
 	privateMountDir := os.Getenv("X_CSI_PRIVATE_MOUNT_DIR")
 	if privateMountDir == "" {
 		privateMountDir = "/var/lib/kubelet/plugins/vxflexos.emc.dell.com/disks"
@@ -62,14 +61,14 @@ func (d *VxflexDriver) GetDriverMountDir(volumeHandle, pvName, podUUID string) s
 }
 
 // GetDriverBlockDev Returns the block device used for a PV by a pod.
-func (d *VxflexDriver) GetDriverBlockDev(volumeHandle, pvName, podUUID string) string {
+func (d *VxflexDriver) GetDriverBlockDev(_, pvName, podUUID string) string {
 	privateBlockDev := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/volumeDevices/publish/%s/%s", pvName, podUUID)
 	log.Debugf("privateBlockDev: %s", privateBlockDev)
 	return privateBlockDev
 }
 
 // GetStagingMountDir Returns the staging directory used by NodeUnstage for a mount device.
-func (d *VxflexDriver) GetStagingMountDir(volumeHandle, pvName string) string {
+func (d *VxflexDriver) GetStagingMountDir(volumeHandle, _ string) string {
 	stagingMountDir := os.Getenv("X_CSI_PRIVATE_MOUNT_DIR")
 	if stagingMountDir == "" {
 		stagingMountDir = "/var/lib/kubelet/plugins/vxflexos.emc.dell.com/disks"
@@ -80,7 +79,7 @@ func (d *VxflexDriver) GetStagingMountDir(volumeHandle, pvName string) string {
 }
 
 // GetStagingMountDirAfter125 Returns the staging directory used by NodeUnstage for a mount device.
-func (d *VxflexDriver) GetStagingMountDirAfter125(volumeHandle, pvName string) string {
+func (d *VxflexDriver) GetStagingMountDirAfter125(volumeHandle, _ string) string {
 	result := sha256.Sum256([]byte(fmt.Sprintf("%s", volumeHandle)))
 	volSha := fmt.Sprintf("%x", result)
 
@@ -94,24 +93,24 @@ func (d *VxflexDriver) GetStagingMountDirAfter125(volumeHandle, pvName string) s
 }
 
 // GetStagingBlockDir Returns the staging directory used by NodeUnstage for a block device.
-func (d *VxflexDriver) GetStagingBlockDir(volumeHandle, pvName string) string {
+func (d *VxflexDriver) GetStagingBlockDir(_, pvName string) string {
 	stagingBlockDir := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/volumeDevices/staging/%s", pvName)
 	log.Debugf("stagingBlockDir: %s", stagingBlockDir)
 	return stagingBlockDir
 }
 
 // NodeUnpublishExcludedError filters out NodeUnpublish errors that should be excluded
-func (d *VxflexDriver) NodeUnpublishExcludedError(err error) bool {
+func (d *VxflexDriver) NodeUnpublishExcludedError(_ error) bool {
 	return false
 }
 
 // NodeUnstageExcludedError filters out NodeStage errors that should be excluded
-func (d *VxflexDriver) NodeUnstageExcludedError(err error) bool {
+func (d *VxflexDriver) NodeUnstageExcludedError(_ error) bool {
 	return false
 }
 
 // FinalCleanup handles any driver specific final cleanup.
-func (d *VxflexDriver) FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID string) error {
+func (d *VxflexDriver) FinalCleanup(_ bool, _, _, _ string) error {
 	return nil
 }
 
@@ -124,28 +123,28 @@ func (d *UnityDriver) GetDriverName() string {
 }
 
 // GetDriverMountDir returns the Unity private mount directory.
-func (d *UnityDriver) GetDriverMountDir(volumeHandle, pvName, podUUID string) string {
+func (d *UnityDriver) GetDriverMountDir(_, pvName, podUUID string) string {
 	privateMountDir := fmt.Sprintf("/var/lib/kubelet/pods/%s/volumes/kubernetes.io~csi/%s/mount", podUUID, pvName)
 	log.Debugf("privateMountDir: %s", privateMountDir)
 	return privateMountDir
 }
 
 // GetDriverBlockDev Returns the block device used for a PV by a pod.
-func (d *UnityDriver) GetDriverBlockDev(volumeHandle, pvName, podUUID string) string {
+func (d *UnityDriver) GetDriverBlockDev(_, pvName, podUUID string) string {
 	privateBlockDev := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/volumeDevices/publish/%s/%s", pvName, podUUID)
 	log.Debugf("privateBlockDev: %s", privateBlockDev)
 	return privateBlockDev
 }
 
 // GetStagingMountDir Returns the staging directory used by NodeUnstage for a mount device.
-func (d *UnityDriver) GetStagingMountDir(volumeHandle, pvName string) string {
+func (d *UnityDriver) GetStagingMountDir(_, pvName string) string {
 	stagingMountDir := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/pv/%s/globalmount", pvName)
 	log.Debugf("stagingMountDev: %s", stagingMountDir)
 	return stagingMountDir
 }
 
 // GetStagingMountDirAfter125 Returns the staging directory used by NodeUnstage for a mount device.
-func (d *UnityDriver) GetStagingMountDirAfter125(volumeHandle, pvName string) string {
+func (d *UnityDriver) GetStagingMountDirAfter125(volumeHandle, _ string) string {
 	result := sha256.Sum256([]byte(fmt.Sprintf("%s", volumeHandle)))
 	volSha := fmt.Sprintf("%x", result)
 
@@ -155,7 +154,7 @@ func (d *UnityDriver) GetStagingMountDirAfter125(volumeHandle, pvName string) st
 }
 
 // GetStagingBlockDir Returns the staging directory used by NodeUnstage for a block device.
-func (d *UnityDriver) GetStagingBlockDir(volumeHandle, pvName string) string {
+func (d *UnityDriver) GetStagingBlockDir(_, pvName string) string {
 	stagingBlockDir := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/volumeDevices/staging/%s", pvName)
 	log.Debugf("stagingBlockDir: %s", stagingBlockDir)
 	return stagingBlockDir
@@ -180,7 +179,7 @@ func (d *UnityDriver) NodeUnstageExcludedError(err error) bool {
 }
 
 // FinalCleanup handles any driver specific final cleanup.
-func (d *UnityDriver) FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID string) error {
+func (d *UnityDriver) FinalCleanup(rawBlock bool, _, pvName, podUUID string) error {
 	if rawBlock { // Do this cleanup on raw device block
 		loopBackDev, err := getLoopBackDevice(pvName)
 		if err != nil || loopBackDev == "" {
@@ -219,7 +218,7 @@ func (d *PScaleDriver) GetDriverName() string {
 }
 
 // GetDriverMountDir returns the PowerScale private mount directory.
-func (d *PScaleDriver) GetDriverMountDir(volumeHandle, pvName, podUUID string) string {
+func (d *PScaleDriver) GetDriverMountDir(_, pvName, podUUID string) string {
 	privateMountDir := os.Getenv("X_CSI_PRIVATE_MOUNT_DIR")
 	if privateMountDir == "" {
 		privateMountDir = "/var/lib/kubelet"
@@ -230,37 +229,37 @@ func (d *PScaleDriver) GetDriverMountDir(volumeHandle, pvName, podUUID string) s
 }
 
 // GetDriverBlockDev Returns the block device used for a PV by a pod.
-func (d *PScaleDriver) GetDriverBlockDev(volumeHandle, pvName, podUUID string) string {
+func (d *PScaleDriver) GetDriverBlockDev(_, _, _ string) string {
 	return ""
 }
 
 // GetStagingMountDir Returns the staging directory used by NodeUnstage for a mount device.
-func (d *PScaleDriver) GetStagingMountDir(volumeHandle, pvName string) string {
+func (d *PScaleDriver) GetStagingMountDir(_, _ string) string {
 	return ""
 }
 
 // GetStagingMountDirAfter125 Returns the staging directory used by NodeUnstage for a mount device.
-func (d *PScaleDriver) GetStagingMountDirAfter125(volumeHandle, pvName string) string {
+func (d *PScaleDriver) GetStagingMountDirAfter125(_, _ string) string {
 	return ""
 }
 
 // GetStagingBlockDir Returns the staging directory used by NodeUnstage for a block device.
-func (d *PScaleDriver) GetStagingBlockDir(volumeHandle, pvName string) string {
+func (d *PScaleDriver) GetStagingBlockDir(_, _ string) string {
 	return ""
 }
 
 // NodeUnpublishExcludedError filters out NodeUnpublish errors that should be excluded
-func (d *PScaleDriver) NodeUnpublishExcludedError(err error) bool {
+func (d *PScaleDriver) NodeUnpublishExcludedError(_ error) bool {
 	return false
 }
 
 // NodeUnstageExcludedError filters out NodeStage errors that should be excluded
-func (d *PScaleDriver) NodeUnstageExcludedError(err error) bool {
+func (d *PScaleDriver) NodeUnstageExcludedError(_ error) bool {
 	return false
 }
 
 // FinalCleanup handles any driver specific final cleanup.
-func (d *PScaleDriver) FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID string) error {
+func (d *PScaleDriver) FinalCleanup(_ bool, _, _, _ string) error {
 	return nil
 }
 
@@ -273,7 +272,7 @@ func (d *PStoreDriver) GetDriverName() string {
 }
 
 // GetDriverMountDir returns the mount directory used for a PV by a pod.
-func (d *PStoreDriver) GetDriverMountDir(volumeHandle, pvName, podUUID string) string {
+func (d *PStoreDriver) GetDriverMountDir(_, pvName, podUUID string) string {
 	privateMountDir := getPrivateMountDir("/var/lib/kubelet")
 	privateMountDir = fmt.Sprintf("%s/pods/%s/volumes/kubernetes.io~csi/%s/mount", privateMountDir, podUUID, pvName)
 	log.Debugf("privateMountDir: %s", privateMountDir)
@@ -281,7 +280,7 @@ func (d *PStoreDriver) GetDriverMountDir(volumeHandle, pvName, podUUID string) s
 }
 
 // GetDriverBlockDev Returns the block device used for a PV by a pod.
-func (d *PStoreDriver) GetDriverBlockDev(volumeHandle, pvName, podUUID string) string {
+func (d *PStoreDriver) GetDriverBlockDev(_, pvName, podUUID string) string {
 	privateMountDir := getPrivateMountDir("/var/lib/kubelet")
 	privateBlockDev := fmt.Sprintf("%s/plugins/kubernetes.io/csi/volumeDevices/publish/%s/%s", privateMountDir, pvName, podUUID)
 	log.Debugf("privateBlockDev: %s", privateBlockDev)
@@ -289,7 +288,7 @@ func (d *PStoreDriver) GetDriverBlockDev(volumeHandle, pvName, podUUID string) s
 }
 
 // GetStagingMountDir Returns the staging directory used by NodeUnstage for a mount device.
-func (d *PStoreDriver) GetStagingMountDir(volumeHandle, pvName string) string {
+func (d *PStoreDriver) GetStagingMountDir(_, pvName string) string {
 	privateMountDir := getPrivateMountDir("/var/lib/kubelet")
 	stagingMountDev := fmt.Sprintf("%s/plugins/kubernetes.io/csi/pv/%s/globalmount", privateMountDir, pvName)
 	log.Debugf("stagingMountDev: %s", stagingMountDev)
@@ -297,7 +296,7 @@ func (d *PStoreDriver) GetStagingMountDir(volumeHandle, pvName string) string {
 }
 
 // GetStagingMountDirAfter125 Returns the staging directory used by NodeUnstage for a mount device.
-func (d *PStoreDriver) GetStagingMountDirAfter125(volumeHandle, pvName string) string {
+func (d *PStoreDriver) GetStagingMountDirAfter125(volumeHandle, _ string) string {
 	result := sha256.Sum256([]byte(fmt.Sprintf("%s", volumeHandle)))
 	volSha := fmt.Sprintf("%x", result)
 
@@ -307,7 +306,7 @@ func (d *PStoreDriver) GetStagingMountDirAfter125(volumeHandle, pvName string) s
 }
 
 // GetStagingBlockDir Returns the staging directory used by NodeUnstage for a block device.
-func (d *PStoreDriver) GetStagingBlockDir(volumeHandle, pvName string) string {
+func (d *PStoreDriver) GetStagingBlockDir(_, pvName string) string {
 	privateMountDir := getPrivateMountDir("/var/lib/kubelet")
 	stagingBlockDir := fmt.Sprintf("%s/plugins/kubernetes.io/csi/volumeDevices/staging/%s", privateMountDir, pvName)
 	log.Debugf("stagingBlockDir: %s", stagingBlockDir)
@@ -315,17 +314,17 @@ func (d *PStoreDriver) GetStagingBlockDir(volumeHandle, pvName string) string {
 }
 
 // NodeUnpublishExcludedError filters out NodeUnpublish errors that should be excluded
-func (d *PStoreDriver) NodeUnpublishExcludedError(err error) bool {
+func (d *PStoreDriver) NodeUnpublishExcludedError(_ error) bool {
 	return false
 }
 
 // NodeUnstageExcludedError filters out NodeStage errors that should be excluded
-func (d *PStoreDriver) NodeUnstageExcludedError(err error) bool {
+func (d *PStoreDriver) NodeUnstageExcludedError(_ error) bool {
 	return false
 }
 
 // FinalCleanup handles any driver specific final cleanup.
-func (d *PStoreDriver) FinalCleanup(rawBlock bool, volumeHandle, pvName, podUUID string) error {
+func (d *PStoreDriver) FinalCleanup(_ bool, _, _, _ string) error {
 	return nil
 }
 
