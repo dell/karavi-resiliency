@@ -72,10 +72,10 @@ jobs:
     name: Image Scanner
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.21+
+      - name: Set up Go stable version
         uses: actions/setup-go@v5
         with:
-          go-version: ^1.21
+          go-version: 'stable'
           cache: false
         id: go
       - name: Checkout the code
@@ -95,7 +95,7 @@ jobs:
         run: |
          chmod +x ./scripts/buildubimicro.sh
          make build-base-image
-         podman build -t docker.io/podmon -f ./Dockerfile --build-arg GOIMAGE=golang:1.21 --build-arg BASEIMAGE="localhost/resiliency-ubimicro"
+         podman build -t docker.io/podmon -f ./Dockerfile --build-arg GOIMAGE=golang:latest --build-arg BASEIMAGE="localhost/resiliency-ubimicro"
          podman save docker.io/library/podmon -o /tmp/podmon.tar
          docker load -i /tmp/podmon.tar
       - name: Image scanner
