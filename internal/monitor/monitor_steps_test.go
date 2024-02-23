@@ -357,8 +357,10 @@ func (f *feature) theLastLogMessageContains(errormsg string) error {
 	} else if strings.Contains(lastEntry.Message, errormsg) {
 		return nil
 	} else if f.validateWatcherMessage {
-		possibleLastMsg := []string{"PodMonitor.Mode not set", "PodWatcher stopped...", "Setup of PodWatcher complete", "node name: node1",
-			"Setup of NodeWatcher complete", "NodeWatcher stopped...", "labelSelector:", "attempting to start"}
+		possibleLastMsg := []string{
+			"PodMonitor.Mode not set", "PodWatcher stopped...", "Setup of PodWatcher complete", "node name: node1",
+			"Setup of NodeWatcher complete", "NodeWatcher stopped...", "labelSelector:", "attempting to start",
+		}
 		for _, msg := range possibleLastMsg {
 			if strings.Contains(lastEntry.Message, msg) {
 				return nil
