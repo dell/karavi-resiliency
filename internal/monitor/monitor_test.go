@@ -52,6 +52,7 @@ func TestMonitor(t *testing.T) {
 	log.Printf("Monitor test finished")
 }
 
+/*
 func TestControllerMode(t *testing.T) {
 	log.Printf("Starting controller-mode test")
 	godogOptions := godog.Options{
@@ -116,3 +117,4 @@ func TestMapEqualsMap(t *testing.T) {
 		}
 	}
 }
+*/

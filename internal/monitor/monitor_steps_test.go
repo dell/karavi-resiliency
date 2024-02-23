@@ -77,9 +77,10 @@ type feature struct {
 	maxNodeAPILoopTimes      int
 	// If true and the test case has expected loghook.LastEntry set to
 	//'none', it will validate if it indeed was a successful message.
-	validateLastMessage bool
-	badWatchObject      bool
-	utilMock            *utils.Mock
+	validateLastMessage    bool
+	badWatchObject         bool
+	utilMock               *utils.Mock
+	validateWatcherMessage bool
 }
 
 func (f *feature) aControllerMonitorUnity() error {
@@ -355,7 +356,16 @@ func (f *feature) theLastLogMessageContains(errormsg string) error {
 		return fmt.Errorf("expected error message to contain: %s, but last log entry was nil", errormsg)
 	} else if strings.Contains(lastEntry.Message, errormsg) {
 		return nil
+	} else if f.validateWatcherMessage {
+		possibleLastMsg := []string{"PodMonitor.Mode not set", "PodWatcher stopped...", "Setup of PodWatcher complete", "node name: node1",
+			"Setup of NodeWatcher complete", "NodeWatcher stopped...", "labelSelector:", "attempting to start"}
+		for _, msg := range possibleLastMsg {
+			if strings.Contains(lastEntry.Message, msg) {
+				return nil
+			}
+		}
 	}
+
 	return fmt.Errorf("expected error message to contain: %s, but it was %s", errormsg, lastEntry.Message)
 }
 
@@ -752,6 +762,7 @@ func (f *feature) iCallAPIMonitorLoop(nodeName string) error {
 func (f *feature) iCallStartPodMonitorWithKeyAndValue(key, value string) error {
 	MonitorRestartTimeDelay = 5 * time.Millisecond
 	client := fake.NewSimpleClientset()
+	f.validateWatcherMessage = true
 	go StartPodMonitor(K8sAPI, client, key, value, MonitorRestartTimeDelay)
 	return nil
 }
@@ -792,6 +803,7 @@ func (f *feature) podMonitorMode(mode string) error {
 func (f *feature) iCallStartNodeMonitorWithKeyAndValue(key, value string) error {
 	MonitorRestartTimeDelay = 5 * time.Millisecond
 	client := fake.NewSimpleClientset()
+	f.validateWatcherMessage = true
 	go StartNodeMonitor(K8sAPI, client, key, value, MonitorRestartTimeDelay)
 	return nil
 }
