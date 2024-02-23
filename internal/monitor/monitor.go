@@ -19,12 +19,11 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"podmon/internal/csiapi"
+	"podmon/internal/k8sapi"
 	"strings"
 	"sync"
 	"time"
-
-	"podmon/internal/csiapi"
-	"podmon/internal/k8sapi"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -162,11 +161,11 @@ func (pm *PodMonitorType) StoreNodeUID(nodeName, uid string) {
 // GetNodeUID returns the node UID
 func (pm *PodMonitorType) GetNodeUID(nodeName string) string {
 	log.Debugf("GetNodeUid added node: %s", nodeName)
-	any, ok := pm.NodeNameToUID.Load(nodeName)
+	value, ok := pm.NodeNameToUID.Load(nodeName)
 	if !ok {
 		return ""
 	}
-	uid := fmt.Sprintf("%v", any)
+	uid := fmt.Sprintf("%v", value)
 	return uid
 }
 
