@@ -263,7 +263,7 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 				log.WithFields(fields).Info("SkipArrayConnectionValidation is set and taintnoexec is true- proceeding")
 			} else {
 				if err != nil {
-					log.WithFields(fields).Error("Aborting pod cleanup due to error: %s", err.Error())
+					log.WithFields(fields).Error("Aborting pod cleanup due to error: ", err.Error())
 					if strings.Contains(err.Error(), "Could not determine CSI NodeID for node") {
 						if err = K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, reason,
 							"podmon aborted pod cleanup %s due to missing CSI annotations",
