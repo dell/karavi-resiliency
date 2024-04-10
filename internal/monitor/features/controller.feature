@@ -22,7 +22,7 @@ Feature: Controller Monitor
       | "node1" | 2    | "DeleteVolumeAttachment"         | "node1" | "false"   | "Couldn't delete VolumeAttachment"                   |
       | "node1" | 2    | "DeletePod"                      | "node1" | "false"   | "Delete pod failed"                                  |
       | "node1" | 2    | "ControllerUnpublishVolume"      | "node1" | "false"   | "errors calling ControllerUnpublishVolume to fence"  |
-      | "node1" | 2    | "ValidateVolumeHostConnectivity" | "node1" | "false"   | "Aborting pod cleanup because array still connected" |
+      | "node1" | 2    | "ValidateVolumeHostConnectivity" | "node1" | "false"   | "Aborting pod cleanup due to error"                  |
       | "node1" | 2    | "CreateEvent"                    | "node1" | "true"    | "Successfully cleaned up pod"                        |
 
   @controller-mode
@@ -52,8 +52,8 @@ Feature: Controller Monitor
       | "node1" | 2    | "NotReady"    | "false" | "noexec"  | "CreateEvent"   | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
       | "node1" | 2    | "CrashLoop"   | "false" | "noexec"  | "CreateEvent"   | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
       | "node1" | 2    | "Initialized" | "false" | "noexec"  | "CreateEvent"   | "Updated" | "true"  | "false" | "Successfully cleaned up pod"                              |
-      | "node1" | 2    | "NotReady"    | "false" | "nosched" | "NoAnnotation"  | "Updated" | "false"  | "false" | "Aborting pod cleanup because array still connected"      |
-      | "node1" | 2    | "NotReady"    | "false" | "nosched" | "BadCSINode"    | "Updated" | "false"  | "false" | "Aborting pod cleanup because array still connected"      |
+      | "node1" | 2    | "NotReady"    | "false" | "nosched" | "NoAnnotation"  | "Updated" | "false"  | "false" | "Aborting pod cleanup due to error"                       |
+      | "node1" | 2    | "NotReady"    | "false" | "nosched" | "BadCSINode"    | "Updated" | "false"  | "false" | "Aborting pod cleanup due to error"                       |
 
   @controller-mode
   Scenario Outline: test controllerModePodHandler skipping validate volume with a CSIExtensionNotPresent error
