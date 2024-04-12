@@ -262,6 +262,23 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 			if cm.SkipArrayConnectionValidation && taintnoexec {
 				log.WithFields(fields).Info("SkipArrayConnectionValidation is set and taintnoexec is true- proceeding")
 			} else {
+				if err != nil {
+					log.WithFields(fields).Info("Aborting pod cleanup due to error: ", err.Error())
+					if strings.Contains(err.Error(), "Could not determine CSI NodeID for node") {
+						if err = K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, reason,
+							"podmon aborted pod cleanup %s due to missing CSI annotations",
+							string(pod.ObjectMeta.UID), node.ObjectMeta.Name); err != nil {
+							log.Errorf("Failed to send %s event: %s", reason, err.Error())
+						}
+					} else {
+						if err = K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, reason,
+							"podmon aborted pod cleanup %s due to error while validating volume host connectivity",
+							string(pod.ObjectMeta.UID), node.ObjectMeta.Name); err != nil {
+							log.Errorf("Failed to send %s event: %s", reason, err.Error())
+						}
+					}
+					return false
+				}
 				log.WithFields(fields).Info("Aborting pod cleanup because array still connected and/or recently did I/O")
 				if err = K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, reason,
 					"podmon aborted pod cleanup %s array connected or recent I/O",
