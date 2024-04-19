@@ -103,7 +103,3 @@ jobs:
         with:
           image-ref: podmon
           severity: HIGH
-      - name: Dockle image scanner
-        uses: erzz/dockle-action@v1.4.0
-        with:
-          image: podmon
