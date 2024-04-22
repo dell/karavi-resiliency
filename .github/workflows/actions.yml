@@ -102,4 +102,6 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: podmon
-          severity: HIGH
+          severity: 'HIGH,CRITICAL'
+          ignore-unfixed: true
+          exit-code: '1'
