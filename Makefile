@@ -13,9 +13,9 @@
 # limitations under the License.
 # Includes the following generated file to get semantic version information
 
-MAJOR=0
-MINOR=0
-PATCH=54
+MAJOR=1
+MINOR=9
+PATCH=1
 VERSION?="v$(MAJOR).$(MINOR).$(PATCH)"
 REGISTRY?="${REGISTRY_HOST}:${REGISTRY_PORT}/podmon"
 BASEIMAGE?="resiliency-ubimicro:latest"
