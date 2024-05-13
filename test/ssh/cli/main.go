@@ -20,9 +20,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
-
 	"podmon/test/ssh"
+	"time"
 )
 
 func main() {

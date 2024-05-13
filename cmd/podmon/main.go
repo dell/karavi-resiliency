@@ -20,14 +20,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"podmon/internal/csiapi"
+	"podmon/internal/k8sapi"
+	"podmon/internal/monitor"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"podmon/internal/csiapi"
-	"podmon/internal/k8sapi"
-	"podmon/internal/monitor"
 
 	csiext "github.com/dell/dell-csi-extensions/podmon"
 	"github.com/fsnotify/fsnotify"
