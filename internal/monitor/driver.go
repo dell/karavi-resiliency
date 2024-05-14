@@ -328,6 +328,71 @@ func (d *PStoreDriver) FinalCleanup(_ bool, _, _, _ string) error {
 	return nil
 }
 
+// PMaxDriver provides a Driver instance for the PowerMax architecture.
+type PMaxDriver struct{}
+
+// GetDriverName returns the driver name string
+func (d *PMaxDriver) GetDriverName() string {
+	return "powermax"
+}
+
+// GetDriverMountDir returns the mount directory used for a PV by a pod.
+func (d *PMaxDriver) GetDriverMountDir(_, pvName, podUUID string) string {
+	privateMountDir := getPrivateMountDir("/var/lib/kubelet")
+	privateMountDir = fmt.Sprintf("%s/pods/%s/volumes/kubernetes.io~csi/%s/mount", privateMountDir, podUUID, pvName)
+	log.Debugf("privateMountDir: %s", privateMountDir)
+	return privateMountDir
+}
+
+// GetDriverBlockDev Returns the block device used for a PV by a pod.
+func (d *PMaxDriver) GetDriverBlockDev(_, pvName, podUUID string) string {
+	privateMountDir := getPrivateMountDir("/var/lib/kubelet")
+	privateBlockDev := fmt.Sprintf("%s/plugins/kubernetes.io/csi/volumeDevices/publish/%s/%s", privateMountDir, pvName, podUUID)
+	log.Debugf("privateBlockDev: %s", privateBlockDev)
+	return privateBlockDev
+}
+
+// GetStagingMountDir Returns the staging directory used by NodeUnstage for a mount device.
+func (d *PMaxDriver) GetStagingMountDir(_, pvName string) string {
+	privateMountDir := getPrivateMountDir("/var/lib/kubelet")
+	stagingMountDev := fmt.Sprintf("%s/plugins/kubernetes.io/csi/pv/%s/globalmount", privateMountDir, pvName)
+	log.Debugf("stagingMountDev: %s", stagingMountDev)
+	return stagingMountDev
+}
+
+// GetStagingMountDirAfter125 Returns the staging directory used by NodeUnstage for a mount device.
+func (d *PMaxDriver) GetStagingMountDirAfter125(volumeHandle, _ string) string {
+	result := sha256.Sum256([]byte(fmt.Sprintf("%s", volumeHandle)))
+	volSha := fmt.Sprintf("%x", result)
+
+	stagingMountDir := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/csi-powermax.dellemc.com/%s/globalmount", volSha)
+	log.Debugf("stagingMountDev: %s", stagingMountDir)
+	return stagingMountDir
+}
+
+// GetStagingBlockDir Returns the staging directory used by NodeUnstage for a block device.
+func (d *PMaxDriver) GetStagingBlockDir(_, pvName string) string {
+	privateMountDir := getPrivateMountDir("/var/lib/kubelet")
+	stagingBlockDir := fmt.Sprintf("%s/plugins/kubernetes.io/csi/volumeDevices/staging/%s", privateMountDir, pvName)
+	log.Debugf("stagingBlockDir: %s", stagingBlockDir)
+	return stagingBlockDir
+}
+
+// NodeUnpublishExcludedError filters out NodeUnpublish errors that should be excluded
+func (d *PMaxDriver) NodeUnpublishExcludedError(_ error) bool {
+	return false
+}
+
+// NodeUnstageExcludedError filters out NodeStage errors that should be excluded
+func (d *PMaxDriver) NodeUnstageExcludedError(_ error) bool {
+	return false
+}
+
+// FinalCleanup handles any driver specific final cleanup.
+func (d *PMaxDriver) FinalCleanup(_ bool, _, _, _ string) error {
+	return nil
+}
+
 func getPrivateMountDir(defaultDir string) string {
 	privateMountDir := os.Getenv("X_CSI_PRIVATE_MOUNT_DIR")
 	if privateMountDir == "" {

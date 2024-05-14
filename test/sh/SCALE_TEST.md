@@ -16,9 +16,9 @@
 
 # Scale Testing
 
-This page describes a script based facility for running scalability testing. Currently it supports PowerFlex, Unity, PowerScale and PowerStore.
+This page describes a script based facility for running scalability testing. Currently, it supports PowerFlex, Unity, PowerScale, PowerStore and PowerMax.
 
-It is comprised of multiple scripts that work together. The top level script is _scaleup-powerflex.sh_ / _scaleup-unity.sh_/ _scaleup-powerscale.sh_ / _scaleup-powerstore.sh_.
+It comprises multiple scripts that work together. The top level script is _scaleup-powerflex.sh_ / _scaleup-unity.sh_ / _scaleup-powerscale.sh_ / _scaleup-powerstore.sh_ / _scaleup-powermax.sh_.
 It uses the scripts in podmontest _insv.sh_ and _uns.sh_ to deploy or terminate podmontest pods.
 The number of pods deployed is configurable, and the scaleup-powerflex.sh script starts at a small scale
 and gradually scales up the number of deployed pods from a minimal amount to the maximum number of protected

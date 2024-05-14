@@ -1,0 +1,17 @@
+podmonTest:
+  image: "$REGISTRY_HOST:$REGISTRY_PORT//podmontest:v0.0.54"
+  namespace: "podmontest"
+  driverLabel: csi-powermax
+  storageClassName: powermax-iscsi
+  nvolumes: 1
+  ndevices: 1
+  # deploymentType can be "statefulset" or "deployment"
+  deploymentType: statefulset
+  # replicas is the number of replicas for deployments or statefulsets
+  replicas: 1
+  # set to "true" to locate replicates on the same node
+  podAffinity: "false"
+  # zone will restrict node placement by matching node label failure-domain.beta.kubernetes.io/zone
+  zone: ""
+  # Number of seconds to tolerate a node unreachable taint
+  unreachableTolerationSeconds: 300

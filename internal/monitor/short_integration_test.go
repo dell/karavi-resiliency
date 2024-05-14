@@ -155,6 +155,38 @@ func TestPowerStoreShortCheck(t *testing.T) {
 	log.Printf("Integration setup check finished")
 }
 
+func TestPowerMaxShortCheck(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping short integration test. To enable short integration test: export %s=true", enableShortIntTestVar)
+		return
+	}
+
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
+	godogOptions := godog.Options{
+		Format:        "pretty,junit:powermax-short-check-junit-report.xml,cucumber:powermax-short-check-cucumber-report.json",
+		Paths:         []string{"features"},
+		Tags:          "powermax-int-setup-check",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "integration",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Skip("Integration setup check failed")
+	} else {
+		setupIsGood = true
+	}
+	log.Printf("Integration setup check finished")
+}
+
 func TestPowerFlexShortIntegration(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
@@ -294,6 +326,44 @@ func TestPowerStoreShortIntegration(t *testing.T) {
 		Format:        "pretty,junit:powerstore-short-integration-junit-report.xml,cucumber:powerstore-short-integration-cucumber-report.json",
 		Paths:         []string{"features"},
 		Tags:          "powerstore-short-integration",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "integration",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Error("There were failed integration tests")
+	}
+	log.Printf("Integration test finished")
+}
+
+func TestPowerMaxShortIntegration(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableShortIntTestVar)
+		return
+	}
+
+	if !setupIsGood {
+		message := "The setup check failed. Tests skipped"
+		log.Printf(message)
+		t.Errorf(message)
+		return
+	}
+
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
+	log.Printf("Starting integration test")
+	godogOptions := godog.Options{
+		Format:        "pretty,junit:powermax-short-integration-junit-report.xml,cucumber:powermax-short-integration-cucumber-report.json",
+		Paths:         []string{"features"},
+		Tags:          "powermax-short-integration",
 		StopOnFailure: stopOnFailure,
 	}
 	status := godog.TestSuite{
