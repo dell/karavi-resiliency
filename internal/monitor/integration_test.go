@@ -163,6 +163,38 @@ func TestPowerStoreFirstCheck(t *testing.T) {
 	log.Printf("Integration setup check finished")
 }
 
+func TestPowerMaxFirstCheck(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableIntTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableIntTestVar)
+		return
+	}
+
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
+	godogOptions := godog.Options{
+		Format:        "pretty,junit:powermax-first-check-junit-report.xml,cucumber:powermax-first-check-cucumber-report.json",
+		Paths:         []string{"features"},
+		Tags:          "powermax-int-setup-check",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "integration",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Skip("Integration setup check failed")
+	} else {
+		setupIsGood = true
+	}
+	log.Printf("Integration setup check finished")
+}
+
 func TestPowerFlexIntegration(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
@@ -315,6 +347,44 @@ func TestPowerStoreIntegration(t *testing.T) {
 	log.Printf("Integration test finished")
 }
 
+func TestPowerMaxIntegration(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableIntTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableIntTestVar)
+		return
+	}
+
+	if !setupIsGood {
+		message := "The setup check failed. Tests skipped"
+		log.Printf(message)
+		t.Errorf(message)
+		return
+	}
+
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
+	log.Printf("Starting integration test")
+	godogOptions := godog.Options{
+		Format:        "pretty,junit:powermax-integration-junit-report.xml,cucumber:powermax-integration-cucumber-report.json",
+		Paths:         []string{"features"},
+		Tags:          "powermax-integration",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "integration",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Error("There were failed integration tests")
+	}
+	log.Printf("Integration test finished")
+}
+
 func TestPowerflexArrayInterfaceDown(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
@@ -416,6 +486,44 @@ func TestPowerStoreArrayInterfaceDown(t *testing.T) {
 		Format:        "pretty,junit:powerstore-interface-down-junit-report.xml",
 		Paths:         []string{"features"},
 		Tags:          "powerstore-array-interface",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "integration",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Error("There were failed integration tests")
+	}
+	log.Printf("Integration test finished")
+}
+
+func TestPowerMaxArrayInterfaceDown(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableIntTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableIntTestVar)
+		return
+	}
+
+	if !setupIsGood {
+		message := "The setup check failed. Tests skipped"
+		log.Printf(message)
+		t.Errorf(message)
+		return
+	}
+
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
+	log.Printf("Starting integration test")
+	godogOptions := godog.Options{
+		Format:        "pretty,junit:powermax-interface-down-junit-report.xml",
+		Paths:         []string{"features"},
+		Tags:          "powermax-array-interface",
 		StopOnFailure: stopOnFailure,
 	}
 	status := godog.TestSuite{

@@ -130,6 +130,9 @@ func main() {
 	case strings.Contains(*args.driverPath, "powerstore"):
 		log.Infof("CSI Driver for PowerStore")
 		monitor.Driver = new(monitor.PStoreDriver)
+	case strings.Contains(*args.driverPath, "powermax"):
+		log.Infof("CSI Driver for PowerMax")
+		monitor.Driver = new(monitor.PMaxDriver)
 	default:
 		log.Infof("CSI Driver for VxFlex OS")
 		monitor.Driver = new(monitor.VxflexDriver)

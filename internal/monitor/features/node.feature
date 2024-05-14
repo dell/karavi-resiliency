@@ -90,7 +90,10 @@ Feature: Controller Monitor
       | powerstore | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"     | "GetContainerInfo"              | "none"                                      |
       | powerstore | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"     | "NodeUnpublishVolume"           | "Couldn't completely cleanup node"          |
       | powerstore | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"     | "NodeUnstageVolume"             | "Couldn't completely cleanup node"          |
-
+      | powermax   | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"     | "none"                          | "none"                                      |
+      | powermax   | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"     | "GetContainerInfo"              | "none"                                      |
+      | powermax   | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"     | "NodeUnpublishVolume"           | "Couldn't completely cleanup node"          |
+      | powermax   | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"     | "NodeUnstageVolume"             | "Couldn't completely cleanup node"          |
       # Multiple pod tests
       | vxflex | "node1"  | 3    | 2    | 1    | 3       | "none"     | "none"      | "none"         | "none"                | "none"                             |
       | vxflex | "node1"  | 3    | 2    | 1    | 2       | "none"     | "none"      | "none"         | "none"                | "Couldn't completely cleanup node" |
@@ -113,7 +116,14 @@ Feature: Controller Monitor
       | powerstore | "node1"  | 3    | 2    | 1    | 2       | "none"     | "none"      | "none"         | "NodeUnstageVolume"   | "Couldn't completely cleanup node" |
       | powerstore | "node1"  | 3    | 2    | 1    | 2       | "Unmount"  | "none"      | "none"         | "none"                | "Couldn't completely cleanup node" |
       | powerstore | "node1"  | 3    | 2    | 1    | 2       | "none"     | "RemoveDir" | "none"         | "none"                | "Couldn't completely cleanup node" |
-      | powerstore | "node1"  | 3    | 2    | 1    | 2       | "none"     | "none"      | "K8sTaint"     | "none"                | "Couldn't completely cleanup node" |
+      | powermax   | "node1"  | 3    | 2    | 1    | 2       | "none"     | "none"      | "K8sTaint"     | "none"                | "Couldn't completely cleanup node" |
+      | powermax   | "node1"  | 3    | 2    | 1    | 3       | "none"     | "none"      | "none"         | "none"                | "none"                             |
+      | powermax   | "node1"  | 3    | 2    | 1    | 2       | "none"     | "none"      | "none"         | "none"                | "Couldn't completely cleanup node" |
+      | powermax   | "node1"  | 3    | 2    | 1    | 2       | "none"     | "none"      | "none"         | "NodeUnpublishVolume" | "Couldn't completely cleanup node" |
+      | powermax   | "node1"  | 3    | 2    | 1    | 2       | "none"     | "none"      | "none"         | "NodeUnstageVolume"   | "Couldn't completely cleanup node" |
+      | powermax   | "node1"  | 3    | 2    | 1    | 2       | "Unmount"  | "none"      | "none"         | "none"                | "Couldn't completely cleanup node" |
+      | powermax   | "node1"  | 3    | 2    | 1    | 2       | "none"     | "RemoveDir" | "none"         | "none"                | "Couldn't completely cleanup node" |
+      | powermax   | "node1"  | 3    | 2    | 1    | 2       | "none"     | "none"      | "K8sTaint"     | "none"                | "Couldn't completely cleanup node" |
 
 
   @node-mode
@@ -171,10 +181,11 @@ Feature: Controller Monitor
     And the last log message contains <errorMsg>
 
     Examples:
-      | driver | nodeName | pods | vols | devs | cleaned | unMountErr | rmDirErr    | taintErr       | k8apiErr              | errorMsg                           |
-      | vxflex | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "none"                | "none"                             |
-      | isilon | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "none"                | "none"                             |
-      | powerstore | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"   | "none"   | "none"   | "none"   |
+      | driver     | nodeName | pods | vols | devs | cleaned | unMountErr | rmDirErr    | taintErr       | k8apiErr     | errorMsg |
+      | vxflex     | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "none"       | "none"   |
+      | isilon     | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "none"       | "none"   |
+      | powerstore | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "none"       | "none"   |
+      | powermax   | "node1"  | 1    | 1    | 1    | 1       | "none"     | "none"      | "none"         | "none"       | "none"   |
 
 @node-mode
   Scenario Outline: Testing monitor.nodeModeCleanupPods
