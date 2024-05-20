@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023 Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright (c) 2021-2024 Dell Inc., or its subsidiaries. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ LABEL vendor="Dell Inc." \
       name="csm-resiliency" \
       summary="Dell Container Storage Modules (CSM) for Resiliency" \
       description="Makes Kubernetes applications, including those that utilize persistent storage, more resilient to various failures" \
-      version="2.0.0" \
+      version="1.10.0" \
       license="Apache-2.0"
 
 COPY --from=builder /workspace/podmon /

@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023 Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright (c) 2021-2024 Dell Inc., or its subsidiaries. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,9 +13,9 @@
 # limitations under the License.
 # Includes the following generated file to get semantic version information
 
-MAJOR=0
-MINOR=0
-PATCH=54
+MAJOR=1
+MINOR=10
+PATCH=0
 VERSION?="v$(MAJOR).$(MINOR).$(PATCH)"
 REGISTRY?="${REGISTRY_HOST}:${REGISTRY_PORT}/podmon"
 BASEIMAGE?="resiliency-ubimicro:latest"
