@@ -1,7 +1,0 @@
-general:
-  vulnerabilities:
-    # No fixes for these at this time
-    - CVE-2023-24329
-
-    # Disputed CVEs
-    - CVE-2019-1010022
