@@ -38,6 +38,9 @@ import (
 // MaxCrashLoopBackOffRetry is the maximum number of times for a pod to be deleted in response to a CrashLoopBackOff
 const MaxCrashLoopBackOffRetry = 5
 
+// Disconnected represents an array that is in a Disconnected state
+const Disconnected = "Disconnected"
+
 // ControllerPodInfo has information for tracking health of the system
 type ControllerPodInfo struct { // information controller keeps on hand about a pod
 	PodKey            string            // the Pod Key (namespace/name) of the pod
@@ -543,6 +546,7 @@ func (nacc *nodeArrayConnectivityCache) CheckConnectivity(cm *PodMonitorType, no
 	}
 	key := node.ObjectMeta.Name + ":" + arrayID
 	if nacc.nodeArrayConnectivitySampled[key] == false {
+		prevCount := nacc.nodeArrayConnectivityLossCount[key]
 		// Determine connectivity
 		volumeIDs := make([]string, 0)
 		connected, _, err := cm.callValidateVolumeHostConnectivity(node, volumeIDs, false)
@@ -550,11 +554,18 @@ func (nacc *nodeArrayConnectivityCache) CheckConnectivity(cm *PodMonitorType, no
 			log.Infof("Could not determine array connectivity, assuming connected, error: %s", err)
 			return true
 		}
+		if prevCount >= ArrayConnectivityConnectionLossThreshold && connected {
+			nacc.transitionedToConnected(node, arrayID)
+		}
 		nacc.nodeArrayConnectivitySampled[key] = true
 		if connected {
 			nacc.nodeArrayConnectivityLossCount[key] = 0
 		} else {
 			nacc.nodeArrayConnectivityLossCount[key] = nacc.nodeArrayConnectivityLossCount[key] + 1
+		}
+		log.Infof("nodeArrayConnectivityLossCount %s %d connected %v", key, nacc.nodeArrayConnectivityLossCount[key], connected)
+		if !connected && nacc.nodeArrayConnectivityLossCount[key] >= ArrayConnectivityConnectionLossThreshold {
+			nacc.transitionedToDisconnected(node, arrayID)
 		}
 	}
 	// If below the ConnectionLossThreshold, assume we could be connected
@@ -568,6 +579,48 @@ func (nacc *nodeArrayConnectivityCache) ResetSampled() {
 	})
 	for key := range nacc.nodeArrayConnectivitySampled {
 		nacc.nodeArrayConnectivitySampled[key] = false
+		// Initialize to lost state upon startup so that a transition to connected Event will occur
+		nacc.nodeArrayConnectivityLossCount[key] = ArrayConnectivityConnectionLossThreshold
+	}
+}
+
+// transitionedToConnected is called when node was offline and is now connected
+func (nacc *nodeArrayConnectivityCache) transitionedToConnected(node *v1.Node, arrayID string) {
+	log.Infof("transitionedToConnected %s %s", node.Name, arrayID)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	err := K8sAPI.CreateEvent(podmon, node, k8sapi.EventTypeNormal, "ArrayConnected", "Connected to "+arrayID)
+	if err != nil {
+		log.Errorf("Error creating event ArrayConnected: %s", err.Error())
+	}
+	deletedLabels := make([]string, 0)
+	replacedLabels := make(map[string]string)
+	key := PodLabelValue + ".dellemc.com" + "/" + arrayID
+	value := PodLabelValue + ".dellemc.com"
+	replacedLabels[key] = value
+	err = K8sAPI.PatchNodeLabels(ctx, node.Name, replacedLabels, deletedLabels)
+	if err != nil {
+		log.Errorf("Could not patch node labels: %s: %s", node.Name, err.Error())
+	}
+}
+
+// transitionedToDisconnected is called when the node was online and is no longer connected
+func (nacc *nodeArrayConnectivityCache) transitionedToDisconnected(node *v1.Node, arrayID string) {
+	log.Infof("transitionedToDisconnected %s %s", node.Name, arrayID)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	err := K8sAPI.CreateEvent(podmon, node, k8sapi.EventTypeWarning, "ArrayDisconnected", "Disconnected from "+arrayID)
+	if err != nil {
+		log.Errorf("Error creating event ArrayDisconnected: %s", err.Error())
+	}
+	deletedLabels := make([]string, 0)
+	replacedLabels := make(map[string]string)
+	key := PodLabelValue + ".dellemc.com" + "/" + arrayID
+	value := Disconnected
+	replacedLabels[key] = value
+	err = K8sAPI.PatchNodeLabels(ctx, node.Name, replacedLabels, deletedLabels)
+	if err != nil {
+		log.Errorf("Could not patch node labels: %s: %s", node.Name, err.Error())
 	}
 }
 

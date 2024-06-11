@@ -25,9 +25,11 @@ import (
 	"podmon/internal/k8sapi"
 	"podmon/internal/utils"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	csiext "github.com/dell/dell-csi-extensions/podmon"
 	"github.com/dell/gofsutil"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -59,14 +61,52 @@ func StartAPIMonitor(api k8sapi.K8sAPI, firstTimeout, retryTimeout, interval tim
 		log.Errorf("%s", err.Error())
 		return err
 	}
-
 	pm := &PodMonitor
+	go pm.monitorArrayConnectivity(api, nodeName, 60*time.Second)
+
 	fn := func() {
 		pm.apiMonitorLoop(api, nodeName, firstTimeout, retryTimeout, interval, waitFor)
 	}
 	// Start a thread for the API monitor
 	go fn()
 	return nil
+}
+
+// startup runs and will make sure there are no array lables with Disconnected status
+func (pm *PodMonitorType) startUp(api k8sapi.K8sAPI, nodeName string) []string {
+	arrays := make([]string, 0)
+	log.Infof("In startup %s DriverPathString %s", nodeName, pm.DriverPathStr)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	node, err := api.GetNode(ctx, nodeName)
+	if err != nil {
+		return arrays
+	}
+	updatedLabels := make(map[string]string)
+	deletedLabels := make([]string, 0)
+	var labelsChanged bool
+	for k, v := range node.Labels {
+		if strings.HasPrefix(v, pm.DriverPathStr) {
+			parts := strings.Split(k, "/")
+			if len(parts) > 1 && parts[1] != "" {
+				arrays = append(arrays, parts[1])
+			}
+			if v == Disconnected {
+				updatedLabels[k] = pm.DriverPathStr
+				labelsChanged = true
+			}
+		}
+	}
+	if labelsChanged {
+		log.Infof("Updating labels on node %s: %v", nodeName, updatedLabels)
+		err = api.PatchNodeLabels(ctx, nodeName, updatedLabels, deletedLabels)
+		if err != nil {
+			log.Errorf("error patching Node %s labels %v: %s", nodeName, updatedLabels, err.Error())
+			return arrays
+		}
+	}
+	log.Infof("startUp completed, arrays: %v", arrays)
+	return arrays
 }
 
 func (pm *PodMonitorType) apiMonitorLoop(api k8sapi.K8sAPI, nodeName string, firstTimeout, retryTimeout, interval time.Duration, waitFor func(interval time.Duration) bool) {
@@ -526,6 +566,125 @@ func (pm *PodMonitorType) callNodeUnstageVolume(fields map[string]interface{}, t
 		time.Sleep(PendingRetryTime)
 	}
 	return err
+}
+
+// monitorArrayConnectivity periodically calls the driver to determine array connectivity
+func (pm *PodMonitorType) monitorArrayConnectivity(api k8sapi.K8sAPI, nodeName string, pollRate time.Duration) {
+	arrays := make(map[string]string)
+	// Wait 5 minutes before beginning to give the driver a chance to settle in
+	log.Infof("waiting to start monitorArrayConnectivity")
+	time.Sleep(3 * time.Minute)
+	// Initially assume all the arrays are connected
+	var connectedStatus sync.Map
+	// Polling loop to determine if the arrays are connected
+	for {
+		time.Sleep(pollRate)
+		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+		node, err := api.GetNode(ctx, nodeName)
+		if err != nil {
+			cancel()
+			log.Errorf("monitorArrayConnectivity couldn't get Node %s: %s", nodeName, err.Error())
+			continue
+		}
+		// Get the current list of arrays in case they have changed, and always ignore default
+		for k, v := range node.Labels {
+			if strings.HasPrefix(v, pm.DriverPathStr) {
+				parts := strings.Split(k, "/")
+				if len(parts) > 1 && parts[1] != "" && parts[1] != "default" {
+					arrays[parts[1]] = ""
+				}
+			}
+		}
+		log.Infof("monitorArrayConnectivity arrays: %v", arrays)
+		csiNodeID := getCSINodeIDAnnotation(node, pm.DriverPathStr)
+		if csiNodeID == "" {
+			log.Infof("monitorArrayConnectivity: No node annotation found for %s", csiNodeID)
+			continue
+		}
+		for array, _ := range arrays {
+			go func() {
+				var previousConnected bool
+				prevConnected, _ := connectedStatus.Load(array)
+				if prevConnected == nil {
+					previousConnected = true
+				} else {
+					previousConnected = prevConnected.(bool)
+				}
+				connected, _ := pm.getArrayConnectivity(csiNodeID, array)
+				connectedStatus.Store(array, connected)
+				log.Infof("Node %s CSI %s Array %s Connected %t", nodeName, csiNodeID, array, connected)
+				if !previousConnected && connected {
+					pm.transitionedToConnected(node, array)
+				}
+				if previousConnected && !connected {
+					pm.transitionedToDisconnected(node, array)
+				}
+			}()
+		}
+		cancel()
+	}
+}
+
+// getArrayConnectivity returns truee if the array has connectivity to the specified node,
+// or if it cannot be determined if the array has connectivity.
+// If the ValidateVolumeHostConnectivity exceeds the context deadline, it is assumed
+// there is no connectivity
+// TODO: make the timeout configurable deployment parameters
+func (pm *PodMonitorType) getArrayConnectivity(csiNodeID, arrayID string) (bool, error) {
+	req := &csiext.ValidateVolumeHostConnectivityRequest{
+		NodeId:  csiNodeID,
+		ArrayId: arrayID,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	resp, err := CSIApi.ValidateVolumeHostConnectivity(ctx, req)
+	if err != nil {
+		log.Errorf("Error calling ValidateVolumeHostConnectivity: %s: %s", arrayID, err.Error())
+		if err == context.DeadlineExceeded {
+			return false, err
+		}
+	}
+	return resp.GetConnected(), err
+}
+
+// transitionedToConnected is called when node was offline and is now connected
+func (pm *PodMonitorType) transitionedToConnected(node *v1.Node, arrayID string) {
+	log.Infof("transitionedToConnected %s %s", node.Name, arrayID)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	err := K8sAPI.CreateEvent(podmon, node, k8sapi.EventTypeNormal, "ArrayConnected", "Connected to %s", arrayID)
+	if err != nil {
+		log.Errorf("Error creating event ArrayConnected: %s", err.Error())
+	}
+	deletedLabels := make([]string, 0)
+	replacedLabels := make(map[string]string)
+	key := PodLabelValue + ".dellemc.com" + "/" + arrayID
+	value := PodLabelValue + ".dellemc.com"
+	replacedLabels[key] = value
+	err = K8sAPI.PatchNodeLabels(ctx, node.Name, replacedLabels, deletedLabels)
+	if err != nil {
+		log.Errorf("Could not patch node labels: %s: %s", node.Name, err.Error())
+	}
+}
+
+// transitionedToDisconnected is called when the node was online and is no longer connected
+func (pm *PodMonitorType) transitionedToDisconnected(node *v1.Node, arrayID string) {
+	log.Infof("transitionedToDisconnected %s %s", node.Name, arrayID)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	err := K8sAPI.CreateEvent(podmon, node, k8sapi.EventTypeWarning, "ArrayDisconnected", "Disconnected from %s", arrayID)
+	if err != nil {
+		log.Errorf("Error creating event ArrayDisconnected: %s", err.Error())
+	}
+	deletedLabels := make([]string, 0)
+	replacedLabels := make(map[string]string)
+	key := PodLabelValue + ".dellemc.com" + "/" + arrayID
+	value := Disconnected
+	replacedLabels[key] = value
+	err = K8sAPI.PatchNodeLabels(ctx, node.Name, replacedLabels, deletedLabels)
+	if err != nil {
+		log.Errorf("Could not patch node labels: %s: %s", node.Name, err.Error())
+	}
 }
 
 var getContainers = criapi.CRIClient.GetContainerInfo

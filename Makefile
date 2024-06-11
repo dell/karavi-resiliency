@@ -34,6 +34,12 @@ clean:
 build:
 	GOOS=linux CGO_ENABLED=0 go build -o podmon ./cmd/podmon/
 
+devdocker: 
+	rm -f ./podmon/podmon
+	go clean ./... ./internal/monitor ./internal/k8sapi ./cmd/podmon 
+	GOOS=linux CGO_ENABLED=0 go build -o podmon ./cmd/podmon/
+	docker build --file Dockerfile.dev -t podmon .
+
 build-base-image: download-csm-common
 	$(eval include csm-common.mk)
 	sh ./scripts/buildubimicro.sh $(DEFAULT_BASEIMAGE)
