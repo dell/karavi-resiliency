@@ -72,6 +72,10 @@ var (
 	arrayConnectivityPollRate = ShortTimeout
 	// IgnoreVolumelessPods when set will keep labeled pods with no volumes from being force deleted on node or connectivity failures.
 	IgnoreVolumelessPods bool
+	// FeatureManageNodeArrayLables is a feature flag to manage array labels on Kubernetes nodes
+	FeatureManageNodeArrayLabels bool
+	// PodLabelValue is the driver name (e.g. csi-vxflexos)
+	PodLabelValue string
 )
 
 // GetArrayConnectivityPollRate returns the array connectivity poll rate.
@@ -230,6 +234,7 @@ func podMonitorHandler(eventType watch.EventType, object interface{}) error {
 // The labelKey and labelValue are used for filtering.
 func StartPodMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, labelValue string, restartDelay time.Duration) {
 	log.Infof("attempting to start PodMonitor\n")
+	PodLabelValue = labelValue
 	PodmonTaintKey = fmt.Sprintf("%s.%s", Driver.GetDriverName(), PodmonTaintKeySuffix)
 	PodmonDriverPodTaintKey = fmt.Sprintf("offline.%s.%s", Driver.GetDriverName(), PodmonDriverPodTaintKeySuffix)
 	podMonitor := Monitor{Client: client}
