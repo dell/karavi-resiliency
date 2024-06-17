@@ -38,9 +38,6 @@ import (
 // MaxCrashLoopBackOffRetry is the maximum number of times for a pod to be deleted in response to a CrashLoopBackOff
 const MaxCrashLoopBackOffRetry = 5
 
-// Disconnected represents an array that is in a Disconnected state
-const Disconnected = "Disconnected"
-
 // ControllerPodInfo has information for tracking health of the system
 type ControllerPodInfo struct { // information controller keeps on hand about a pod
 	PodKey            string            // the Pod Key (namespace/name) of the pod
@@ -356,6 +353,15 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 func (cm *PodMonitorType) callValidateVolumeHostConnectivity(node *v1.Node, volumeIDs []string, logIt bool) (bool, bool, error) {
 	// Get the CSI annotations for nodeID
 	csiNodeID := getCSINodeIDAnnotation(node, cm.DriverPathStr)
+	if csiNodeID == "" {
+		log.Infof("retrying getCSINodeIDAnnotation node %s", node.Name)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		node, err := K8sAPI.GetNode(ctx, node.Name)
+		if err == nil {
+			csiNodeID = getCSINodeIDAnnotation(node, cm.DriverPathStr)
+		}
+	}
 	if csiNodeID != "" {
 		// Validate host connectivity for the node
 		req := &csiext.ValidateVolumeHostConnectivityRequest{
@@ -546,7 +552,6 @@ func (nacc *nodeArrayConnectivityCache) CheckConnectivity(cm *PodMonitorType, no
 	}
 	key := node.ObjectMeta.Name + ":" + arrayID
 	if nacc.nodeArrayConnectivitySampled[key] == false {
-		prevCount := nacc.nodeArrayConnectivityLossCount[key]
 		// Determine connectivity
 		volumeIDs := make([]string, 0)
 		connected, _, err := cm.callValidateVolumeHostConnectivity(node, volumeIDs, false)
@@ -554,18 +559,11 @@ func (nacc *nodeArrayConnectivityCache) CheckConnectivity(cm *PodMonitorType, no
 			log.Infof("Could not determine array connectivity, assuming connected, error: %s", err)
 			return true
 		}
-		if prevCount >= ArrayConnectivityConnectionLossThreshold && connected {
-			nacc.transitionedToConnected(node, arrayID)
-		}
 		nacc.nodeArrayConnectivitySampled[key] = true
 		if connected {
 			nacc.nodeArrayConnectivityLossCount[key] = 0
 		} else {
 			nacc.nodeArrayConnectivityLossCount[key] = nacc.nodeArrayConnectivityLossCount[key] + 1
-		}
-		log.Infof("nodeArrayConnectivityLossCount %s %d connected %v", key, nacc.nodeArrayConnectivityLossCount[key], connected)
-		if !connected && nacc.nodeArrayConnectivityLossCount[key] >= ArrayConnectivityConnectionLossThreshold {
-			nacc.transitionedToDisconnected(node, arrayID)
 		}
 	}
 	// If below the ConnectionLossThreshold, assume we could be connected
@@ -579,48 +577,6 @@ func (nacc *nodeArrayConnectivityCache) ResetSampled() {
 	})
 	for key := range nacc.nodeArrayConnectivitySampled {
 		nacc.nodeArrayConnectivitySampled[key] = false
-		// Initialize to lost state upon startup so that a transition to connected Event will occur
-		nacc.nodeArrayConnectivityLossCount[key] = ArrayConnectivityConnectionLossThreshold
-	}
-}
-
-// transitionedToConnected is called when node was offline and is now connected
-func (nacc *nodeArrayConnectivityCache) transitionedToConnected(node *v1.Node, arrayID string) {
-	log.Infof("transitionedToConnected %s %s", node.Name, arrayID)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	err := K8sAPI.CreateEvent(podmon, node, k8sapi.EventTypeNormal, "ArrayConnected", "Connected to "+arrayID)
-	if err != nil {
-		log.Errorf("Error creating event ArrayConnected: %s", err.Error())
-	}
-	deletedLabels := make([]string, 0)
-	replacedLabels := make(map[string]string)
-	key := PodLabelValue + ".dellemc.com" + "/" + arrayID
-	value := PodLabelValue + ".dellemc.com"
-	replacedLabels[key] = value
-	err = K8sAPI.PatchNodeLabels(ctx, node.Name, replacedLabels, deletedLabels)
-	if err != nil {
-		log.Errorf("Could not patch node labels: %s: %s", node.Name, err.Error())
-	}
-}
-
-// transitionedToDisconnected is called when the node was online and is no longer connected
-func (nacc *nodeArrayConnectivityCache) transitionedToDisconnected(node *v1.Node, arrayID string) {
-	log.Infof("transitionedToDisconnected %s %s", node.Name, arrayID)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	err := K8sAPI.CreateEvent(podmon, node, k8sapi.EventTypeWarning, "ArrayDisconnected", "Disconnected from "+arrayID)
-	if err != nil {
-		log.Errorf("Error creating event ArrayDisconnected: %s", err.Error())
-	}
-	deletedLabels := make([]string, 0)
-	replacedLabels := make(map[string]string)
-	key := PodLabelValue + ".dellemc.com" + "/" + arrayID
-	value := Disconnected
-	replacedLabels[key] = value
-	err = K8sAPI.PatchNodeLabels(ctx, node.Name, replacedLabels, deletedLabels)
-	if err != nil {
-		log.Errorf("Could not patch node labels: %s: %s", node.Name, err.Error())
 	}
 }
 
@@ -629,9 +585,9 @@ func (nacc *nodeArrayConnectivityCache) transitionedToDisconnected(node *v1.Node
 func getCSINodeIDAnnotation(node *v1.Node, driverPath string) string {
 	annotations := node.ObjectMeta.Annotations
 	if annotations != nil {
-		log.Debugf("Node annotations: %s", annotations)
 		// Get the csi.volume.kubernetes.io/nodeid annotation
 		csiAnnotations := annotations["csi.volume.kubernetes.io/nodeid"]
+		log.Infof("Node annotations: %s %v", driverPath, annotations)
 		if csiAnnotations != "" {
 			log.Debugf("csiAnnotations: %s", csiAnnotations)
 			var csiAnnotationsMap map[string]json.RawMessage
@@ -804,4 +760,57 @@ func podStatus(conditions []v1.PodCondition) (bool, bool) {
 		}
 	}
 	return ready, initialized
+}
+
+// arrayConnectivity  map of arrayID to map[node]bool (true for connected, false for disconnected)
+var arrayConnectivity sync.Map
+
+// updateArrayConnectivityMap updates an array connectivity map based on updates to Node objects made
+// by the node controller. It contains a mapping for each array of which nodes think they have connectivity.
+func (cm *PodMonitorType) updateArrayConnectivityMap(node *v1.Node) {
+	// Loop through the node's labels, updating array entrieso
+	log.Infof("updateArrayConnectivityMap updating node %s", node.Name)
+	prefix := cm.DriverPathStr + "/"
+	for k, v := range node.Labels {
+		if strings.HasPrefix(k, prefix) {
+			log.Infof("node.Labels k %s v %s prefix %s", k, v, prefix)
+			parts := strings.Split(k, "/")
+			if len(parts) <= 2 {
+				continue
+			}
+			arrayID := parts[1]
+			swapped := false
+			for !swapped {
+				data, ok := arrayConnectivity.Load(arrayID)
+				var nodeConnectivity map[string]bool
+				nodeConnectivity = make(map[string]bool)
+				if ok {
+					nodeConnectivity = data.(map[string]bool)
+				}
+				original := nodeConnectivity
+				nodeUID := cm.GetNodeUID(node.ObjectMeta.Name)
+				if nodeUID == "" {
+					log.Errorf("Could not get nodeUID: %s %s", node.Name, nodeUID)
+					continue
+				}
+				nodeConnectivity[nodeUID] = true
+				if v == "Disconnected" {
+					nodeConnectivity[nodeUID] = false
+				}
+				log.Infof("updateArrayConnectivityMap %s %s %s %t", arrayID, node.Name, nodeUID, nodeConnectivity[nodeUID])
+				swapped = arrayConnectivity.CompareAndSwap(arrayID, original, nodeConnectivity)
+			}
+		}
+	}
+}
+
+// getArrayConnectivityMap returns the node connectivity map for the specified array
+// which contains a mapping of nodeUID to boolean connected. This information was determined
+// by the podmon node controller for each node.
+func (cm *PodMonitorType) getNodeConnectivityMap(arrayID string) map[string]bool {
+	value, ok := arrayConnectivity.Load(arrayID)
+	if ok {
+		return value.(map[string]bool)
+	}
+	return make(map[string]bool)
 }
