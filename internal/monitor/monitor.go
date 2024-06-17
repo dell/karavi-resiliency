@@ -289,6 +289,8 @@ func nodeMonitorHandler(eventType watch.EventType, object interface{}) error {
 			log.Debugf("Node deleted: %s previously %s", node.ObjectMeta.Name, oldUID)
 			pm.ClearNodeUID(node.ObjectMeta.Name, oldUID)
 		}
+		// Update array connectivity map
+		pm.updateArrayConnectivityMap(node)
 		// Get the CSI annotations for nodeID
 		volumeIDs := make([]string, 0)
 		// Print out whether the host is connected or not...

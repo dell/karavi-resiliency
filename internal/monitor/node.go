@@ -53,6 +53,15 @@ var APIMonitorWait = internalAPIMonitorWait
 // giving the node time to stabalize (e.g. kubelet reconcile with API server) before initiating cleanup.
 var TaintCountDelay = 4
 
+// Connected represents an array that is in a Connected state
+const Connected = "Connected"
+
+// Disconnected represents an array that is in a Disconnected state
+const Disconnected = "Disconnected"
+
+// Unknown describes an unknown connection (or other) status.
+const Unknown = "Unknown"
+
 // StartAPIMonitor checks API connectivity by pinging the indicated (self) node
 func StartAPIMonitor(api k8sapi.K8sAPI, firstTimeout, retryTimeout, interval time.Duration, waitFor func(interval time.Duration) bool) error {
 	nodeName := os.Getenv("KUBE_NODE_NAME")
@@ -72,7 +81,7 @@ func StartAPIMonitor(api k8sapi.K8sAPI, firstTimeout, retryTimeout, interval tim
 	return nil
 }
 
-// startup runs and will make sure there are no array lables with Disconnected status
+// startUp runs and will make sure there are no array lables with Disconnected status
 func (pm *PodMonitorType) startUp(api k8sapi.K8sAPI, nodeName string) []string {
 	arrays := make([]string, 0)
 	log.Infof("In startup %s DriverPathString %s", nodeName, pm.DriverPathStr)
@@ -84,26 +93,20 @@ func (pm *PodMonitorType) startUp(api k8sapi.K8sAPI, nodeName string) []string {
 	}
 	updatedLabels := make(map[string]string)
 	deletedLabels := make([]string, 0)
-	var labelsChanged bool
 	for k, v := range node.Labels {
-		if strings.HasPrefix(v, pm.DriverPathStr) {
+		if strings.HasPrefix(v, pm.DriverPathStr+"/") {
 			parts := strings.Split(k, "/")
 			if len(parts) > 1 && parts[1] != "" {
 				arrays = append(arrays, parts[1])
-			}
-			if v == Disconnected {
-				updatedLabels[k] = pm.DriverPathStr
-				labelsChanged = true
+				updatedLabels[v] = pm.DriverPathStr
 			}
 		}
 	}
-	if labelsChanged {
-		log.Infof("Updating labels on node %s: %v", nodeName, updatedLabels)
-		err = api.PatchNodeLabels(ctx, nodeName, updatedLabels, deletedLabels)
-		if err != nil {
-			log.Errorf("error patching Node %s labels %v: %s", nodeName, updatedLabels, err.Error())
-			return arrays
-		}
+	log.Infof("Updating labels on node %s: %v", nodeName, updatedLabels)
+	err = api.PatchNodeLabels(ctx, nodeName, updatedLabels, deletedLabels)
+	if err != nil {
+		log.Errorf("error patching Node %s labels %v: %s", nodeName, updatedLabels, err.Error())
+		return arrays
 	}
 	log.Infof("startUp completed, arrays: %v", arrays)
 	return arrays
@@ -577,6 +580,7 @@ func (pm *PodMonitorType) monitorArrayConnectivity(api k8sapi.K8sAPI, nodeName s
 	// Initially assume all the arrays are connected
 	var connectedStatus sync.Map
 	// Polling loop to determine if the arrays are connected
+	initialized := false
 	for {
 		time.Sleep(pollRate)
 		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
@@ -604,9 +608,13 @@ func (pm *PodMonitorType) monitorArrayConnectivity(api k8sapi.K8sAPI, nodeName s
 		for array, _ := range arrays {
 			go func() {
 				var previousConnected bool
+				if !initialized {
+					pm.transitionToNewState(node, array, pm.DriverPathStr)
+					previousConnected = true
+				}
 				prevConnected, _ := connectedStatus.Load(array)
 				if prevConnected == nil {
-					previousConnected = true
+					previousConnected = false
 				} else {
 					previousConnected = prevConnected.(bool)
 				}
@@ -614,14 +622,15 @@ func (pm *PodMonitorType) monitorArrayConnectivity(api k8sapi.K8sAPI, nodeName s
 				connectedStatus.Store(array, connected)
 				log.Infof("Node %s CSI %s Array %s Connected %t", nodeName, csiNodeID, array, connected)
 				if !previousConnected && connected {
-					pm.transitionedToConnected(node, array)
+					pm.transitionToNewState(node, array, pm.DriverPathStr)
 				}
 				if previousConnected && !connected {
-					pm.transitionedToDisconnected(node, array)
+					pm.transitionToNewState(node, array, Disconnected)
 				}
 			}()
 		}
 		cancel()
+		initialized = true
 	}
 }
 
@@ -648,38 +657,24 @@ func (pm *PodMonitorType) getArrayConnectivity(csiNodeID, arrayID string) (bool,
 }
 
 // transitionedToConnected is called when node was offline and is now connected
-func (pm *PodMonitorType) transitionedToConnected(node *v1.Node, arrayID string) {
-	log.Infof("transitionedToConnected %s %s", node.Name, arrayID)
+func (pm *PodMonitorType) transitionToNewState(node *v1.Node, arrayID, newState string) {
+	log.Infof("transitionedToNewState %s %s", node.Name, arrayID)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	err := K8sAPI.CreateEvent(podmon, node, k8sapi.EventTypeNormal, "ArrayConnected", "Connected to %s", arrayID)
+	var err error
+	if newState == Disconnected {
+		err = K8sAPI.CreateEvent(podmon, node, k8sapi.EventTypeNormal, "ArrayDisconnected", "Disconnected from %s", arrayID)
+
+	} else {
+		err = K8sAPI.CreateEvent(podmon, node, k8sapi.EventTypeNormal, "ArrayConnected", "Connected to %s", arrayID)
+	}
 	if err != nil {
 		log.Errorf("Error creating event ArrayConnected: %s", err.Error())
 	}
 	deletedLabels := make([]string, 0)
 	replacedLabels := make(map[string]string)
-	key := PodLabelValue + ".dellemc.com" + "/" + arrayID
-	value := PodLabelValue + ".dellemc.com"
-	replacedLabels[key] = value
-	err = K8sAPI.PatchNodeLabels(ctx, node.Name, replacedLabels, deletedLabels)
-	if err != nil {
-		log.Errorf("Could not patch node labels: %s: %s", node.Name, err.Error())
-	}
-}
-
-// transitionedToDisconnected is called when the node was online and is no longer connected
-func (pm *PodMonitorType) transitionedToDisconnected(node *v1.Node, arrayID string) {
-	log.Infof("transitionedToDisconnected %s %s", node.Name, arrayID)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	err := K8sAPI.CreateEvent(podmon, node, k8sapi.EventTypeWarning, "ArrayDisconnected", "Disconnected from %s", arrayID)
-	if err != nil {
-		log.Errorf("Error creating event ArrayDisconnected: %s", err.Error())
-	}
-	deletedLabels := make([]string, 0)
-	replacedLabels := make(map[string]string)
-	key := PodLabelValue + ".dellemc.com" + "/" + arrayID
-	value := Disconnected
+	key := pm.DriverPathStr + "/" + arrayID
+	value := newState
 	replacedLabels[key] = value
 	err = K8sAPI.PatchNodeLabels(ctx, node.Name, replacedLabels, deletedLabels)
 	if err != nil {

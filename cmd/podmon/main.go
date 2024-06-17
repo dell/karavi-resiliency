@@ -54,6 +54,7 @@ const (
 	driverPath                               = "csi-vxflexos.dellemc.com"
 	driverConfigParamsDefault                = "resources/driver-config-params.yaml"
 	ignoreVolumelessPods                     = false
+	manageNodeArrayLabels                    = true
 	// -- Below are constants for dynamic configuration --
 	defaultLogLevel                                = log.DebugLevel
 	podmonArrayConnectivityPollRate                = "PODMON_ARRAY_CONNECTIVITY_POLL_RATE"
@@ -100,6 +101,7 @@ func main() {
 		FullTimestamp:   true,
 		TimestampFormat: time.RFC1123,
 	})
+	log.Infof("Desperation 2")
 	getArgs()
 
 	if err := setupDynamicConfigUpdate(); err != nil {
@@ -142,6 +144,7 @@ func main() {
 	monitor.SetArrayConnectivityPollRate(time.Duration(*args.arrayConnectivityPollRate) * time.Second)
 	monitor.ArrayConnectivityConnectionLossThreshold = *args.arrayConnectivityConnectionLossThreshold
 	monitor.IgnoreVolumelessPods = *args.ignoreVolumelessPods
+	monitor.FeatureManageNodeArrayLabels = *args.featureManageNodeArrayLabels
 	err := K8sAPI.Connect(args.kubeconfig)
 	if err != nil {
 		log.Errorf("kubernetes connection error: %s", err)
@@ -227,6 +230,7 @@ type PodmonArgs struct {
 	driverPodLabelKey                        *string // driverPodLabelKey for annotating driver node pods to be watched/processed
 	driverPodLabelValue                      *string // driverPodLabelValue value for annotating driver node pods to be watched/processed
 	ignoreVolumelessPods                     *bool   // Ignore volumeless pods even if those has Resiliency label
+	featureManageNodeArrayLabels             *bool   // manage node labels for WaitForFirstConsumerScheduling
 }
 
 var args PodmonArgs
@@ -248,6 +252,7 @@ func getArgs() {
 		args.driverPodLabelKey = flag.String("driverPodLabelKey", driverPodLabelKey, "label key for pods or other objects to be monitored")
 		args.driverPodLabelValue = flag.String("driverPodLabelValue", driverPodLabelValue, "label value for pods or other objects to be monitored")
 		args.ignoreVolumelessPods = flag.Bool("ignoreVolumelessPods", ignoreVolumelessPods, "ingnore volumeless pods even though they have podmon label")
+		args.featureManageNodeArrayLabels = flag.Bool("manageNodeArrayLabels", manageNodeArrayLabels, "enables management of node labels related to WaitForFirstConsumer scheduling")
 	})
 
 	// -- For testing purposes. Re-default the values since main will be called multiple times --
