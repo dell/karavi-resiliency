@@ -32,6 +32,7 @@ LABEL vendor="Dell Inc." \
       version="1.10.0" \
       license="Apache-2.0"
 
+COPY licenses licenses/
 COPY --from=builder /workspace/podmon /
 
 ENTRYPOINT [ "/podmon" ]
