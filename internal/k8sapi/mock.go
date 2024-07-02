@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"time"
 
+	repv1 "github.com/dell/csm-replication/api/v1"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -145,7 +146,7 @@ func (mock *K8sMock) DeletePod(_ context.Context, namespace, name string, _ type
 }
 
 // GetPod retrieves a pod of the give namespace and name
-func (mock *K8sMock) GetPod(_ context.Context, namespace, name string) (*v1.Pod, error) {
+func (mock *K8sMock) GetPod(ctx context.Context, namespace, name string) (*v1.Pod, error) {
 	var pod *v1.Pod
 	if mock.InducedErrors.GetPod {
 		return pod, errors.New("induced GetPod error")
@@ -450,4 +451,19 @@ func (mock *K8sMock) CreateEvent(_ string, _ runtime.Object, _, _, _ string, _ .
 		return errors.New("induced CreateEvent error")
 	}
 	return nil
+}
+
+func (mock *K8sMock) GetReplicationGroup(ctx context.Context, rgName string) (*repv1.DellCSIReplicationGroup, error) {
+	// TBD
+	return nil, nil
+}
+
+func (mock *K8sMock) UpdateReplicationGroup(ctx context.Context, rg *repv1.DellCSIReplicationGroup) error {
+	// TBD
+	return nil
+}
+
+func (mock *K8sMock) GetPersistentVolumesWithLabels(ctx context.Context, labelSelector string) (*v1.PersistentVolumeList, error) {
+	// TBD
+	return nil, nil
 }

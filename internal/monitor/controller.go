@@ -45,6 +45,10 @@ type ControllerPodInfo struct { // information controller keeps on hand about a 
 	PodUID            string            // the pod container's UID
 	ArrayIDs          []string          // string of array IDs used by the pod's volumes
 	PodAffinityLabels map[string]string // A list of pod affinity labels for the pod
+
+	// The following fields used by disaster recovery if enabled.
+	ReplicationGroup   string   // pod's association to a ReplicationGrup if any
+	ReplicatedPVCNames []string // Names of replicated PVCs
 }
 
 const (
@@ -102,7 +106,7 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 			taintpodmon := nodeHasTaint(node, PodmonTaintKey, v1.TaintEffectNoSchedule) || nodeHasTaint(node, PodmonDriverPodTaintKey, v1.TaintEffectNoSchedule)
 
 			// Determine pod status
-			ready, initialized := podStatus(pod.Status.Conditions)
+			ready, initialized, _ := podStatus(pod.Status.Conditions)
 
 			// Loop for containerStatus for CrashLoopBackOff
 			crashLoopBackOff := false
@@ -142,7 +146,7 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 					ArrayIDs:          arrayIDs,
 					PodAffinityLabels: podAffinityLabels,
 				}
-				log.Debugf("Updating protected pod info podKey %s pvcCount %d arrayIDs %v", podKey, pvcCount, arrayIDs)
+				log.Infof("Updating protected pod info podKey %s pvcCount %d arrayIDs %v", podKey, pvcCount, arrayIDs)
 				cm.PodKeyToControllerPodInfo.Store(podKey, podInfo)
 				if ready {
 					// Delete (reset) the CrashLoopBackOff counter since we're running.
@@ -178,6 +182,12 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 			}
 		}
 
+	} else {
+		// no Node association for podready, initialized, _ := podStatus(pod.Status.Conditions)
+		_, _, pending := podStatus(pod.Status.Conditions)
+		if pending {
+			cm.checkPendingPod(ctx, pod)
+		}
 	}
 	return nil
 }
@@ -424,10 +434,23 @@ func (cm *PodMonitorType) callControllerUnpublishVolume(node *v1.Node, volumeID 
 }
 
 // podToArrayIDs returns the array IDs used by the pod, along with pvCount, and error
+// TBD: Check if VolumeAttributes of StorageSystem set for all arrays
 func (cm *PodMonitorType) podToArrayIDs(ctx context.Context, pod *v1.Pod) ([]string, int, error) {
 	arrayIDs := make([]string, 0)
-	pvlist, _ := K8sAPI.GetPersistentVolumesInPod(ctx, pod)
-	arrayIDs = append(arrayIDs, defaultArray)
+	pvlist, err := K8sAPI.GetPersistentVolumesInPod(ctx, pod)
+	if err != nil {
+		return arrayIDs, len(pvlist), err
+	}
+	for _, pv := range pvlist {
+		storageSystem := pv.Spec.CSI.VolumeAttributes["StorageSystem"]
+		log.Infof("podToArrayIDs pv %s storageSystem %s", pv.Name, storageSystem)
+		if storageSystem == "" {
+			storageSystem = defaultArray
+		}
+		if !stringInSlice(storageSystem, arrayIDs) {
+			arrayIDs = append(arrayIDs, storageSystem)
+		}
+	}
 	return arrayIDs, len(pvlist), nil
 }
 
@@ -545,9 +568,12 @@ var ArrayConnectivityConnectionLossThreshold = 3
 
 // CheckConnectivity returns true if the node has connectivity to the arrayID supplied
 func (nacc *nodeArrayConnectivityCache) CheckConnectivity(cm *PodMonitorType, node *v1.Node, arrayID string) bool {
+	if node == nil {
+		return true
+	}
 	nodeUID := cm.GetNodeUID(node.ObjectMeta.Name)
 	if nodeUID == "" || nodeUID != string(node.ObjectMeta.UID) {
-		log.Infof("node %s has stale node uid %s- skipping connectivity check and assuming connected", node.ObjectMeta.Name, string(node.ObjectMeta.UID))
+		log.Infof("CheckConnectivity: node %s has stale node uid", node.ObjectMeta.Name)
 		return true
 	}
 	key := node.ObjectMeta.Name + ":" + arrayID
@@ -718,7 +744,7 @@ func (cm *PodMonitorType) controllerModeDriverPodHandler(pod *v1.Pod, eventType 
 			log.Errorf("GetNode failed: %s: %s", pod.Spec.NodeName, err)
 		} else {
 			// Determine pod status
-			ready, initialized := podStatus(pod.Status.Conditions)
+			ready, initialized, _ := podStatus(pod.Status.Conditions)
 
 			if !ready {
 				log.Infof("Taint node %s with %s driver node pod down", node.ObjectMeta.Name, PodmonDriverPodTaintKey)
@@ -746,10 +772,11 @@ func (cm *PodMonitorType) controllerModeDriverPodHandler(pod *v1.Pod, eventType 
 	return nil
 }
 
-// podStatus determine pod status
-func podStatus(conditions []v1.PodCondition) (bool, bool) {
+// podStatus determine pod status. Returns ready, initialized, pending
+func podStatus(conditions []v1.PodCondition) (bool, bool, bool) {
 	ready := false
 	initialized := true
+	pending := false
 	for _, condition := range conditions {
 		log.Debugf("pod condition.Type: %s %v", condition.Type, condition.Status)
 		if condition.Type == podReadyCondition {
@@ -758,8 +785,14 @@ func podStatus(conditions []v1.PodCondition) (bool, bool) {
 		if condition.Type == podInitializedCondition {
 			initialized = condition.Status == v1.ConditionTrue
 		}
+		if condition.Type == podScheduledCondition {
+			if condition.Status == v1.ConditionFalse && condition.Reason == podUnschedulableReason {
+				log.Infof("pod unschedulable")
+				pending = true
+			}
+		}
 	}
-	return ready, initialized
+	return ready, initialized, pending
 }
 
 // arrayConnectivity  map of arrayID to map[node]bool (true for connected, false for disconnected)
@@ -813,4 +846,14 @@ func (cm *PodMonitorType) getNodeConnectivityMap(arrayID string) map[string]bool
 		return value.(map[string]bool)
 	}
 	return make(map[string]bool)
+}
+
+// stringInSlice return sture if the passed search string is in the slice
+func stringInSlice(search string, slice []string) bool {
+	for _, v := range slice {
+		if search == v {
+			return true
+		}
+	}
+	return false
 }

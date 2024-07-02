@@ -37,8 +37,11 @@ const (
 	nodeUnreachableTaint    = "node.kubernetes.io/unreachable"
 	podReadyCondition       = "Ready"
 	podInitializedCondition = "Initialized"
-	podmon                  = "podmon"
-	crashLoopBackOffReason  = "CrashLoopBackOff"
+	podScheduledCondition   = "PodScheduled"
+	podUnschedulableReason  = "Unschedulable"
+
+	podmon                 = "podmon"
+	crashLoopBackOffReason = "CrashLoopBackOff"
 	// PodmonTaintKeySuffix is used for creating a driver specific podmon taint key
 	PodmonTaintKeySuffix = "podmon.storage.dell.com"
 	// PodmonDriverPodTaintKeySuffix is used for creating a driver node pod specific podmon taint key
@@ -74,6 +77,8 @@ var (
 	IgnoreVolumelessPods bool
 	// FeatureManageNodeArrayLables is a feature flag to manage array labels on Kubernetes nodes
 	FeatureManageNodeArrayLabels bool
+	// FeatureDisasterRecovery enabled disaster recovery processing
+	FeatureDisasterRecoveryActions bool
 	// PodLabelValue is the driver name (e.g. csi-vxflexos)
 	PodLabelValue string
 )
@@ -104,6 +109,7 @@ type PodMonitorType struct {
 	CSIExtensionsPresent          bool     // the CSI PodmonExtensions are present
 	DriverPathStr                 string   // CSI Driver path string for parsing csi.volume.kubernetes.io/nodeid annotation
 	NodeNameToUID                 sync.Map // Node.ObjectMeta.Name to Node.ObjectMeta.Uid
+	RGNameToReplicationGroupInfo  sync.Map // Replication group name to replicationGroupInfo (disaster recovery use)
 }
 
 // PodMonitor is a reference to tracking data for the pod monitor
@@ -149,6 +155,12 @@ func Lock(podkey string, pod *v1.Pod, delay time.Duration) {
 		time.Sleep(delay)
 		_, loaded = PodMonitor.PodKeyMap.LoadOrStore(podkey, pod)
 	}
+}
+
+// TryLock will try to lock a Pod, returning true if acquired
+func TryLock(podkey string, pod *v1.Pod) bool {
+	_, loaded := PodMonitor.PodKeyMap.LoadOrStore(podkey, pod)
+	return !loaded
 }
 
 // Unlock returns a sync lock based on a pod key reference
@@ -233,7 +245,8 @@ func podMonitorHandler(eventType watch.EventType, object interface{}) error {
 // StartPodMonitor starts the PodMonitor so that it is processing pods which might have problems.
 // The labelKey and labelValue are used for filtering.
 func StartPodMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, labelValue string, restartDelay time.Duration) {
-	log.Infof("attempting to start PodMonitor\n")
+	log.Infof("Starting PodMonitor FeatureManageNodeArrayLabels %t FeatureDisasterRecoveryActions %t",
+		FeatureManageNodeArrayLabels, FeatureDisasterRecoveryActions)
 	PodLabelValue = labelValue
 	PodmonTaintKey = fmt.Sprintf("%s.%s", Driver.GetDriverName(), PodmonTaintKeySuffix)
 	PodmonDriverPodTaintKey = fmt.Sprintf("offline.%s.%s", Driver.GetDriverName(), PodmonDriverPodTaintKeySuffix)
