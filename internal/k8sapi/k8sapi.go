@@ -27,25 +27,33 @@ import (
 	"sync"
 	"time"
 
+	repv1 "github.com/dell/csm-replication/api/v1"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	apiExtensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	apiTypes "k8s.io/apimachinery/pkg/types"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // Client holds a reference to a Kubernetes client
 type Client struct {
 	Client                    *kubernetes.Clientset
+	ReplicationClient         client.Client
+	Config                    *rest.Config
 	Lock                      sync.Mutex
 	eventRecorder             record.EventRecorder
 	volumeAttachmentCache     map[string]*storagev1.VolumeAttachment
@@ -273,6 +281,16 @@ func (api *Client) GetPersistentVolume(ctx context.Context, pvName string) (*v1.
 	return pv, err
 }
 
+// GetPersistentVolumesWithLabels returns all the PVs matching one or more labels passed in the labelSelector.
+// The format of the labelSelector a string of form "key1=value1,key2=value2"
+func (api *Client) GetPersistentVolumesWithLabels(ctx context.Context, labelSelector string) (*v1.PersistentVolumeList, error) {
+	listOptions := metav1.ListOptions{
+		LabelSelector: labelSelector,
+	}
+	pvs, err := api.Client.CoreV1().PersistentVolumes().List(ctx, listOptions)
+	return pvs, err
+}
+
 // GetPersistentVolumeClaim returns a PVC object given its namespace and name
 func (api *Client) GetPersistentVolumeClaim(ctx context.Context, namespace, pvcName string) (*v1.PersistentVolumeClaim, error) {
 	var err error
@@ -332,9 +350,31 @@ func (api *Client) Connect(kubeconfig *string) error {
 		log.Error("unable to connect to k8sapi: " + err.Error())
 		return err
 	}
+	api.Config = config
 	api.Client = client
+
+	// Make a replication client
+	api.ReplicationClient, err = getReplicationClient(api.Config)
+	if err != nil {
+		log.Errorf("unable to create ReplicationClient: %s", err.Error())
+		return err
+	}
+
 	log.Info("connected to k8sapi")
 	return nil
+}
+
+// Gets a replication client
+func getReplicationClient(clientConfig *rest.Config) (client.Client, error) {
+	scheme := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(apiExtensionsv1.AddToScheme(scheme))
+	utilruntime.Must(repv1.AddToScheme(scheme))
+	k8sClient, err := client.New(clientConfig, client.Options{Scheme: scheme})
+	if err != nil {
+		return nil, err
+	}
+	return k8sClient, nil
 }
 
 // GetVolumeHandleFromVA returns a the CSI.VolumeHandle string for a given VolumeAttachment
@@ -546,5 +586,27 @@ func (api *Client) CreateEvent(sourceComponent string, object runtime.Object, ev
 		api.eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf(sourceComponent)})
 	}
 	api.eventRecorder.Eventf(object, eventType, reason, messageFmt, args)
+	return nil
+}
+
+func (api *Client) GetReplicationGroup(ctx context.Context, rgName string) (*repv1.DellCSIReplicationGroup, error) {
+	found := &repv1.DellCSIReplicationGroup{}
+	err := api.ReplicationClient.Get(ctx, apiTypes.NamespacedName{Name: rgName}, found)
+	if err != nil {
+		log.Errorf("Error finding replication group %s: %s", rgName, err.Error())
+		return nil, err
+	}
+	if found == nil {
+		err = fmt.Errorf("ReplicationGroup %s not found", rgName)
+	}
+	return found, err
+}
+
+func (api *Client) UpdateReplicationGroup(ctx context.Context, rg *repv1.DellCSIReplicationGroup) error {
+	err := api.ReplicationClient.Update(ctx, rg)
+	if err != nil {
+		log.Errorf("Error updating replication group %s: %s", rg.Name, err.Error())
+		return err
+	}
 	return nil
 }

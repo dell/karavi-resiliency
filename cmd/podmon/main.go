@@ -55,6 +55,7 @@ const (
 	driverConfigParamsDefault                = "resources/driver-config-params.yaml"
 	ignoreVolumelessPods                     = false
 	manageNodeArrayLabels                    = true
+	disasterRecoveryActions                  = false
 	// -- Below are constants for dynamic configuration --
 	defaultLogLevel                                = log.DebugLevel
 	podmonArrayConnectivityPollRate                = "PODMON_ARRAY_CONNECTIVITY_POLL_RATE"
@@ -145,6 +146,7 @@ func main() {
 	monitor.ArrayConnectivityConnectionLossThreshold = *args.arrayConnectivityConnectionLossThreshold
 	monitor.IgnoreVolumelessPods = *args.ignoreVolumelessPods
 	monitor.FeatureManageNodeArrayLabels = *args.featureManageNodeArrayLabels
+	monitor.FeatureDisasterRecoveryActions = *args.featureDisasterRecovery
 	err := K8sAPI.Connect(args.kubeconfig)
 	if err != nil {
 		log.Errorf("kubernetes connection error: %s", err)
@@ -231,6 +233,7 @@ type PodmonArgs struct {
 	driverPodLabelValue                      *string // driverPodLabelValue value for annotating driver node pods to be watched/processed
 	ignoreVolumelessPods                     *bool   // Ignore volumeless pods even if those has Resiliency label
 	featureManageNodeArrayLabels             *bool   // manage node labels for WaitForFirstConsumerScheduling
+	featureDisasterRecovery                  *bool   // implement DisasterRecovery action
 }
 
 var args PodmonArgs
@@ -253,6 +256,7 @@ func getArgs() {
 		args.driverPodLabelValue = flag.String("driverPodLabelValue", driverPodLabelValue, "label value for pods or other objects to be monitored")
 		args.ignoreVolumelessPods = flag.Bool("ignoreVolumelessPods", ignoreVolumelessPods, "ingnore volumeless pods even though they have podmon label")
 		args.featureManageNodeArrayLabels = flag.Bool("manageNodeArrayLabels", manageNodeArrayLabels, "enables management of node labels related to WaitForFirstConsumer scheduling")
+		args.featureDisasterRecovery = flag.Bool("disasterRecoveryActions", disasterRecoveryActions, "enable disaster recovery actions")
 	})
 
 	// -- For testing purposes. Re-default the values since main will be called multiple times --

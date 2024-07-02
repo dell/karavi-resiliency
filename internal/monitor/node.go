@@ -71,7 +71,10 @@ func StartAPIMonitor(api k8sapi.K8sAPI, firstTimeout, retryTimeout, interval tim
 		return err
 	}
 	pm := &PodMonitor
-	go pm.monitorArrayConnectivity(api, nodeName, 60*time.Second)
+	if FeatureManageNodeArrayLabels {
+		// go pm.startUp(api, nodeName)
+		go pm.monitorArrayConnectivity(api, nodeName, 60*time.Second)
+	}
 
 	fn := func() {
 		pm.apiMonitorLoop(api, nodeName, firstTimeout, retryTimeout, interval, waitFor)
@@ -82,35 +85,35 @@ func StartAPIMonitor(api k8sapi.K8sAPI, firstTimeout, retryTimeout, interval tim
 }
 
 // startUp runs and will make sure there are no array lables with Disconnected status
-func (pm *PodMonitorType) startUp(api k8sapi.K8sAPI, nodeName string) []string {
-	arrays := make([]string, 0)
-	log.Infof("In startup %s DriverPathString %s", nodeName, pm.DriverPathStr)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	node, err := api.GetNode(ctx, nodeName)
-	if err != nil {
-		return arrays
-	}
-	updatedLabels := make(map[string]string)
-	deletedLabels := make([]string, 0)
-	for k, v := range node.Labels {
-		if strings.HasPrefix(v, pm.DriverPathStr+"/") {
-			parts := strings.Split(k, "/")
-			if len(parts) > 1 && parts[1] != "" {
-				arrays = append(arrays, parts[1])
-				updatedLabels[v] = pm.DriverPathStr
-			}
-		}
-	}
-	log.Infof("Updating labels on node %s: %v", nodeName, updatedLabels)
-	err = api.PatchNodeLabels(ctx, nodeName, updatedLabels, deletedLabels)
-	if err != nil {
-		log.Errorf("error patching Node %s labels %v: %s", nodeName, updatedLabels, err.Error())
-		return arrays
-	}
-	log.Infof("startUp completed, arrays: %v", arrays)
-	return arrays
-}
+// func (pm *PodMonitorType) startUp(api k8sapi.K8sAPI, nodeName string) []string {
+// 	arrays := make([]string, 0)
+// 	log.Infof("In startup %s DriverPathString %s", nodeName, pm.DriverPathStr)
+// 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+// 	defer cancel()
+// 	node, err := api.GetNode(ctx, nodeName)
+// 	if err != nil {
+// 		return arrays
+// 	}
+// 	updatedLabels := make(map[string]string)
+// 	deletedLabels := make([]string, 0)
+// 	for k, v := range node.Labels {
+// 		if strings.HasPrefix(v, pm.DriverPathStr+"/") {
+// 			parts := strings.Split(k, "/")
+// 			if len(parts) > 1 && parts[1] != "" {
+// 				arrays = append(arrays, parts[1])
+// 				updatedLabels[v] = pm.DriverPathStr
+// 			}
+// 		}
+// 	}
+// 	log.Infof("Updating labels on node %s: %v", nodeName, updatedLabels)
+// 	err = api.PatchNodeLabels(ctx, nodeName, updatedLabels, deletedLabels)
+// 	if err != nil {
+// 		log.Errorf("error patching Node %s labels %v: %s", nodeName, updatedLabels, err.Error())
+// 		return arrays
+// 	}
+// 	log.Infof("startUp completed, arrays: %v", arrays)
+// 	return arrays
+// }
 
 func (pm *PodMonitorType) apiMonitorLoop(api k8sapi.K8sAPI, nodeName string, firstTimeout, retryTimeout, interval time.Duration, waitFor func(interval time.Duration) bool) {
 	pm.APIConnected = true
@@ -339,6 +342,7 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 	podKeysWithError := make([]string, 0)
 	podInfos := make([]*NodePodInfo, 0)
 	// This function executed for each registered pod to categorize it a) to be cleaned, or b) skipped because it is possibly executing
+	// It must return true for all the pods to be scanned.
 	fn := func(key, value interface{}) bool {
 		podKey := key.(string)
 		podInfo := value.(*NodePodInfo)
@@ -358,6 +362,15 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 				log.Debugf("cid %v", cid[1])
 				containerInfo := containerInfos[cid[1]]
 				if containerInfo.State == cri.ContainerState_CONTAINER_RUNNING || containerInfo.State == cri.ContainerState_CONTAINER_CREATED {
+					// Retrieve the pod from the K8SAPI and check to see if it's supposed to be runningo
+					etcdPod, err := K8sAPI.GetPod(ctx, pod.Namespace, pod.Name)
+					if err == nil && etcdPod.UID == pod.UID && etcdPod.Spec.NodeName == node.Name {
+						if ready, _, _ := podStatus(etcdPod.Status.Conditions); ready {
+							// Pod is supposed to be executing on this node! No worries
+							log.Infof("skipping cleanup of pod %s/%s as it is supposed to be running", pod.Namespace, pod.Name)
+							return true
+						}
+					}
 					log.Infof("Skipping pod %s because container %v still executing", podKey, containerInfo)
 					podKeysSkipped = append(podKeysSkipped, podKey)
 					return true
@@ -575,7 +588,8 @@ func (pm *PodMonitorType) callNodeUnstageVolume(fields map[string]interface{}, t
 func (pm *PodMonitorType) monitorArrayConnectivity(api k8sapi.K8sAPI, nodeName string, pollRate time.Duration) {
 	arrays := make(map[string]string)
 	// Wait 5 minutes before beginning to give the driver a chance to settle in
-	log.Infof("waiting to start monitorArrayConnectivity")
+	log.Info("featureManageNodeArrayLables is enabled")
+	log.Debug("waiting to start monitorArrayConnectivity")
 	time.Sleep(3 * time.Minute)
 	// Initially assume all the arrays are connected
 	var connectedStatus sync.Map
@@ -605,7 +619,7 @@ func (pm *PodMonitorType) monitorArrayConnectivity(api k8sapi.K8sAPI, nodeName s
 			log.Infof("monitorArrayConnectivity: No node annotation found for %s", csiNodeID)
 			continue
 		}
-		for array, _ := range arrays {
+		for array := range arrays {
 			go func() {
 				var previousConnected bool
 				if !initialized {

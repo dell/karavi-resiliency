@@ -24,6 +24,7 @@ import (
 	"context"
 	"time"
 
+	repv1 "github.com/dell/csm-replication/api/v1"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -79,6 +80,10 @@ type K8sAPI interface {
 	// GetPersistentVolume retrieves a persistent volume given the pv name.
 	GetPersistentVolume(ctx context.Context, pvName string) (*v1.PersistentVolume, error)
 
+	// GetPersistentVolumesWithLabels returns all the PVs matching one or more labels passed in the labelSelector.
+	// The format of the labelSelector a string of form "key1=value1,key2=value2"
+	GetPersistentVolumesWithLabels(ctx context.Context, labelSelector string) (*v1.PersistentVolumeList, error)
+
 	// GetPersistentVolumeClaim returns the PVC of the given namespace/pvcName.
 	GetPersistentVolumeClaim(ctx context.Context, namespace, pvcName string) (*v1.PersistentVolumeClaim, error)
 
@@ -113,6 +118,12 @@ type K8sAPI interface {
 	// reason is why the action was taken. It is human-readable.
 	// messageFmt and args for a human readable description of the status of this operation
 	CreateEvent(sourceComponent string, object runtime.Object, eventType, reason, messageFmt string, args ...interface{}) error
+
+	// GetReplicationGroup will retrieve the named replication group.
+	GetReplicationGroup(ctx context.Context, rgName string) (*repv1.DellCSIReplicationGroup, error)
+
+	// UpdatereplicationGroup will update an existing Replication Group.
+	UpdateReplicationGroup(ctx context.Context, rg *repv1.DellCSIReplicationGroup) error
 }
 
 const (
