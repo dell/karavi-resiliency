@@ -2,19 +2,28 @@ package monitor
 
 import (
 	"context"
+	"errors"
+	"strings"
+	"time"
 
+	repv1 "github.com/dell/csm-replication/api/v1"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 )
 
-const failoverLabelKey = "failover.podmon.dellemc.com"
-const replicationDefaultDomain = "replication.storage.dell.com"
-const replicationGroupName = "/replicationGroupName"
+const (
+	failoverLabelKey             = "failover.podmon.dellemc.com"
+	replicationDefaultDomain     = "replication.storage.dell.com"
+	replicationGroupName         = "/replicationGroupName"
+	ActionFailoverRemote         = "FAILOVER_REMOTE"
+	ActionFailoverLocalUnplanned = "UNPLANNED_FAILOVER_LOCAL"
+	ActionReprotect              = "REPROTECT_LOCAL"
+)
 
 type ReplicationGroupInfo struct {
 	RGName           string              // ReplicationGroup Name
 	PodKeysToPVNames map[string][]string // map[podkey][pvnames]
-	pvnamesInRG      []string
+	pvNamesInRG      []string
 }
 
 func (cm *PodMonitorType) checkPendingPod(ctx context.Context, pod *v1.Pod) bool {
@@ -29,7 +38,7 @@ func (cm *PodMonitorType) checkPendingPod(ctx context.Context, pod *v1.Pod) bool
 
 	// Check that this pod has the failover annotation
 	if pod.Labels[failoverLabelKey] == "" {
-		log.WithFields(fields).Infof("checkPendingPod Pod does not have the %s label so cannot consider DR", failoverLabelKey)
+		log.WithFields(fields).Infof("checkPendingPod Pod does not have the %s label so cannot consider DR failover", failoverLabelKey)
 		return false
 	}
 
@@ -106,11 +115,15 @@ func (cm *PodMonitorType) checkPendingPod(ctx context.Context, pod *v1.Pod) bool
 		return false
 	}
 
+	// Make sure the RG is replicating to the same cluster
+	if rg.Annotations["replication.storage.dell.com/remoteClusterID"] != "self" {
+		log.Infof("ReplicationGroup %s is not a single-cluster replication configuration- podmon cannot manage the failover", rgName)
+		return false
+	}
+
 	// Find all the PVs using this rg
-	labelSelector := replicationDefaultDomain + replicationGroupName + "=" + rgName
-	pvsInRG, err := K8sAPI.GetPersistentVolumesWithLabels(ctx, replicationDefaultDomain+replicationGroupName)
+	pvsInRG, err := getPVsInReplicationGroup(ctx, rgName)
 	if err != nil {
-		log.Infof("Unable to read PVs using label %s: %s", labelSelector, err.Error())
 		return false
 	}
 	pvnamesInRG := make([]string, 0)
@@ -127,14 +140,147 @@ func (cm *PodMonitorType) checkPendingPod(ctx context.Context, pod *v1.Pod) bool
 
 	// See if there is an existing ReplicationGroupInfo
 	var rginfo *ReplicationGroupInfo
-	rgAny, ok := cm.RGNameToReplicationGroupInfo.Load()
+	rgAny, ok := cm.RGNameToReplicationGroupInfo.Load(rgName)
 	if !ok {
 		rginfo = &ReplicationGroupInfo{
-			RGName: rgName,
+			RGName:           rgName,
+			PodKeysToPVNames: make(map[string][]string),
 		}
 	} else {
 		rginfo = rgAny.(*ReplicationGroupInfo)
 	}
+	rginfo.PodKeysToPVNames[podkey] = replicatedPVNames
+	rginfo.pvNamesInRG = pvnamesInRG
+	cm.RGNameToReplicationGroupInfo.Store(rgName, rginfo)
+	log.Infof("stored ReplicationGroupInfo %+v", rginfo)
 
+	cm.tryFailover((rgName))
 	return true
+}
+
+func (cm *PodMonitorType) tryFailover(rgName string) bool {
+	var rgTarget string
+	if strings.HasPrefix(rgName, "replicated-") {
+		rgTarget = rgName[11:]
+	} else {
+		rgTarget = "replicated-" + rgName
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), MediumTimeout)
+	defer cancel()
+	var rginfo *ReplicationGroupInfo
+	rgAny, ok := cm.RGNameToReplicationGroupInfo.Load(rgName)
+	if !ok {
+		log.Infof("ReplicationGroupInfo not found: %s", rgName)
+		return false
+	}
+	rginfo = rgAny.(*ReplicationGroupInfo)
+	log.Infof("tryFailover rginfo %+v", rginfo)
+
+	// Loop through the pods to see if they're in pending state
+	var npods, npending int
+	var npvsinpods int
+	for podkey, pvnames := range rginfo.PodKeysToPVNames {
+		namespace, name := splitPodKey(podkey)
+		pod, err := K8sAPI.GetPod(ctx, namespace, name)
+		if err != nil {
+			log.Infof("tryFailover: couldn't load pod %s: %s", podkey, err.Error())
+			delete(rginfo.PodKeysToPVNames, podkey)
+			continue
+		}
+		npods++
+		ready, initialized, pending := podStatus(pod.Status.Conditions)
+		log.Infof("tryFailover: pod %s ready %t initialized %t pending %t", podkey, ready, initialized, pending)
+		if pending {
+			npending++
+		}
+		npvsinpods = npvsinpods + len(pvnames)
+	}
+	cm.RGNameToReplicationGroupInfo.Store(rgName, rginfo)
+
+	if npending != npods {
+		log.Infof("tryFailover: only %d pods are in pending state out of %d pods, cannot failover", npending, npods)
+		return false
+	}
+	// Read the volumes in the Replication Group
+	pvsInRG, err := getPVsInReplicationGroup(ctx, rgName)
+	if err != nil {
+		return false
+	}
+	// We only want to count the regular PVs or the replicated PVs, whichever is higher.
+	var rgpvscount, rgreplicatedpvscount int
+	for _, pv := range pvsInRG.Items {
+		if strings.HasPrefix(pv.Name, "replicated-") {
+			rgreplicatedpvscount++
+		} else {
+			rgpvscount++
+		}
+	}
+	if rgreplicatedpvscount > rgpvscount {
+		rgpvscount = rgreplicatedpvscount
+	}
+	// If the number of PVs in the replication group not equal to the number
+	// of PVs we know about from the pods, we cannot fail over.
+	if rgpvscount != npvsinpods {
+		log.Infof("RG has %d unique PVs, all %d pods have total %d PVs, cannot failover because they're not equal", rgpvscount, npods, npvsinpods)
+		return false
+	}
+	log.Infof("ATTEMPTING FAILOVER REPLICATION GROUP %s target %s pods %d pvs %d", rgName, rgTarget, npods, npvsinpods)
+	rg, err := K8sAPI.GetReplicationGroup(ctx, rgName)
+	if rg != nil {
+		log.Infof("ReplicationGroup %+v", rg)
+	}
+	if err != nil || rg == nil {
+		if err == nil {
+			err = errors.New("not found")
+		}
+		log.Errorf("Could not get ReplicationGrop %s: %s", rgName, err)
+		return false
+	}
+	startingTime := rg.Status.ReplicationLinkState.LastSuccessfulUpdate.Time
+
+	unplanned := false
+	if unplanned {
+		log.Info("Unplanned failover not implemented yet")
+		return false
+
+	} else {
+		rg.Spec.Action = ActionFailoverRemote
+		log.Infof("Updating RG %s with action %s", rg.Name, rg.Spec.Action)
+		err := K8sAPI.UpdateReplicationGroup(ctx, rg)
+		if err != nil {
+			log.Errorf("Error updating RG %s with action %s: %s", rg.Name, rg.Spec.Action, err.Error())
+			return false
+		}
+		rg = waitForRGStateToUpdate(ctx, rgName, startingTime)
+		if rg == nil {
+			log.Infof("Timed out waiting for RG %s action %s to complete", rg.Name, rg.Spec.Action)
+		}
+		log.Infof("Failover completed RG %s:\n Last Action %+v\n Last Condition %+v\nLink State %+v", rgName, rg.Status.LastAction, rg.Status.Conditions[0], rg.Status.ReplicationLinkState.State)
+	}
+	return true
+}
+
+func waitForRGStateToUpdate(ctx context.Context, rgName string, startingTime time.Time) *repv1.DellCSIReplicationGroup {
+	for i := 0; i < 40; i++ {
+		rg, err := K8sAPI.GetReplicationGroup(ctx, rgName)
+		if err != nil {
+			log.Errorf("Error reaading RG %s: %s", rgName, err.Error())
+		}
+		if rg.Status.ReplicationLinkState.LastSuccessfulUpdate.Time != startingTime {
+			return rg
+		}
+		time.Sleep(5)
+	}
+	// timed out
+	return nil
+}
+
+func getPVsInReplicationGroup(ctx context.Context, rgName string) (*v1.PersistentVolumeList, error) {
+	labelSelector := replicationDefaultDomain + replicationGroupName + "=" + rgName
+	pvsInRG, err := K8sAPI.GetPersistentVolumesWithLabels(ctx, replicationDefaultDomain+replicationGroupName)
+	if err != nil {
+		log.Infof("Unable to read PVs using label %s: %s", labelSelector, err.Error())
+		return nil, err
+	}
+	return pvsInRG, nil
 }
