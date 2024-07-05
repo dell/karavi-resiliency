@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"time"
 
 	repv1 "github.com/dell/csm-replication/api/v1"
@@ -24,6 +25,7 @@ type ReplicationGroupInfo struct {
 	RGName           string              // ReplicationGroup Name
 	PodKeysToPVNames map[string][]string // map[podkey][pvnames]
 	pvNamesInRG      []string
+	failoverMutex    sync.Mutex
 }
 
 func (cm *PodMonitorType) checkPendingPod(ctx context.Context, pod *v1.Pod) bool {
@@ -160,6 +162,7 @@ func (cm *PodMonitorType) checkPendingPod(ctx context.Context, pod *v1.Pod) bool
 
 func (cm *PodMonitorType) tryFailover(rgName string) bool {
 	var rgTarget string
+
 	if strings.HasPrefix(rgName, "replicated-") {
 		rgTarget = rgName[11:]
 	} else {
@@ -175,6 +178,13 @@ func (cm *PodMonitorType) tryFailover(rgName string) bool {
 	}
 	rginfo = rgAny.(*ReplicationGroupInfo)
 	log.Infof("tryFailover rginfo %+v", rginfo)
+
+	// Make sure there's only one failover attempt at a time.
+	if !rginfo.failoverMutex.TryLock() {
+		log.Infof("RG %s has a failover already in progress - not starting another", rgName)
+		return false
+	}
+	defer rginfo.failoverMutex.Unlock()
 
 	// Loop through the pods to see if they're in pending state
 	var npods, npending int
@@ -226,9 +236,6 @@ func (cm *PodMonitorType) tryFailover(rgName string) bool {
 	}
 	log.Infof("ATTEMPTING FAILOVER REPLICATION GROUP %s target %s pods %d pvs %d", rgName, rgTarget, npods, npvsinpods)
 	rg, err := K8sAPI.GetReplicationGroup(ctx, rgName)
-	if rg != nil {
-		log.Infof("ReplicationGroup %+v", rg)
-	}
 	if err != nil || rg == nil {
 		if err == nil {
 			err = errors.New("not found")
@@ -253,7 +260,7 @@ func (cm *PodMonitorType) tryFailover(rgName string) bool {
 		}
 		rg = waitForRGStateToUpdate(ctx, rgName, startingTime)
 		if rg == nil {
-			log.Infof("Timed out waiting for RG %s action %s to complete", rg.Name, rg.Spec.Action)
+			return false
 		}
 		log.Infof("Failover completed RG %s:\n Last Action %+v\n Last Condition %+v\nLink State %+v", rgName, rg.Status.LastAction, rg.Status.Conditions[0], rg.Status.ReplicationLinkState.State)
 	}
@@ -271,6 +278,7 @@ func waitForRGStateToUpdate(ctx context.Context, rgName string, startingTime tim
 		}
 		time.Sleep(5)
 	}
+	log.Infof("Timed out waiting for RG %s action to complete", rgName)
 	// timed out
 	return nil
 }
