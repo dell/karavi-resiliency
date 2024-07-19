@@ -50,7 +50,7 @@ func (cm *PodMonitorType) checkPendingPod(ctx context.Context, pod *v1.Pod) bool
 	// Get all the PVCs in the pod.
 	pvclist, err := K8sAPI.GetPersistentVolumeClaimsInPod(ctx, pod)
 	if err != nil {
-		log.WithFields(fields).Error("checkPendingPod Could not get PersistentVolumeClaims: %s", err)
+		log.WithFields(fields).Errorf("checkPendingPod Could not get PersistentVolumeClaims: %s", err)
 	}
 
 	// Get the PVs associated with this pod.

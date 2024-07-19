@@ -445,7 +445,14 @@ func (cm *PodMonitorType) podToArrayIDs(ctx context.Context, pod *v1.Pod) ([]str
 		storageSystem := pv.Spec.CSI.VolumeAttributes["StorageSystem"]
 		log.Infof("podToArrayIDs pv %s storageSystem %s", pv.Name, storageSystem)
 		if storageSystem == "" {
-			storageSystem = defaultArray
+			// Maybe this is a replicated volume using a remoteSystem as the ID
+			// TBD - is this convention used by other drivers than Powerflex?
+			if strings.HasPrefix("replicated-", pv.Name) {
+				storageSystem = pv.Spec.CSI.VolumeAttributes["remoteSystem"]
+			}
+			if storageSystem == "" {
+				storageSystem = defaultArray
+			}
 		}
 		if !stringInSlice(storageSystem, arrayIDs) {
 			arrayIDs = append(arrayIDs, storageSystem)
