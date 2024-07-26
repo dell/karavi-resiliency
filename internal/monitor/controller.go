@@ -810,10 +810,13 @@ var arrayConnectivity sync.Map
 func (cm *PodMonitorType) updateArrayConnectivityMap(node *v1.Node) {
 	// Loop through the node's labels, updating array entrieso
 	log.Infof("updateArrayConnectivityMap updating node %s", node.Name)
-	prefix := cm.DriverPathStr + "/"
+	prefix := cm.DriverPathStr
+	terms := strings.Split(prefix, ".")
+	connectionPrefix := terms[0] + ".connection/"
+
 	for k, v := range node.Labels {
-		if strings.HasPrefix(k, prefix) {
-			log.Infof("node.Labels k %s v %s prefix %s", k, v, prefix)
+		if strings.HasPrefix(k, connectionPrefix) {
+			log.Infof("node.Labels k %s v %s disconnectedPrefix %s", k, v, prefix)
 			parts := strings.Split(k, "/")
 			if len(parts) <= 2 {
 				continue
@@ -836,6 +839,8 @@ func (cm *PodMonitorType) updateArrayConnectivityMap(node *v1.Node) {
 				nodeConnectivity[nodeUID] = true
 				if v == "Disconnected" {
 					nodeConnectivity[nodeUID] = false
+				} else {
+					nodeConnectivity[nodeUID] = true
 				}
 				log.Infof("updateArrayConnectivityMap %s %s %s %t", arrayID, node.Name, nodeUID, nodeConnectivity[nodeUID])
 				swapped = arrayConnectivity.CompareAndSwap(arrayID, original, nodeConnectivity)
