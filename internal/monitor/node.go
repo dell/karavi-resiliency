@@ -688,8 +688,17 @@ func (pm *PodMonitorType) transitionToNewState(node *v1.Node, arrayID, newState 
 	deletedLabels := make([]string, 0)
 	replacedLabels := make(map[string]string)
 	key := pm.DriverPathStr + "/" + arrayID
-	value := newState
-	replacedLabels[key] = value
+	terms := strings.Split(key, ".")
+	connectionKey := terms[0] + ".connection/" + arrayID
+	if newState == Disconnected {
+		deletedLabels = append(deletedLabels, key)
+		replacedLabels[connectionKey] = "Disconnected"
+	} else {
+		value := newState
+		replacedLabels[key] = value
+		replacedLabels[key] = pm.DriverPathStr
+		replacedLabels[connectionKey] = "Connected"
+	}
 	err = K8sAPI.PatchNodeLabels(ctx, node.Name, replacedLabels, deletedLabels)
 	if err != nil {
 		log.Errorf("Could not patch node labels: %s: %s", node.Name, err.Error())
