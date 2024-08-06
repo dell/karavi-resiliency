@@ -57,7 +57,7 @@ const (
 	manageNodeArrayLabels                    = true
 	disasterRecoveryActions                  = false
 	// -- Below are constants for dynamic configuration --
-	defaultLogLevel                                = log.DebugLevel
+	defaultLogLevel                                = log.InfoLevel
 	podmonArrayConnectivityPollRate                = "PODMON_ARRAY_CONNECTIVITY_POLL_RATE"
 	podmonArrayConnectivityConnectionLossThreshold = "PODMON_ARRAY_CONNECTIVITY_CONNECTION_LOSS_THRESHOLD"
 	podmonControllerLogFormat                      = "PODMON_CONTROLLER_LOG_FORMAT"
