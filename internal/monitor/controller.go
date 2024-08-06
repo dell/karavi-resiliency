@@ -182,11 +182,13 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 			}
 		}
 
-	} else {
+	}
+	// Try a failover if applicable
+	if podHasFailoverLabel(pod) {
 		// no Node association for podready, initialized, _ := podStatus(pod.Status.Conditions)
-		_, _, pending := podStatus(pod.Status.Conditions)
-		if pending {
-			cm.checkPendingPod(ctx, pod)
+		ready, initialized, _ := podStatus(pod.Status.Conditions)
+		if initialized && !ready {
+			cm.checkReplicatedPod(ctx, pod)
 		}
 	}
 	return nil
@@ -780,6 +782,7 @@ func (cm *PodMonitorType) controllerModeDriverPodHandler(pod *v1.Pod, eventType 
 }
 
 // podStatus determine pod status. Returns ready, initialized, pending
+// When ContainerCreating the status is ready=false, initialized=true, scheduled=true
 func podStatus(conditions []v1.PodCondition) (bool, bool, bool) {
 	ready := false
 	initialized := true

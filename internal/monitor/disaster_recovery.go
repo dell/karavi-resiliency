@@ -28,35 +28,45 @@ type ReplicationGroupInfo struct {
 	failoverMutex    sync.Mutex
 }
 
-func (cm *PodMonitorType) checkPendingPod(ctx context.Context, pod *v1.Pod) bool {
+// returns true if the pod has failover label
+func podHasFailoverLabel(pod *v1.Pod) bool {
+	return pod.Labels[failoverLabelKey] != ""
+}
+
+func (cm *PodMonitorType) checkReplicatedPod(ctx context.Context, pod *v1.Pod) bool {
 	if !FeatureDisasterRecoveryActions {
 		return false
 	}
-
 	fields := make(map[string]interface{})
 	fields["namespace"] = pod.ObjectMeta.Namespace
 	fields["pod"] = pod.ObjectMeta.Name
 	fields["reason"] = "Pod in pending state"
 
 	// Check that this pod has the failover annotation
-	if pod.Labels[failoverLabelKey] == "" {
-		log.WithFields(fields).Infof("checkPendingPod Pod does not have the %s label so cannot consider DR failover", failoverLabelKey)
+	if !podHasFailoverLabel(pod) {
+		log.WithFields(fields).Infof("checkReplicatedPod Pod does not have the %s label so cannot consider DR failover", failoverLabelKey)
+		return false
+	}
+	// Check that pod in a reasonable state
+	ready, initialized, _ := podStatus(pod.Status.Conditions)
+	if ready || !initialized {
+		log.WithFields(fields).Infof("Pod in wrong state: ready %t, initialized %t, pending %t, ready, initialized, pending")
 		return false
 	}
 
 	podkey := getPodKey(pod)
-	log.WithFields(fields).Infof("checkPendingPod Reading PVs in pod %s", podkey)
+	log.WithFields(fields).Infof("checkReplicatedPod Reading PVs in pod %s", podkey)
 
 	// Get all the PVCs in the pod.
 	pvclist, err := K8sAPI.GetPersistentVolumeClaimsInPod(ctx, pod)
 	if err != nil {
-		log.WithFields(fields).Errorf("checkPendingPod Could not get PersistentVolumeClaims: %s", err)
+		log.WithFields(fields).Errorf("checkReplicatedPod Could not get PersistentVolumeClaims: %s", err)
 	}
 
 	// Get the PVs associated with this pod.
 	pvlist, err := K8sAPI.GetPersistentVolumesInPod(ctx, pod)
 	if err != nil {
-		log.WithFields(fields).Errorf("checkPendingPod Could not get PersistentVolumes: %s", err)
+		log.WithFields(fields).Errorf("checkReplicatedPod Could not get PersistentVolumes: %s", err)
 		return false
 	}
 
@@ -100,12 +110,12 @@ func (cm *PodMonitorType) checkPendingPod(ctx context.Context, pod *v1.Pod) bool
 				log.Infof("multiple storage classes used: %s %s", storageClassName, pv.Spec.StorageClassName)
 			}
 			if name != rgName {
-				log.WithFields(fields).Infof("checkPendingPod pv %s has a different replicationGroupName label than pv %s", pv.Name, firstPVName)
+				log.WithFields(fields).Infof("checkReplicatedPod pv %s has a different replicationGroupName label than pv %s", pv.Name, firstPVName)
 				return false
 			}
 		}
 	}
-	log.WithFields(fields).Infof("checkPendingPod: rgName %s", rgName)
+	log.WithFields(fields).Infof("checkReplicatedPod: rgName %s", rgName)
 
 	// Next read the replication group
 	// Next find all the global PVs in the replication group (not just limited to this pod)
@@ -186,8 +196,8 @@ func (cm *PodMonitorType) tryFailover(rgName string) bool {
 	}
 	defer rginfo.failoverMutex.Unlock()
 
-	// Loop through the pods to see if they're in pending state
-	var npods, npending int
+	// Loop through the pods to see if they're in pending or creating state
+	var npods, npending, ncreating int
 	var npvsinpods int
 	for podkey, pvnames := range rginfo.PodKeysToPVNames {
 		namespace, name := splitPodKey(podkey)
@@ -203,12 +213,15 @@ func (cm *PodMonitorType) tryFailover(rgName string) bool {
 		if pending {
 			npending++
 		}
+		if !ready && initialized && !pending {
+			ncreating++
+		}
 		npvsinpods = npvsinpods + len(pvnames)
 	}
 	cm.RGNameToReplicationGroupInfo.Store(rgName, rginfo)
 
-	if npending != npods {
-		log.Infof("tryFailover: only %d pods are in pending state out of %d pods, cannot failover", npending, npods)
+	if (npending + ncreating) != npods {
+		log.Infof("tryFailover: only %d pods are in pending or creating state out of %d pods, cannot failover", npending, npods)
 		return false
 	}
 	// Read the volumes in the Replication Group
@@ -235,7 +248,12 @@ func (cm *PodMonitorType) tryFailover(rgName string) bool {
 		return false
 	}
 	log.Infof("ATTEMPTING FAILOVER REPLICATION GROUP %s target %s pods %d pvs %d", rgName, rgTarget, npods, npvsinpods)
-	rg, err := K8sAPI.GetReplicationGroup(ctx, rgName)
+	unplanned := true
+	rgToLoad := rgName
+	if unplanned {
+		rgToLoad = rgTarget
+	}
+	rg, err := K8sAPI.GetReplicationGroup(ctx, rgToLoad)
 	if err != nil || rg == nil {
 		if err == nil {
 			err = errors.New("not found")
@@ -245,11 +263,19 @@ func (cm *PodMonitorType) tryFailover(rgName string) bool {
 	}
 	startingTime := rg.Status.ReplicationLinkState.LastSuccessfulUpdate.Time
 
-	unplanned := false
 	if unplanned {
-		log.Info("Unplanned failover not implemented yet")
-		return false
-
+		rg.Spec.Action = ActionFailoverLocalUnplanned
+		log.Infof("Updating RG %s with action %s", rg.Name, rg.Spec.Action)
+		err := K8sAPI.UpdateReplicationGroup(ctx, rg)
+		if err != nil {
+			log.Errorf("Error updating RG %s with action %s: %s", rg.Name, rg.Spec.Action, err.Error())
+			return false
+		}
+		rg = waitForRGStateToUpdate(ctx, rg.Name, startingTime)
+		if rg == nil {
+			return false
+		}
+		log.Infof("Unplanned Failover completed RG %s:\n Last Action %+v\n Last Condition %+v\nLink State %+v", rgName, rg.Status.LastAction, rg.Status.Conditions[0], rg.Status.ReplicationLinkState.State)
 	} else {
 		rg.Spec.Action = ActionFailoverRemote
 		log.Infof("Updating RG %s with action %s", rg.Name, rg.Spec.Action)
@@ -258,25 +284,51 @@ func (cm *PodMonitorType) tryFailover(rgName string) bool {
 			log.Errorf("Error updating RG %s with action %s: %s", rg.Name, rg.Spec.Action, err.Error())
 			return false
 		}
-		rg = waitForRGStateToUpdate(ctx, rgName, startingTime)
+		rg = waitForRGStateToUpdate(ctx, rg.Name, startingTime)
 		if rg == nil {
 			return false
 		}
 		log.Infof("Failover completed RG %s:\n Last Action %+v\n Last Condition %+v\nLink State %+v", rgName, rg.Status.LastAction, rg.Status.Conditions[0], rg.Status.ReplicationLinkState.State)
+	}
+
+	// Sleep 5 seconds hoping pod state changes will show up.
+	time.Sleep(2 * time.Second)
+
+	// Look for pods that need to be deleted.
+	log.Infof("tryFailover: Looking for pods that need deletion")
+	for podkey, _ := range rginfo.PodKeysToPVNames {
+		namespace, name := splitPodKey(podkey)
+		pod, err := K8sAPI.GetPod(ctx, namespace, name)
+		if err != nil {
+			log.Infof("tryFailover: couldn't load pod %s: %s", podkey, err.Error())
+			continue
+		}
+		npods++
+		ready, _, _ := podStatus(pod.Status.Conditions)
+		if !ready {
+			log.Infof("tryFailover: deleting stuck pod %s", podkey)
+			err = K8sAPI.DeletePod(ctx, namespace, name, pod.UID, false)
+			if err != nil {
+				log.Errorf("Failover: error deleting pod %s", podkey)
+			}
+		} else {
+			log.Infof("Failover: pod %s is ready", podkey)
+		}
 	}
 	return true
 }
 
 func waitForRGStateToUpdate(ctx context.Context, rgName string, startingTime time.Time) *repv1.DellCSIReplicationGroup {
 	for i := 0; i < 40; i++ {
+		time.Sleep(5 * time.Second)
 		rg, err := K8sAPI.GetReplicationGroup(ctx, rgName)
 		if err != nil {
 			log.Errorf("Error reaading RG %s: %s", rgName, err.Error())
+			continue
 		}
 		if rg.Status.ReplicationLinkState.LastSuccessfulUpdate.Time != startingTime {
 			return rg
 		}
-		time.Sleep(5)
 	}
 	log.Infof("Timed out waiting for RG %s action to complete", rgName)
 	// timed out
