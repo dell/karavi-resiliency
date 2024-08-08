@@ -445,17 +445,18 @@ func (cm *PodMonitorType) podToArrayIDs(ctx context.Context, pod *v1.Pod) ([]str
 	}
 	for _, pv := range pvlist {
 		storageSystem := pv.Spec.CSI.VolumeAttributes["StorageSystem"]
-		log.Infof("podToArrayIDs pv %s storageSystem %s", pv.Name, storageSystem)
 		if storageSystem == "" {
 			// Maybe this is a replicated volume using a remoteSystem as the ID
 			// TBD - is this convention used by other drivers than Powerflex?
-			if strings.HasPrefix("replicated-", pv.Name) {
+			if strings.HasPrefix(pv.Name, "replicated-") {
 				storageSystem = pv.Spec.CSI.VolumeAttributes["remoteSystem"]
+				log.Infof("PV %s remoteSystem: %s", pv.Name, storageSystem)
 			}
 			if storageSystem == "" {
 				storageSystem = defaultArray
 			}
 		}
+		log.Infof("podToArrayIDs pv %s storageSystem %s", pv.Name, storageSystem)
 		if !stringInSlice(storageSystem, arrayIDs) {
 			arrayIDs = append(arrayIDs, storageSystem)
 		}
@@ -819,21 +820,20 @@ func (cm *PodMonitorType) updateArrayConnectivityMap(node *v1.Node) {
 
 	for k, v := range node.Labels {
 		if strings.HasPrefix(k, connectionPrefix) {
-			log.Infof("node.Labels k %s v %s disconnectedPrefix %s", k, v, prefix)
+			log.Infof("updateArrayConnectivityMap node.Labels k %s v %s disconnectedPrefix %s", k, v, prefix)
 			parts := strings.Split(k, "/")
-			if len(parts) <= 2 {
+			if len(parts) < 2 {
+				log.Infof("updateArrayConnectivityMap bad key: %s", k)
 				continue
 			}
 			arrayID := parts[1]
-			swapped := false
-			for !swapped {
+			{
 				data, ok := arrayConnectivity.Load(arrayID)
 				var nodeConnectivity map[string]bool
 				nodeConnectivity = make(map[string]bool)
 				if ok {
 					nodeConnectivity = data.(map[string]bool)
 				}
-				original := nodeConnectivity
 				nodeUID := cm.GetNodeUID(node.ObjectMeta.Name)
 				if nodeUID == "" {
 					log.Errorf("Could not get nodeUID: %s %s", node.Name, nodeUID)
@@ -842,19 +842,21 @@ func (cm *PodMonitorType) updateArrayConnectivityMap(node *v1.Node) {
 				nodeConnectivity[nodeUID] = true
 				if v == "Disconnected" {
 					nodeConnectivity[nodeUID] = false
+					nodeConnectivity[node.Name] = false
 				} else {
 					nodeConnectivity[nodeUID] = true
+					nodeConnectivity[node.Name] = true
 				}
-				log.Infof("updateArrayConnectivityMap %s %s %s %t", arrayID, node.Name, nodeUID, nodeConnectivity[nodeUID])
-				swapped = arrayConnectivity.CompareAndSwap(arrayID, original, nodeConnectivity)
+				log.Infof("updateArrayConnectivityMap %s %s %s connected: %t", arrayID, node.Name, nodeUID, nodeConnectivity[node.Name])
+				arrayConnectivity.Store(arrayID, nodeConnectivity)
 			}
 		}
 	}
 }
 
 // getArrayConnectivityMap returns the node connectivity map for the specified array
-// which contains a mapping of nodeUID to boolean connected. This information was determined
-// by the podmon node controller for each node.
+// which contains a mapping of nodeUID or nodeName to boolean connected.
+// This information was determined by the podmon node controller for each node.
 func (cm *PodMonitorType) getNodeConnectivityMap(arrayID string) map[string]bool {
 	value, ok := arrayConnectivity.Load(arrayID)
 	if ok {

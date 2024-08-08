@@ -73,7 +73,7 @@ func StartAPIMonitor(api k8sapi.K8sAPI, firstTimeout, retryTimeout, interval tim
 	pm := &PodMonitor
 	if FeatureManageNodeArrayLabels {
 		// go pm.startUp(api, nodeName)
-		go pm.monitorArrayConnectivity(api, nodeName, 60*time.Second)
+		go pm.monitorArrayConnectivity(api, nodeName, 30*time.Second)
 	}
 
 	fn := func() {
