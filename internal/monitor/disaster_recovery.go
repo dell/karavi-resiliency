@@ -19,6 +19,9 @@ const (
 	ActionFailoverRemote         = "FAILOVER_REMOTE"
 	ActionFailoverLocalUnplanned = "UNPLANNED_FAILOVER_LOCAL"
 	ActionReprotect              = "REPROTECT_LOCAL"
+	FailoverNodeTaint            = "failover.podmon"
+	SynchronizedState            = "SYNCHRONIZED"
+	ReplicatedPrefix             = "replicated-"
 )
 
 type ReplicationGroupInfo struct {
@@ -78,16 +81,28 @@ func (cm *PodMonitorType) checkReplicatedPod(ctx context.Context, pod *v1.Pod) b
 	// Update the ControllerPodInfo to reflect the RG
 	podInfoValue, ok := cm.PodKeyToControllerPodInfo.Load(podkey)
 	if !ok {
-		arrayIDs, _, err := cm.podToArrayIDs(ctx, pod)
-		if err != nil {
-			log.Errorf("Could not determine pod to arrayIDs: %s", err)
-		}
 		podInfoValue = &ControllerPodInfo{
-			PodKey:   podkey,
-			PodUID:   string(pod.ObjectMeta.UID),
-			ArrayIDs: arrayIDs,
+			PodKey: podkey,
+			PodUID: string(pod.ObjectMeta.UID),
 		}
 	}
+	controllerPodInfo := podInfoValue.(*ControllerPodInfo)
+	arrayIDs, _, err := cm.podToArrayIDs(ctx, pod)
+	if err != nil {
+		log.Errorf("Could not determine pod to arrayIDs: %s", err)
+	} else {
+		controllerPodInfo.ArrayIDs = arrayIDs
+	}
+	if len(arrayIDs) > 1 {
+		log.Infof("Pod uses multiple array IDs, can't handle failover")
+		return false
+	}
+	if len(arrayIDs) == 0 {
+		log.Info("Pod does not use any array IDs, can't handle failover")
+		return false
+	}
+	arrayID := arrayIDs[0]
+	log.Infof("considering pod %s UID %s arrayID %s for replication", podkey, pod.UID, arrayID)
 
 	rgName := ""
 	storageClassName := ""
@@ -145,12 +160,11 @@ func (cm *PodMonitorType) checkReplicatedPod(ctx context.Context, pod *v1.Pod) b
 	log.Infof("PVs in RG: %v", pvnamesInRG)
 
 	// Update the controller pod info structure so ready for failover
-	controllerPodInfo := podInfoValue.(*ControllerPodInfo)
 	controllerPodInfo.ReplicationGroup = rgName
 	cm.PodKeyToControllerPodInfo.Store(podkey, controllerPodInfo)
-	log.Infof("Pod %s awaiting failover of ReplicationGroup %s", podkey, rgName)
+	log.Infof("Pod %s awaiting failover of ReplicationGroup %s array ", podkey, rgName, arrayID)
 
-	// See if there is an existing ReplicationGroupInfo
+	// See if there is ane existing ReplicationGroupInfo
 	var rginfo *ReplicationGroupInfo
 	rgAny, ok := cm.RGNameToReplicationGroupInfo.Load(rgName)
 	if !ok {
@@ -166,24 +180,42 @@ func (cm *PodMonitorType) checkReplicatedPod(ctx context.Context, pod *v1.Pod) b
 	cm.RGNameToReplicationGroupInfo.Store(rgName, rginfo)
 	log.Infof("stored ReplicationGroupInfo %+v", rginfo)
 
+	// Determine if there is a problem with the array.
+	nodeConnectivity := cm.getNodeConnectivityMap(arrayID)
+	log.Infof("NodeConnectivityMap for array %s %v", arrayID, nodeConnectivity)
+	var hasConnection bool
+	var connectionEntries int
+	for key, value := range nodeConnectivity {
+		connectionEntries++
+		if value {
+			log.Infof("not initiating failover because array %s connected to node %s", arrayID, key)
+			hasConnection = true
+		}
+	}
+	if connectionEntries == 0 || hasConnection {
+		log.Infof("not initiating failover connectionEntries %d hasConnection %t", connectionEntries, hasConnection)
+		return false
+	}
+
 	cm.tryFailover((rgName))
 	return true
 }
 
 func (cm *PodMonitorType) tryFailover(rgName string) bool {
 	var rgTarget string
+	taintedNodes := make(map[string]string)
 
-	if strings.HasPrefix(rgName, "replicated-") {
+	if strings.HasPrefix(rgName, ReplicatedPrefix) {
 		rgTarget = rgName[11:]
 	} else {
-		rgTarget = "replicated-" + rgName
+		rgTarget = ReplicatedPrefix + rgName
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), MediumTimeout)
 	defer cancel()
 	var rginfo *ReplicationGroupInfo
 	rgAny, ok := cm.RGNameToReplicationGroupInfo.Load(rgName)
 	if !ok {
-		log.Infof("ReplicationGroupInfo not found: %s", rgName)
+		log.Infof("tryFailover: ReplicationGroupInfo not found: %s", rgName)
 		return false
 	}
 	rginfo = rgAny.(*ReplicationGroupInfo)
@@ -191,10 +223,37 @@ func (cm *PodMonitorType) tryFailover(rgName string) bool {
 
 	// Make sure there's only one failover attempt at a time.
 	if !rginfo.failoverMutex.TryLock() {
-		log.Infof("RG %s has a failover already in progress - not starting another", rgName)
+		log.Infof("tryFailover: RG %s has a failover already in progress - not starting another", rgName)
 		return false
 	}
 	defer rginfo.failoverMutex.Unlock()
+
+	// Check the the replication groups link state is SYNCHRONIZED
+	name1 := rgName
+	if strings.HasPrefix(name1, ReplicatedPrefix) {
+		name1 = rgName[len(ReplicatedPrefix):]
+	}
+	rg1, err := K8sAPI.GetReplicationGroup(ctx, name1)
+	if err != nil {
+		log.Errorf("tryFailover: Couldn't read source RG1 %s: %s", name1, err.Error())
+		return false
+	}
+	linkState := rg1.Status.ReplicationLinkState.State
+	if linkState != SynchronizedState {
+		log.Errorf("tryFailover: RG1 %s link state not %s", name1, SynchronizedState)
+		return false
+	}
+	name2 := ReplicatedPrefix + name1
+	rg2, err := K8sAPI.GetReplicationGroup(ctx, name2)
+	if err != nil {
+		log.Errorf("tryFailover: Couldn't read source RG2 %s: %s", name2, err.Error())
+		return false
+	}
+	linkState = rg2.Status.ReplicationLinkState.State
+	if linkState != SynchronizedState {
+		log.Errorf("tryFailover: RG2 %s link state not %s", name2, SynchronizedState)
+		return false
+	}
 
 	// Loop through the pods to see if they're in pending or creating state
 	var npods, npending, ncreating int
@@ -208,13 +267,25 @@ func (cm *PodMonitorType) tryFailover(rgName string) bool {
 			continue
 		}
 		npods++
+		// taint the node the pod is on
+		nodeName := pod.Spec.NodeName
+		if nodeName != "" && taintedNodes[nodeName] == "" {
+			taintNode(pod.Spec.NodeName, FailoverNodeTaint, false)
+			if err == nil {
+				log.Infof("tryFailover: tained node %s for pod %s", nodeName, podkey)
+				taintedNodes[nodeName] = podkey
+			}
+
+		}
 		ready, initialized, pending := podStatus(pod.Status.Conditions)
 		log.Infof("tryFailover: pod %s ready %t initialized %t pending %t", podkey, ready, initialized, pending)
 		if pending {
 			npending++
 		}
-		if !ready && initialized && !pending {
+		if initialized && !pending {
 			ncreating++
+			log.Infof("tryFailover: deleting pod %s", podkey)
+			K8sAPI.DeletePod(ctx, pod.Namespace, pod.Name, pod.UID, false)
 		}
 		npvsinpods = npvsinpods + len(pvnames)
 	}
@@ -232,7 +303,7 @@ func (cm *PodMonitorType) tryFailover(rgName string) bool {
 	// We only want to count the regular PVs or the replicated PVs, whichever is higher.
 	var rgpvscount, rgreplicatedpvscount int
 	for _, pv := range pvsInRG.Items {
-		if strings.HasPrefix(pv.Name, "replicated-") {
+		if strings.HasPrefix(pv.Name, ReplicatedPrefix) {
 			rgreplicatedpvscount++
 		} else {
 			rgpvscount++
@@ -272,9 +343,6 @@ func (cm *PodMonitorType) tryFailover(rgName string) bool {
 			return false
 		}
 		rg = waitForRGStateToUpdate(ctx, rg.Name, startingTime)
-		if rg == nil {
-			return false
-		}
 		log.Infof("Unplanned Failover completed RG %s:\n Last Action %+v\n Last Condition %+v\nLink State %+v", rgName, rg.Status.LastAction, rg.Status.Conditions[0], rg.Status.ReplicationLinkState.State)
 	} else {
 		rg.Spec.Action = ActionFailoverRemote
@@ -285,54 +353,53 @@ func (cm *PodMonitorType) tryFailover(rgName string) bool {
 			return false
 		}
 		rg = waitForRGStateToUpdate(ctx, rg.Name, startingTime)
-		if rg == nil {
-			return false
-		}
 		log.Infof("Failover completed RG %s:\n Last Action %+v\n Last Condition %+v\nLink State %+v", rgName, rg.Status.LastAction, rg.Status.Conditions[0], rg.Status.ReplicationLinkState.State)
 	}
 
-	// Sleep 5 seconds hoping pod state changes will show up.
-	time.Sleep(2 * time.Second)
-
 	// Look for pods that need to be deleted.
-	log.Infof("tryFailover: Looking for pods that need deletion")
-	for podkey, _ := range rginfo.PodKeysToPVNames {
-		namespace, name := splitPodKey(podkey)
-		pod, err := K8sAPI.GetPod(ctx, namespace, name)
-		if err != nil {
-			log.Infof("tryFailover: couldn't load pod %s: %s", podkey, err.Error())
-			continue
-		}
-		npods++
-		ready, _, _ := podStatus(pod.Status.Conditions)
-		if !ready {
-			log.Infof("tryFailover: deleting stuck pod %s", podkey)
-			err = K8sAPI.DeletePod(ctx, namespace, name, pod.UID, false)
-			if err != nil {
-				log.Errorf("Failover: error deleting pod %s", podkey)
-			}
-		} else {
-			log.Infof("Failover: pod %s is ready", podkey)
-		}
+	//log.Infof("tryFailover: Looking for pods that need deletion")
+	// for podkey, _ := range rginfo.PodKeysToPVNames {
+	// 	namespace, name := splitPodKey(podkey)
+	// 	pod, err := K8sAPI.GetPod(ctx, namespace, name)
+	// 	if err != nil {
+	// 		log.Infof("tryFailover: couldn't load pod %s: %s", podkey, err.Error())
+	// 		continue
+	// 	}
+	// 	npods++
+	// 	ready, _, _ := podStatus(pod.Status.Conditions)
+	// 	if !ready {
+	// 		log.Infof("tryFailover: deleting stuck pod %s", podkey)
+	// 		err = K8sAPI.DeletePod(ctx, namespace, name, pod.UID, false)
+	// 		if err != nil {
+	// 			log.Errorf("Failover: error deleting pod %s", podkey)
+	// 		}
+	// 	} else {
+	// 		log.Infof("Failover: pod %s is ready", podkey)
+	// 	}
+	// }
+	for tainted, _ := range taintedNodes {
+		log.Infof("tryFailover: removing taint %s", tainted)
+		taintNode(tainted, FailoverNodeTaint, true)
 	}
 	return true
 }
 
 func waitForRGStateToUpdate(ctx context.Context, rgName string, startingTime time.Time) *repv1.DellCSIReplicationGroup {
-	for i := 0; i < 40; i++ {
+	var rg *repv1.DellCSIReplicationGroup
+	for i := 0; i < 5; i++ {
 		time.Sleep(5 * time.Second)
 		rg, err := K8sAPI.GetReplicationGroup(ctx, rgName)
 		if err != nil {
 			log.Errorf("Error reaading RG %s: %s", rgName, err.Error())
 			continue
 		}
-		if rg.Status.ReplicationLinkState.LastSuccessfulUpdate.Time != startingTime {
+		log.Infof("waitForRGStateToUpdate: %d %s:", i, rg.Status.LastAction.Condition)
+		if strings.Contains(rg.Status.LastAction.Condition, "FAILOVER") {
 			return rg
 		}
 	}
 	log.Infof("Timed out waiting for RG %s action to complete", rgName)
-	// timed out
-	return nil
+	return rg
 }
 
 func getPVsInReplicationGroup(ctx context.Context, rgName string) (*v1.PersistentVolumeList, error) {
