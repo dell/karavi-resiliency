@@ -186,8 +186,9 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 	// Try a failover if applicable
 	if podHasFailoverLabel(pod) {
 		// no Node association for podready, initialized, _ := podStatus(pod.Status.Conditions)
-		ready, initialized, _ := podStatus(pod.Status.Conditions)
-		if initialized && !ready {
+		_, initialized, _ := podStatus(pod.Status.Conditions)
+		// if initialized && !ready
+		if initialized {
 			cm.checkReplicatedPod(ctx, pod)
 		}
 	}
@@ -828,6 +829,7 @@ func (cm *PodMonitorType) updateArrayConnectivityMap(node *v1.Node) {
 			}
 			arrayID := parts[1]
 			{
+				var callCheckReprotect bool
 				data, ok := arrayConnectivity.Load(arrayID)
 				var nodeConnectivity map[string]bool
 				nodeConnectivity = make(map[string]bool)
@@ -846,9 +848,13 @@ func (cm *PodMonitorType) updateArrayConnectivityMap(node *v1.Node) {
 				} else {
 					nodeConnectivity[nodeUID] = true
 					nodeConnectivity[node.Name] = true
+					callCheckReprotect = true
 				}
 				log.Infof("updateArrayConnectivityMap %s %s %s connected: %t", arrayID, node.Name, nodeUID, nodeConnectivity[node.Name])
 				arrayConnectivity.Store(arrayID, nodeConnectivity)
+				if callCheckReprotect {
+					cm.checkReprotect(arrayID)
+				}
 			}
 		}
 	}
@@ -873,4 +879,15 @@ func stringInSlice(search string, slice []string) bool {
 		}
 	}
 	return false
+}
+
+// ifAllMapEntries checks all entries in checkmap to see if their values match value.
+// If so, returns true, if not, returns false.
+func ifAllMapEntries(checkMap map[string]bool, value bool) bool {
+	for _, v := range checkMap {
+		if v != value {
+			return false
+		}
+	}
+	return true
 }
