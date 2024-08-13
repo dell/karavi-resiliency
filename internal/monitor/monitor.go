@@ -59,6 +59,8 @@ var (
 	MediumTimeout = 30 * time.Second
 	// LongTimeout is a longer wait-backoff period
 	LongTimeout = 180 * time.Second
+	// Failover time - the time to do a failover
+	FailoverTimeout = 5 * time.Minute
 	// PendingRetryTime time between retry of certain CSI calls
 	PendingRetryTime = 30 * time.Second
 	// NodeAPIInterval time between NodeAPI checks

@@ -49,6 +49,9 @@ var APICheckFirstTryTimeout = MediumTimeout
 // APIMonitorWait a function reference that can control the API monitor loop
 var APIMonitorWait = internalAPIMonitorWait
 
+// Connectivity Poll Rate
+var ConnectivityPollRate = 30 * time.Second
+
 // TaintCountDelay delays pod cleanup until at least TaintCountDelay iterations of the apiMonitorLoop have executed,
 // giving the node time to stabalize (e.g. kubelet reconcile with API server) before initiating cleanup.
 var TaintCountDelay = 4
@@ -73,7 +76,7 @@ func StartAPIMonitor(api k8sapi.K8sAPI, firstTimeout, retryTimeout, interval tim
 	pm := &PodMonitor
 	if FeatureManageNodeArrayLabels {
 		// go pm.startUp(api, nodeName)
-		go pm.monitorArrayConnectivity(api, nodeName, 30*time.Second)
+		go pm.monitorArrayConnectivity(api, nodeName, ConnectivityPollRate)
 	}
 
 	fn := func() {
@@ -588,9 +591,8 @@ func (pm *PodMonitorType) callNodeUnstageVolume(fields map[string]interface{}, t
 func (pm *PodMonitorType) monitorArrayConnectivity(api k8sapi.K8sAPI, nodeName string, pollRate time.Duration) {
 	arrays := make(map[string]string)
 	// Wait 5 minutes before beginning to give the driver a chance to settle in
-	log.Info("featureManageNodeArrayLables is enabled")
-	log.Debug("waiting to start monitorArrayConnectivity")
-	time.Sleep(3 * time.Minute)
+	time.Sleep(1 * time.Minute)
+	log.Info("featureManageNodeArrayLabels is enabled: monitoring array connectivity")
 	// Initially assume all the arrays are connected
 	var connectedStatus sync.Map
 	// Polling loop to determine if the arrays are connected
@@ -658,7 +660,7 @@ func (pm *PodMonitorType) getArrayConnectivity(csiNodeID, arrayID string) (bool,
 		NodeId:  csiNodeID,
 		ArrayId: arrayID,
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), ConnectivityPollRate)
 	defer cancel()
 	resp, err := CSIApi.ValidateVolumeHostConnectivity(ctx, req)
 	if err != nil {
