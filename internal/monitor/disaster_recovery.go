@@ -19,7 +19,6 @@ const (
 	ActionFailoverRemote         = "FAILOVER_REMOTE"
 	ActionFailoverLocalUnplanned = "UNPLANNED_FAILOVER_LOCAL"
 	ActionReprotect              = "REPROTECT_LOCAL"
-	FailoverNodeTaint            = "failover.podmon"
 	SynchronizedState            = "SYNCHRONIZED"
 	ReplicatedPrefix             = "replicated-"
 )
@@ -275,8 +274,9 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 	}
 
 	// Loop through the nodes tainting them
+	failoverTaint := getFailoverTaint(rgName)
 	for _, nodeName := range nodeList {
-		tainterr := taintNode(nodeName, FailoverNodeTaint, false)
+		tainterr := taintNode(nodeName, failoverTaint, false)
 		if tainterr == nil {
 			log.Infof("tryFailover: tained node %s", nodeName)
 			taintedNodes[nodeName] = nodeName
@@ -287,7 +287,7 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 	f1 := func(podkey string, pvnames []string) bool {
 		nodeName, _, done := killAPodToRemapPVCs(ctx, podkey, toReplicated)
 		if nodeName != "" && taintedNodes[nodeName] == "" {
-			taintNode(nodeName, FailoverNodeTaint, false)
+			taintNode(nodeName, failoverTaint, false)
 			if err == nil {
 				log.Infof("tryFailover: tained node %s for pod %s", nodeName, podkey)
 				taintedNodes[nodeName] = podkey
@@ -301,11 +301,6 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 		go f1(podkey, pvnames)
 		npods++
 	}
-
-	// if (npending + ncreating) != npods {
-	// 	log.Infof("tryFailover: aborint: only %d pods are in pending or creating state out of %d pods, cannot failover", npending, npods)
-	// 	return false
-	// }
 
 	// Read the volumes in the Replication Group
 	pvsInRG, err := getPVsInReplicationGroup(ctx, rgName)
@@ -342,7 +337,7 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 			err = errors.New("not found")
 		}
 		log.Errorf("tryFailover: aborting: Could not get ReplicationGrop %s: %s", rgName, err)
-		untaintNodes(taintedNodes)
+		untaintNodes(taintedNodes, failoverTaint)
 		return false
 	}
 
@@ -353,7 +348,7 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 		err := K8sAPI.UpdateReplicationGroup(ctx, rg)
 		if err != nil {
 			log.Errorf("tryFailover: aborting: Error updating RG %s with action %s: %s", rg.Name, rg.Spec.Action, err.Error())
-			untaintNodes(taintedNodes)
+			untaintNodes(taintedNodes, failoverTaint)
 			return false
 		}
 		rg = waitForRGStateToUpdate(ctx, rg.Name, "FAILOVER")
@@ -364,7 +359,7 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 		err := K8sAPI.UpdateReplicationGroup(ctx, rg)
 		if err != nil {
 			log.Errorf("tryFailover: aborting: Error updating RG %s with action %s: %s", rg.Name, rg.Spec.Action, err.Error())
-			untaintNodes(taintedNodes)
+			untaintNodes(taintedNodes, failoverTaint)
 			return false
 		}
 		rg = waitForRGStateToUpdate(ctx, rg.Name, "FAILOVER")
@@ -405,11 +400,22 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 	}
 
 	// untaint the nodes allow pods to be created
-	untaintNodes(taintedNodes)
+	untaintNodes(taintedNodes, failoverTaint)
 
 	// Set awaitingReprotect on the RGInfo and save it.
 	rginfo.awaitingReprotect = true
 	cm.RGNameToReplicationGroupInfo.Store(rginfo.RGName, rginfo)
+
+	// Create an event for the replication
+	// // This code will not work on the RG custom resource without an event recorder
+	// eventRG := rg1
+	// if rg1.Name != rgName {
+	// 	eventRG = rg2
+	// }
+	// if err = K8sAPI.CreateEvent(podmon, eventRG, k8sapi.EventTypeWarning, "Replication failover",
+	// 	"replication failed over from RG %s to %s", rgName, rgTarget); err != nil {
+	// 	log.Errorf("Error reporting replication failover event: %s %s: %s", rgName, rgTarget, err.Error())
+	// }
 
 	return true
 }
@@ -457,11 +463,19 @@ func killAPodToRemapPVCs(ctx context.Context, podkey string, toReplicated bool) 
 }
 
 // untaintNodes untaints s list of nodes.
-func untaintNodes(taintedNodeNames map[string]string) {
+func untaintNodes(taintedNodeNames map[string]string, failoverTaint string) {
 	for tainted, _ := range taintedNodeNames {
 		log.Infof("tryFailover: removing taint %s", tainted)
-		go taintNode(tainted, FailoverNodeTaint, true)
+		go taintNode(tainted, failoverTaint, true)
 	}
+}
+
+func getFailoverTaint(rgName string) string {
+	parts := strings.Split(rgName, "-")
+	if parts[0] == "replicated" {
+		return "failover." + parts[0] + "-" + parts[1] + "-" + parts[2] + "-" + parts[3]
+	}
+	return "failover." + parts[0] + "-" + parts[1] + "-" + parts[2] + "-" + parts[3]
 }
 
 func waitForRGStateToUpdate(ctx context.Context, rgName string, condition string) *repv1.DellCSIReplicationGroup {

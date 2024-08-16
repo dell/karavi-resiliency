@@ -102,7 +102,7 @@ func main() {
 		FullTimestamp:   true,
 		TimestampFormat: time.RFC1123,
 	})
-	log.Infof("Desperation 2")
+	log.SetLevel(defaultLogLevel)
 	getArgs()
 
 	if err := setupDynamicConfigUpdate(); err != nil {
