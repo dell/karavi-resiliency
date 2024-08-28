@@ -31,7 +31,8 @@ type ReplicationGroupInfo struct {
 	PodKeysToPVNames  map[string][]string // map[podkey][pvnames]
 	pvNamesInRG       []string
 	failoverMutex     sync.Mutex
-	awaitingReprotect bool // Have failed over - need replicationGroupInfoMutexd to reprotecg
+	awaitingReprotect bool   // Have failed over - need replicationGroupInfoMutexd to reprotecg
+	arrayID           string // arrayID of the array the PVs belong to
 }
 
 // returns true if the pod has failover label
@@ -181,6 +182,7 @@ func (cm *PodMonitorType) checkReplicatedPod(ctx context.Context, pod *v1.Pod) b
 	}
 	rginfo.PodKeysToPVNames[podkey] = replicatedPVNames
 	rginfo.pvNamesInRG = pvnamesInRG
+	rginfo.arrayID = arrayID
 	cm.RGNameToReplicationGroupInfo.Store(rgName, rginfo)
 	replicationGroupInfoMutex.Unlock()
 	log.Infof("stored ReplicationGroupInfo %+v", rginfo)
@@ -526,8 +528,24 @@ func (cm *PodMonitorType) reprotectReplicationGroup(key any, value any) bool {
 		log.Infof("RG %s not awaitingReprotect", rgName)
 		return true
 	}
+	// Check that the array that reconnected matches our rginfo
+	nodeConnectivity := cm.getNodeConnectivityMap(rginfo.arrayID)
+	var connected bool
+	for _, v := range nodeConnectivity {
+		if v {
+			connected = true
+		}
+	}
+	if !connected {
+		return true
+	}
+
 	// Clear the awaitingReprotect flag, we get one shot do do it
 	rginfo.awaitingReprotect = false
+
+	// Remove the volume attachments
+	go cm.removeVolumeAttachmentsForPVs(ctx, rginfo)
+
 	cm.RGNameToReplicationGroupInfo.Store(rgName, rginfo)
 	rgPairName := getRGPairName(rgName)
 	// Initiate a reprotect
@@ -559,6 +577,35 @@ func (cm *PodMonitorType) reprotectReplicationGroup(key any, value any) bool {
 
 	// Must always return true
 	return true
+}
+
+func (cm *PodMonitorType) removeVolumeAttachmentsForPVs(ctx context.Context, rginfo *ReplicationGroupInfo) {
+	hasReplicatedPrefix := strings.HasPrefix(rginfo.RGName, ReplicatedPrefix)
+	pvnames := make([]string, 0)
+	for _, pvname := range rginfo.pvNamesInRG {
+		hasPrefix := strings.HasPrefix(pvname, ReplicatedPrefix)
+		if hasReplicatedPrefix == hasPrefix {
+			pvnames = append(pvnames, pvname)
+		}
+	}
+	log.Infof("removing the following volumeattachments for rg %s: %v", rginfo.RGName, pvnames)
+	volumeAttachmentsList, err := K8sAPI.GetVolumeAttachments(ctx)
+	if err != nil {
+		log.Errorf("Could not read VolumeAttachments for cleanup during replication reprotect")
+		return
+	}
+	for _, va := range volumeAttachmentsList.Items {
+		pvName := *va.Spec.Source.PersistentVolumeName
+		if !stringInSlice(pvName, pvnames) {
+			continue
+		}
+		err = K8sAPI.DeleteVolumeAttachment(ctx, va.Name)
+		if err != nil {
+			log.Errorf("Error deleting volumeattachment %s: %s", va.Name, err.Error())
+		} else {
+			log.Infof("Deleted volumeattachment %s for replicated volume", va.Name)
+		}
+	}
 }
 
 // getRGPairName takes an RG name and returns the name of the paired RG.
