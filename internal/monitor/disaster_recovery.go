@@ -35,6 +35,10 @@ type ReplicationGroupInfo struct {
 	arrayID           string // arrayID of the array the PVs belong to
 }
 
+func logReplicationGroupInfo(place string, rginfo *ReplicationGroupInfo) {
+	log.Infof("%s: RGINFO RGName %s\n pvNamesInRG %v\n awaitingReprotect %t arrayID %s", place, rginfo.RGName, rginfo.pvNamesInRG, rginfo.awaitingReprotect, rginfo.arrayID)
+}
+
 // returns true if the pod has failover label
 func podHasFailoverLabel(pod *v1.Pod) bool {
 	return pod.Labels[failoverLabelKey] != ""
@@ -185,7 +189,8 @@ func (cm *PodMonitorType) checkReplicatedPod(ctx context.Context, pod *v1.Pod) b
 	rginfo.arrayID = arrayID
 	cm.RGNameToReplicationGroupInfo.Store(rgName, rginfo)
 	replicationGroupInfoMutex.Unlock()
-	log.Infof("stored ReplicationGroupInfo %+v", rginfo)
+	//log.Infof("stored ReplicationGroupInfo %+v", rginfo)
+	logReplicationGroupInfo("stored ReplicationGroupInfo", rginfo)
 
 	// If pod is ready don't trigger a failover.
 	if ready {
@@ -239,7 +244,8 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 		return false
 	}
 	rginfo = rgAny.(*ReplicationGroupInfo)
-	log.Infof("tryFailover rginfo %+v", rginfo)
+	// log.Infof("tryFailover rginfo %+v", rginfo)
+	logReplicationGroupInfo("tryFailover", rginfo)
 
 	// Make sure there's only one failover attempt at a time.
 	if !rginfo.failoverMutex.TryLock() {
@@ -305,22 +311,22 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 	}
 
 	// Read the volumes in the Replication Group
-	pvsInRG, err := getPVsInReplicationGroup(ctx, rgName)
-	if err != nil {
-		return false
-	}
-	// We only want to count the regular PVs or the replicated PVs, whichever is higher.
-	var rgpvscount, rgreplicatedpvscount int
-	for _, pv := range pvsInRG.Items {
-		if strings.HasPrefix(pv.Name, ReplicatedPrefix) {
-			rgreplicatedpvscount++
-		} else {
-			rgpvscount++
-		}
-	}
-	if rgreplicatedpvscount > rgpvscount {
-		rgpvscount = rgreplicatedpvscount
-	}
+	// pvsInRG, err := getPVsInReplicationGroup(ctx, rgName)
+	// if err != nil {
+	// 	return false
+	// }
+	// // // We only want to count the regular PVs or the replicated PVs, whichever is higher.
+	// var rgpvscount, rgreplicatedpvscount int
+	// for _, pv := range pvsInRG.Items {
+	// 	if strings.HasPrefix(pv.Name, ReplicatedPrefix) {
+	// 		rgreplicatedpvscount++
+	// 	} else {
+	// 		rgpvscount++
+	// 	}
+	// }
+	// if rgreplicatedpvscount > rgpvscount {
+	// 	rgpvscount = rgreplicatedpvscount
+	// }
 	// If the number of PVs in the replication group not equal to the number
 	// of PVs we know about from the pods, we cannot fail over.
 	// if rgpvscount != npvsinpods {
@@ -353,8 +359,8 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 			untaintNodes(taintedNodes, failoverTaint)
 			return false
 		}
-		rg = waitForRGStateToUpdate(ctx, rg.Name, "FAILOVER")
-		log.Infof("Unplanned Failover completed RG %s:\n Last Action %+v\n Last Condition %+v\nLink State %+v", rgName, rg.Status.LastAction, rg.Status.Conditions[0], rg.Status.ReplicationLinkState.State)
+		// rg = waitForRGStateToUpdate(ctx, rg.Name, "FAILOVER")
+		// log.Infof("Unplanned Failover completed RG %s:\n Last Action %+v\n Last Condition %+v\nLink State %+v", rgName, rg.Status.LastAction, rg.Status.Conditions[0], rg.Status.ReplicationLinkState.State)
 	} else {
 		rg.Spec.Action = ActionFailoverRemote
 		log.Infof("Updating RG %s with action %s", rg.Name, rg.Spec.Action)
@@ -364,10 +370,10 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 			untaintNodes(taintedNodes, failoverTaint)
 			return false
 		}
-		rg = waitForRGStateToUpdate(ctx, rg.Name, "FAILOVER")
-		log.Infof("Failover completed RG %s:\n Last Action %+v\n Last Condition %+v\nLink State %+v", rgName, rg.Status.LastAction, rg.Status.Conditions[0], rg.Status.ReplicationLinkState.State)
+		// rg = waitForRGStateToUpdate(ctx, rg.Name, "FAILOVER")
+		// log.Infof("Failover completed RG %s:\n Last Action %+v\n Last Condition %+v\nLink State %+v", rgName, rg.Status.LastAction, rg.Status.Conditions[0], rg.Status.ReplicationLinkState.State)
 	}
-	log.Infof("failover time: %v", time.Now().Sub(startingTime))
+	// log.Infof("failover time: %v", time.Now().Sub(startingTime))
 
 	// Set up a channel to indicate each pod has completed or timedout.
 	npods = len(rginfo.PodKeysToPVNames)
@@ -377,7 +383,7 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 	// Loop through the pods to see if they're in pending or creating state
 	f2 := func(podkey string) bool {
 		var done bool
-		for i := 0; i < 10; i++ {
+		for i := 0; i < 120; i++ {
 			_, _, done = killAPodToRemapPVCs(ctx, podkey, toReplicated)
 			if done {
 				log.Infof("tryFailover: pod %s done", podkey)
@@ -400,6 +406,11 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 		done := <-donechan
 		log.Infof("done %d %t", i, done)
 	}
+
+	// The failover will only complete after the PVs are remapped?
+	rg = waitForRGStateToUpdate(ctx, rg.Name, "FAILOVER")
+	log.Infof("Unplanned Failover completed RG %s:\n Last Action %+v\n Last Condition %+v\nLink State %+v", rgName, rg.Status.LastAction, rg.Status.Conditions[0], rg.Status.ReplicationLinkState.State)
+	log.Infof("failover time: %v", time.Now().Sub(startingTime))
 
 	// untaint the nodes allow pods to be created
 	untaintNodes(taintedNodes, failoverTaint)
@@ -439,28 +450,31 @@ func killAPodToRemapPVCs(ctx context.Context, podkey string, toReplicated bool) 
 		return pod.Spec.NodeName, 0, false
 	}
 
+	done := true
+	for _, pvc := range pvclist {
+		pvHasPrefix := strings.HasPrefix(pvc.Spec.VolumeName, ReplicatedPrefix)
+		if pvHasPrefix != toReplicated {
+			done = false
+		}
+		log.Infof("VolumeName %s done %t", pvc.Spec.VolumeName, done)
+	}
+	if done {
+		log.Infof("killAPodToRemapPVcs: pod %s all pvcs remapped", podkey)
+		return pod.Spec.NodeName, len(pvclist), done
+	}
+
 	ready, initialized, pending := podStatus(pod.Status.Conditions)
-	log.Infof("killAPodToRemapPVCs: pod %s ready %t initialized %t pending %t", podkey, ready, initialized, pending)
+	log.Debugf("killAPodToRemapPVCs: pod %s ready %t initialized %t pending %t", podkey, ready, initialized, pending)
 
 	// Kill the pod
 	if initialized && !pending {
 		log.Infof("killAPodToRemapPVCs: force deleting pod %s", podkey)
 		K8sAPI.DeletePod(ctx, pod.Namespace, pod.Name, pod.UID, true)
 	} else {
-		log.Infof("killAPodToRemapPVCs: not deleting pod %s because it is not initialized or is already pending", podkey)
+		log.Debugf("killAPodToRemapPVCs: not deleting pod %s because it is not initialized or is already pending", podkey)
 		return pod.Spec.NodeName, len(pvclist), false
 	}
 	time.Sleep(3 * time.Second)
-
-	done := true
-	for _, pvc := range pvclist {
-		pvcHasPrefix := strings.HasPrefix(pvc.Name, ReplicatedPrefix)
-		if pvcHasPrefix != toReplicated {
-			done = false
-		}
-
-	}
-	log.Infof("killAPodToRemapPVCs: pods %s done %t", podkey, done)
 	return pod.Spec.NodeName, len(pvclist), done
 }
 
