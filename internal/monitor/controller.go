@@ -758,10 +758,13 @@ func (cm *PodMonitorType) controllerModeDriverPodHandler(pod *v1.Pod, eventType 
 			ready, initialized, _ := podStatus(pod.Status.Conditions)
 
 			if !ready {
-				log.Infof("Taint node %s with %s driver node pod down", node.ObjectMeta.Name, PodmonDriverPodTaintKey)
-				err := taintNode(node.ObjectMeta.Name, PodmonDriverPodTaintKey, false)
-				if err != nil {
-					log.Errorf("Unable to taint node: %s: %s", node.ObjectMeta.Name, err.Error())
+				log.Infof("Skipping Taint node %s with %s driver node pod down", node.ObjectMeta.Name, PodmonDriverPodTaintKey)
+				if false {
+					log.Infof("Taint node %s with %s driver node pod down", node.ObjectMeta.Name, PodmonDriverPodTaintKey)
+					err := taintNode(node.ObjectMeta.Name, PodmonDriverPodTaintKey, false)
+					if err != nil {
+						log.Errorf("Unable to taint node: %s: %s", node.ObjectMeta.Name, err.Error())
+					}
 				}
 			} else {
 				hasTaint := nodeHasTaint(node, PodmonDriverPodTaintKey, v1.TaintEffectNoSchedule)
