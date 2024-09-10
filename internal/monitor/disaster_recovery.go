@@ -487,10 +487,10 @@ func untaintNodes(taintedNodeNames map[string]string, failoverTaint string) {
 }
 
 func getFailoverTaint(rgName string) string {
-	parts := strings.Split(rgName, "-")
-	if parts[0] == "replicated" {
-		return "failover." + parts[0] + "-" + parts[1] + "-" + parts[2] + "-" + parts[3]
+	if strings.HasPrefix(rgName, ReplicatedPrefix) {
+		rgName = rgName[len(ReplicatedPrefix):]
 	}
+	parts := strings.Split(rgName, "-")
 	return "failover." + parts[0] + "-" + parts[1] + "-" + parts[2] + "-" + parts[3]
 }
 
@@ -520,6 +520,40 @@ func getPVsInReplicationGroup(ctx context.Context, rgName string) (*v1.Persisten
 		return nil, err
 	}
 	return pvsInRG, nil
+}
+
+func (cm *PodMonitorType) checkFailover(arrayID string) {
+	f := func(key any, value any) bool {
+		rgName := key.(string)
+		rginfo := value.(*ReplicationGroupInfo)
+		if rginfo.awaitingReprotect {
+			// if awaitingReprotect we have already failed over
+			return true
+		}
+		if rginfo.arrayID == arrayID {
+			logReplicationGroupInfo("checkFailover called", rginfo)
+			// Determine if there is a problem with the array.
+			nodeList := make([]string, 0)
+			nodeConnectivity := cm.getNodeConnectivityMap(arrayID)
+			log.Infof("checkReplicatedPod: NodeConnectivityMap for array %s %v", arrayID, nodeConnectivity)
+			var hasConnection bool
+			for key, value := range nodeConnectivity {
+				nodeList = append(nodeList, key)
+				if value {
+					log.Infof("checkReplicatedPod: not initiating failover because array %s connected to node %s", arrayID, key)
+					hasConnection = true
+				}
+			}
+			if !hasConnection {
+				log.Infof("checkFailover: initiating failover rg %s", rgName)
+				cm.tryFailover(rgName, nodeList)
+			} else {
+				log.Infof("checkFailover: array %s had connection", arrayID)
+			}
+		}
+		return true
+	}
+	cm.RGNameToReplicationGroupInfo.Range(f)
 }
 
 // Check Reprotect scans all the saved RGs calling checkReprotectReplicationGroup.

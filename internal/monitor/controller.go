@@ -832,7 +832,7 @@ func (cm *PodMonitorType) updateArrayConnectivityMap(node *v1.Node) {
 			}
 			arrayID := parts[1]
 			{
-				var callCheckReprotect bool
+				var callCheckReprotect, callCheckFailover bool
 				data, ok := arrayConnectivity.Load(arrayID)
 				var nodeConnectivity map[string]bool
 				nodeConnectivity = make(map[string]bool)
@@ -848,6 +848,7 @@ func (cm *PodMonitorType) updateArrayConnectivityMap(node *v1.Node) {
 				if v == "Disconnected" {
 					nodeConnectivity[nodeUID] = false
 					nodeConnectivity[node.Name] = false
+					callCheckFailover = true
 				} else {
 					nodeConnectivity[nodeUID] = true
 					nodeConnectivity[node.Name] = true
@@ -857,6 +858,9 @@ func (cm *PodMonitorType) updateArrayConnectivityMap(node *v1.Node) {
 				arrayConnectivity.Store(arrayID, nodeConnectivity)
 				if callCheckReprotect {
 					cm.checkReprotect(arrayID)
+				}
+				if callCheckFailover {
+					cm.checkFailover(arrayID)
 				}
 			}
 		}
