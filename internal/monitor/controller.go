@@ -186,9 +186,9 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 	// Try a failover if applicable
 	if podHasFailoverLabel(pod) {
 		// no Node association for podready, initialized, _ := podStatus(pod.Status.Conditions)
-		_, initialized, _ := podStatus(pod.Status.Conditions)
+		_, initialized, pending := podStatus(pod.Status.Conditions)
 		// if initialized && !ready
-		if initialized {
+		if initialized && !pending {
 			cm.checkReplicatedPod(ctx, pod)
 		}
 	}

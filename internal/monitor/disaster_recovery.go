@@ -36,7 +36,7 @@ type ReplicationGroupInfo struct {
 }
 
 func logReplicationGroupInfo(place string, rginfo *ReplicationGroupInfo) {
-	log.Infof("%s: RGINFO RGName %s\n pvNamesInRG %v\n awaitingReprotect %t arrayID %s", place, rginfo.RGName, rginfo.pvNamesInRG, rginfo.awaitingReprotect, rginfo.arrayID)
+	log.Infof("%s: RGINFO RGName %s\n pods %d pvs %d pvNamesInRG %v\n awaitingReprotect %t arrayID %s", place, rginfo.RGName, len(rginfo.PodKeysToPVNames), len(rginfo.pvNamesInRG), rginfo.pvNamesInRG, rginfo.awaitingReprotect, rginfo.arrayID)
 }
 
 // returns true if the pod has failover label
@@ -383,14 +383,14 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 	// Loop through the pods to see if they're in pending or creating state
 	f2 := func(podkey string) bool {
 		var done bool
-		for i := 0; i < 120; i++ {
+		for i := 0; i < 50; i++ {
 			_, _, done = killAPodToRemapPVCs(ctx, podkey, toReplicated)
 			if done {
 				log.Infof("tryFailover: pod %s done", podkey)
 				donechan <- done
 				return done
 			}
-			time.Sleep(1 * time.Second)
+			time.Sleep(5 * time.Second)
 		}
 		log.Infof("tryFailover: pod %s timed out", podkey)
 		donechan <- done
@@ -409,7 +409,11 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 
 	// The failover will only complete after the PVs are remapped?
 	rg = waitForRGStateToUpdate(ctx, rg.Name, "FAILOVER")
-	log.Infof("Unplanned Failover completed RG %s:\n Last Action %+v\n Last Condition %+v\nLink State %+v", rgName, rg.Status.LastAction, rg.Status.Conditions[0], rg.Status.ReplicationLinkState.State)
+	if len(rg.Status.Conditions) >= 1 {
+		log.Infof("Unplanned Failover completed RG %s:\n Last Action %+v\n Last Condition %+v\nLink State %+v", rgName, rg.Status.LastAction, rg.Status.Conditions[0], rg.Status.ReplicationLinkState.State)
+	} else {
+		log.Infof("Unplanned Failover completed RG %s:\n Last Action %+v\n no-conditions \nLink State %+v", rgName, rg.Status.LastAction, rg.Status.ReplicationLinkState.State)
+	}
 	log.Infof("failover time: %v", time.Now().Sub(startingTime))
 
 	// untaint the nodes allow pods to be created
@@ -471,10 +475,8 @@ func killAPodToRemapPVCs(ctx context.Context, podkey string, toReplicated bool) 
 		log.Infof("killAPodToRemapPVCs: force deleting pod %s", podkey)
 		K8sAPI.DeletePod(ctx, pod.Namespace, pod.Name, pod.UID, true)
 	} else {
-		log.Debugf("killAPodToRemapPVCs: not deleting pod %s because it is not initialized or is already pending", podkey)
 		return pod.Spec.NodeName, len(pvclist), false
 	}
-	time.Sleep(3 * time.Second)
 	return pod.Spec.NodeName, len(pvclist), done
 }
 
@@ -496,7 +498,7 @@ func getFailoverTaint(rgName string) string {
 
 func waitForRGStateToUpdate(ctx context.Context, rgName string, condition string) *repv1.DellCSIReplicationGroup {
 	var rg *repv1.DellCSIReplicationGroup
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 10; i++ {
 		time.Sleep(5 * time.Second)
 		rg, err := K8sAPI.GetReplicationGroup(ctx, rgName)
 		if err != nil {
@@ -621,7 +623,7 @@ func (cm *PodMonitorType) reprotectReplicationGroup(key any, value any) bool {
 
 	// Wait on the action to update
 	rg = waitForRGStateToUpdate(ctx, rg.Name, "REPROTECT")
-	log.Info("reprotectReplicationGroup %s ended with action: %s", rgName, rg.Status.LastAction.Condition)
+	log.Infof("reprotectReplicationGroup %s ended with action: %s", rgName, rg.Status.LastAction.Condition)
 
 	// Must always return true
 	return true

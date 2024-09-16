@@ -60,7 +60,7 @@ var (
 	// LongTimeout is a longer wait-backoff period
 	LongTimeout = 180 * time.Second
 	// Failover time - the time to do a failover
-	FailoverTimeout = 5 * time.Minute
+	FailoverTimeout = 10 * time.Minute
 	// PendingRetryTime time between retry of certain CSI calls
 	PendingRetryTime = 30 * time.Second
 	// NodeAPIInterval time between NodeAPI checks
@@ -198,12 +198,12 @@ func (pm *Monitor) Watch(fn WatchFunc) error {
 	for {
 		select {
 		case event, more := <-pm.Watcher.ResultChan():
-			log.Debugf("event received")
+			// TODO log.Debugf("event received")
 			if !more {
 				return fmt.Errorf("watcher disconnected")
 			}
 			if event.Object != nil {
-				log.Debugf("received object %+v", event.Object)
+				// TODO log.Debugf("received object %+v", event.Object)
 				err := fn(event.Type, event.Object)
 				if err != nil {
 					log.Error(err)
@@ -218,7 +218,7 @@ func (pm *Monitor) Watch(fn WatchFunc) error {
 }
 
 func podMonitorHandler(eventType watch.EventType, object interface{}) error {
-	log.Debugf("podMonitorHandler %s eventType %+v object %+v", PodMonitor.Mode, eventType, object)
+	// log.Debugf("podMonitorHandler %s eventType %+v object %+v", PodMonitor.Mode, eventType, object)
 	pod, ok := object.(*v1.Pod)
 	if !ok || pod == nil {
 		log.Info("podMonitorHandler nil pod")
@@ -226,10 +226,17 @@ func podMonitorHandler(eventType watch.EventType, object interface{}) error {
 	}
 	pm := &PodMonitor
 	switch PodMonitor.Mode {
+	// TODO
 	case "controller":
-		if err := pm.controllerModePodHandler(pod, eventType); err != nil {
-			return err
-		}
+		// Process pod handling requests in parallel
+		go func(*v1.Pod) {
+			if err := pm.controllerModePodHandler(pod, eventType); err != nil {
+				log.Errorf("controllerModePodHandler error %s", err.Error())
+			}
+		}(pod)
+		// if err := pm.controllerModePodHandler(pod, eventType); err != nil {
+		// return err
+		// }
 	case "standalone":
 		if err := pm.controllerModePodHandler(pod, eventType); err != nil {
 			return err
