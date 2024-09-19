@@ -25,7 +25,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	"k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 // Client represents the client grpc connection to the ContainerRuntimerInterface

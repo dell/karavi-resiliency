@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"testing"
 
-	"k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	"k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 func TestListContainers(t *testing.T) {
