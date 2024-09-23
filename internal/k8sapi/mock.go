@@ -63,6 +63,7 @@ type K8sMock struct {
 		GetPVNameFromVA                      bool
 		Watch                                bool
 		PatchNodeLabels                      bool
+		PatchPodLabels                       bool
 		TaintNode                            bool
 		CreateEvent                          bool
 	}
@@ -413,6 +414,13 @@ func (mock *K8sMock) SetupNodeWatch(_ context.Context, _ metav1.ListOptions) (wa
 func (mock *K8sMock) PatchNodeLabels(ctx context.Context, nodeName string, replacedLabels map[string]string, deletedLabels []string) error {
 	if mock.InducedErrors.PatchNodeLabels {
 		return errors.New("induced error PatchNodeToUpdateLabels")
+	}
+	return nil
+}
+
+func (mock *K8sMock) PatchPodLabels(ctx context.Context, namespace, podName string, replacedLabels map[string]string, deletedLabels []string) error {
+	if mock.InducedErrors.PatchPodLabels {
+		return errors.New("included error PatchPodLabels")
 	}
 	return nil
 }

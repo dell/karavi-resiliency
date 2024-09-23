@@ -464,6 +464,56 @@ func (api *Client) PatchNodeLabels(ctx context.Context, nodeName string, replace
 	return err
 }
 
+// PatchPodLabels will patch a pod's labels. To add or update a label place it in replacedLabels. To delete a label place
+// it in deletedLabels.
+func (api *Client) PatchPodLabels(ctx context.Context, podNamespace, podName string, replacedLabels map[string]string, deletedLabels []string) error {
+	pod, err := api.GetPod(ctx, podNamespace, podName)
+	if err != nil {
+		return err
+	}
+	oldData, err := json.Marshal(pod)
+	if err != nil {
+		return err
+	}
+
+	labels := pod.Labels
+	// Remove any labels to be deleted
+	var updated bool
+	for i := 0; i < len(deletedLabels); i++ {
+		if labels[deletedLabels[i]] != "" {
+			delete(labels, deletedLabels[i])
+			updated = true
+		}
+	}
+	// Add/update any new labels
+	for k, v := range replacedLabels {
+		if labels[k] != v {
+			labels[k] = v
+			updated = true
+		}
+	}
+	if !updated {
+		return nil
+	}
+
+	newData, err := json.Marshal(pod)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("Patching pod %s/%s to %v", pod.Namespace, pod.Name, labels)
+	// Produce a patch update object
+	patchBytes, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, pod)
+	if err != nil {
+		return err
+	}
+	patchOptions := metav1.PatchOptions{FieldManager: taintedWithPodmon}
+
+	_, err = api.Client.CoreV1().Pods(pod.Namespace).Patch(ctx, pod.Name, types.StrategicMergePatchType, patchBytes, patchOptions)
+
+	return err
+}
+
 // TaintNode applies the specified 'taintKey' string and 'effect' to the node with 'nodeName'
 // The 'remove' flag indicates if the taint should be removed from the node, if it exists.
 func (api *Client) TaintNode(ctx context.Context, nodeName, taintKey string, effect v1.TaintEffect, remove bool) error {
