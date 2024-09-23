@@ -108,6 +108,9 @@ type K8sAPI interface {
 	// PatchNodeLabels will patch the node if the labels are altered.
 	PatchNodeLabels(ctx context.Context, nodeName string, replacedLabels map[string]string, deletedLabels []string) error
 
+	// PatchPodLabels will patch the pod if the labels are altered.
+	PatchPodLabels(ctx context.Context, podNamespace, podName string, replacedLabels map[string]string, deletedLabels []string) error
+
 	// TaintNode applies the specified 'taintKey' string and 'effect' to the node with 'nodeName'
 	// The 'remove' flag indicates if the taint should be removed from the node, if it exists.
 	TaintNode(ctx context.Context, nodeName, taintKey string, effect v1.TaintEffect, remove bool) error

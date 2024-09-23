@@ -3,6 +3,7 @@ package monitor
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -14,6 +15,7 @@ import (
 
 const (
 	failoverLabelKey             = "failover.podmon.dellemc.com"
+	replicationGroupKey          = "replication-group.podmon.dellemc.com"
 	replicationDefaultDomain     = "replication.storage.dell.com"
 	replicationGroupName         = "/replicationGroupName"
 	ActionFailoverRemote         = "FAILOVER_REMOTE"
@@ -170,7 +172,6 @@ func (cm *PodMonitorType) checkReplicatedPod(ctx context.Context, pod *v1.Pod) b
 	// Update the controller pod info structure so ready for failover
 	controllerPodInfo.ReplicationGroup = rgName
 	cm.PodKeyToControllerPodInfo.Store(podkey, controllerPodInfo)
-	log.Infof("Pod %s awaiting failover of ReplicationGroup %s array ", podkey, rgName, arrayID)
 
 	// See if there is ane existing ReplicationGroupInfo
 	replicationGroupInfoMutex.Lock()
@@ -190,7 +191,16 @@ func (cm *PodMonitorType) checkReplicatedPod(ctx context.Context, pod *v1.Pod) b
 	cm.RGNameToReplicationGroupInfo.Store(rgName, rginfo)
 	replicationGroupInfoMutex.Unlock()
 	//log.Infof("stored ReplicationGroupInfo %+v", rginfo)
-	logReplicationGroupInfo("stored ReplicationGroupInfo", rginfo)
+	logReplicationGroupInfo("stored ReplicationGroupInfo: "+podkey, rginfo)
+
+	// Add replication-group label to the pod.
+	replacedLabels := make(map[string]string)
+	deletedLabels := make([]string, 0)
+	replacedLabels[replicationGroupKey] = rgName
+	err = K8sAPI.PatchPodLabels(ctx, pod.Namespace, pod.Name, replacedLabels, deletedLabels)
+	if err != nil {
+		log.Errorf("PatchPodLabels for pod %s failed: %s", podkey, err.Error())
+	}
 
 	// If pod is ready don't trigger a failover.
 	if ready {
@@ -221,11 +231,14 @@ func (cm *PodMonitorType) checkReplicatedPod(ctx context.Context, pod *v1.Pod) b
 	return true
 }
 
+func (cm *PodMonitorType) addPodToReplicationGroup(ctx context.Context, pod *v1.Pod) error {
+}
+
 func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 	var rgTarget string
 	taintedNodes := make(map[string]string)
 
-	// toReplicated means we are trying to failover to the replicated- PVS
+	// toReplicated means we are failing over to the replicated PVs
 	var toReplicated bool
 	if strings.HasPrefix(rgName, ReplicatedPrefix) {
 		rgTarget = rgName[11:]
@@ -291,24 +304,68 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 		}
 	}
 
+	// Ket PVC names for each pod
+	podKeyToTargetPVCNames := make(map[string][]string)
+	var podKeyToTargetPVCNamesMutex sync.Mutex
+	for podkey, _ := range rginfo.PodKeysToPVNames {
+		func(podkey string) []string {
+			pvcnames := make([]string, 0)
+			namespace, name := splitPodKey(podkey)
+			pod, err := K8sAPI.GetPod(ctx, namespace, name)
+			if err != nil {
+				log.Errorf("tryFailover couldn't read pod: %s: %s", podkey, err.Error())
+				return pvcnames
+			}
+			for _, vol := range pod.Spec.Volumes {
+				if vol.VolumeSource.PersistentVolumeClaim != nil {
+					pvcname := vol.VolumeSource.PersistentVolumeClaim.ClaimName
+					pvcnames = append(pvcnames, pvcname)
+				}
+			}
+			log.Debugf("tryFailover: podkey %s pvcnames %v", podkey, pvcnames)
+			podKeyToTargetPVCNamesMutex.Lock()
+			podKeyToTargetPVCNames[podkey] = pvcnames
+			podKeyToTargetPVCNamesMutex.Unlock()
+			return pvcnames
+		}(podkey)
+	}
+
 	// Loop through the pods to see if they're in pending or creating state
-	f1 := func(podkey string, pvnames []string) bool {
-		nodeName, _, done := killAPodToRemapPVCs(ctx, podkey, toReplicated)
-		if nodeName != "" && taintedNodes[nodeName] == "" {
-			taintNode(nodeName, failoverTaint, false)
-			if err == nil {
-				log.Infof("tryFailover: tained node %s for pod %s", nodeName, podkey)
-				taintedNodes[nodeName] = podkey
+	nf1pods := len(rginfo.PodKeysToPVNames)
+	f1chan := make(chan bool, nf1pods)
+	f1 := func(podkey string) bool {
+		var done bool
+		for i := 0; i < 10; i++ {
+			if done = forceDeletePod(ctx, podkey); done {
+				break
 			}
 		}
+		time.Sleep(5 * time.Second)
+		for i := 0; i < 10; i++ {
+			if done = forceDeletePod(ctx, podkey); done {
+				break
+			}
+		}
+		f1chan <- done
 		return done
 	}
 
 	npods := 0
-	for podkey, pvnames := range rginfo.PodKeysToPVNames {
-		go f1(podkey, pvnames)
+	for podkey, _ := range rginfo.PodKeysToPVNames {
+		go f1(podkey)
 		npods++
 	}
+
+	var ncomplete, nincomplete int
+	for i := 0; i < nf1pods; i++ {
+		done := <-f1chan
+		if done {
+			ncomplete++
+		} else {
+			nincomplete++
+		}
+	}
+	log.Infof("tryFailover: forceDeletePod pods %d complete %d incomplete %d", nf1pods, ncomplete, nincomplete)
 
 	// Read the volumes in the Replication Group
 	// pvsInRG, err := getPVsInReplicationGroup(ctx, rgName)
@@ -370,10 +427,7 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 			untaintNodes(taintedNodes, failoverTaint)
 			return false
 		}
-		// rg = waitForRGStateToUpdate(ctx, rg.Name, "FAILOVER")
-		// log.Infof("Failover completed RG %s:\n Last Action %+v\n Last Condition %+v\nLink State %+v", rgName, rg.Status.LastAction, rg.Status.Conditions[0], rg.Status.ReplicationLinkState.State)
 	}
-	// log.Infof("failover time: %v", time.Now().Sub(startingTime))
 
 	// Set up a channel to indicate each pod has completed or timedout.
 	npods = len(rginfo.PodKeysToPVNames)
@@ -381,10 +435,11 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 
 	// Kill the pods again, hoping each container will restart
 	// Loop through the pods to see if they're in pending or creating state
+	var failoverTimeout bool
 	f2 := func(podkey string) bool {
 		var done bool
 		for i := 0; i < 50; i++ {
-			_, _, done = killAPodToRemapPVCs(ctx, podkey, toReplicated)
+			_, _, done = killAPodToRemapPVCs(ctx, podkey, podKeyToTargetPVCNames, toReplicated)
 			if done {
 				log.Infof("tryFailover: pod %s done", podkey)
 				donechan <- done
@@ -393,6 +448,7 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 			time.Sleep(5 * time.Second)
 		}
 		log.Infof("tryFailover: pod %s timed out", podkey)
+		failoverTimeout = true
 		donechan <- done
 		return done
 	}
@@ -400,19 +456,21 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 	for podkey, _ := range rginfo.PodKeysToPVNames {
 		go f2(podkey)
 	}
-	// Wiating on the pods to be done
+	// Waiting on the pods to be done
 	for i := 0; i < npods; i++ {
-		log.Infof("waiting on donechan %d", i)
+		log.Debugf("waiting on donechan %d", i)
 		done := <-donechan
-		log.Infof("done %d %t", i, done)
+		log.Debugf("done %d %t", i, done)
 	}
 
 	// The failover will only complete after the PVs are remapped?
-	rg = waitForRGStateToUpdate(ctx, rg.Name, "FAILOVER")
-	if len(rg.Status.Conditions) >= 1 {
+	rg = waitForRGStateToUpdate(ctx, rgTarget, "UNPLANNED_FAILOVER_LOCAL")
+	if rg != nil {
 		log.Infof("Unplanned Failover completed RG %s:\n Last Action %+v\n Last Condition %+v\nLink State %+v", rgName, rg.Status.LastAction, rg.Status.Conditions[0], rg.Status.ReplicationLinkState.State)
-	} else {
-		log.Infof("Unplanned Failover completed RG %s:\n Last Action %+v\n no-conditions \nLink State %+v", rgName, rg.Status.LastAction, rg.Status.ReplicationLinkState.State)
+	}
+	if failoverTimeout {
+		message := fmt.Sprintf("failover timeout: %v", time.Now().Sub(startingTime))
+		logReplicationGroupInfo(message, rginfo)
 	}
 	log.Infof("failover time: %v", time.Now().Sub(startingTime))
 
@@ -439,45 +497,78 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 
 // Returns pod.Spec.NodeName, bool indicating all PVCs remapped or not
 // Returns the pod's pod.Spec.NodeName, number of pvcs the pod has, and a bool indicating done or not.
-func killAPodToRemapPVCs(ctx context.Context, podkey string, toReplicated bool) (string, int, bool) {
+// This code is looking to see if the PVC remap login in dell-replication-controller has finished for the pod.
+// We try hard here to make the minimum number of K8S API calls.
+func killAPodToRemapPVCs(ctx context.Context, podkey string, podKeyToTargetPVCNames map[string][]string, toReplicated bool) (string, int, bool) {
+	var reason string
+	namespace, name := splitPodKey(podkey)
+	// Get the PVCs in the pod. The list of pvc names was precalculated and passed in in podKeyToTargetPVCNames.
+	// Get all the PVCs in the pod.
+	targetPvcList := podKeyToTargetPVCNames[podkey]
+	done := true
+	for _, pvcName := range targetPvcList {
+		pvc, _ := K8sAPI.GetPersistentVolumeClaim(ctx, namespace, pvcName)
+		if pvc == nil {
+			reason = fmt.Sprintf("pvc %s nil", pvcName)
+			done = false
+		} else {
+			if pvc.Spec.VolumeName == "" {
+				reason = fmt.Sprintf("pvc %s empty VolumeName %s", pvcName, pvc.Spec.VolumeName)
+				done = false
+			}
+			if toReplicated && !strings.HasPrefix(pvc.Spec.VolumeName, ReplicatedPrefix) {
+				reason = fmt.Sprintf("pvc %s toReplicated %t pv name %s", pvcName, toReplicated, pvc.Spec.VolumeName)
+				done = false
+			}
+			if !toReplicated && strings.HasPrefix(pvc.Spec.VolumeName, ReplicatedPrefix) {
+				reason = fmt.Sprintf("pvc %s toReplicated %t pv name %s", pvcName, toReplicated, pvc.Spec.VolumeName)
+				done = false
+			}
+		}
+	}
+	if done {
+		log.Infof("killAPodToRemapPVCs: pod %s all pvcs remapped", podkey)
+		return "", len(targetPvcList), done
+	} else {
+		log.Infof("killAPodToRemapPVCs not done reason: %s", reason)
+	}
+
+	pod, err := K8sAPI.GetPod(ctx, namespace, name)
+	if err != nil && !strings.Contains(err.Error(), "not found") {
+		log.Infof("killAPodToRmapPVCs: couldn't load pod %s: %s", podkey, err.Error())
+	}
+
+	if pod != nil {
+		ready, initialized, pending := podStatus(pod.Status.Conditions)
+		log.Debugf("killAPodToRemapPVCs: pod %s ready %t initialized %t pending %t", podkey, ready, initialized, pending)
+
+		// Kill the pod
+		if initialized && !pending {
+			log.Infof("killAPodToRemapPVCs: force deleting pod %s", podkey)
+			K8sAPI.DeletePod(ctx, pod.Namespace, pod.Name, pod.UID, true)
+		}
+		return pod.Spec.NodeName, len(targetPvcList), false
+	}
+	return "", len(targetPvcList), done
+}
+
+// forceDeleteAPod force deletes a pod, returns done
+func forceDeletePod(ctx context.Context, podkey string) bool {
 	namespace, name := splitPodKey(podkey)
 	pod, err := K8sAPI.GetPod(ctx, namespace, name)
 	if err != nil {
-		log.Infof("killAPodToRmapPVCs: couldn't load pod %s: %s", podkey, err.Error())
-		return "", 0, false
+		log.Infof("forceDeletePod: couldn't load pod %s: %s", podkey, err.Error())
+		// Return done if the pod wasn't found, because in the second pass, there are taints and the pods
+		// cannot be restarted until the replication command finished.
+		done := strings.Contains(err.Error(), "not found")
+		return done
 	}
-	// Get the PVCs in the pod
-	// Get all the PVCs in the pod.
-	pvclist, err := K8sAPI.GetPersistentVolumeClaimsInPod(ctx, pod)
+	log.Infof("forceDeletePod: force deleting pod %s", podkey)
+	err = K8sAPI.DeletePod(ctx, pod.Namespace, pod.Name, pod.UID, true)
 	if err != nil {
-		log.Errorf("killAPodToRemapPVs: Could not read PVCs in pod %s", podkey)
-		return pod.Spec.NodeName, 0, false
+		log.Errorf("forceDeletePod: error deleting pod: %s", err.Error())
 	}
-
-	done := true
-	for _, pvc := range pvclist {
-		pvHasPrefix := strings.HasPrefix(pvc.Spec.VolumeName, ReplicatedPrefix)
-		if pvHasPrefix != toReplicated {
-			done = false
-		}
-		log.Infof("VolumeName %s done %t", pvc.Spec.VolumeName, done)
-	}
-	if done {
-		log.Infof("killAPodToRemapPVcs: pod %s all pvcs remapped", podkey)
-		return pod.Spec.NodeName, len(pvclist), done
-	}
-
-	ready, initialized, pending := podStatus(pod.Status.Conditions)
-	log.Debugf("killAPodToRemapPVCs: pod %s ready %t initialized %t pending %t", podkey, ready, initialized, pending)
-
-	// Kill the pod
-	if initialized && !pending {
-		log.Infof("killAPodToRemapPVCs: force deleting pod %s", podkey)
-		K8sAPI.DeletePod(ctx, pod.Namespace, pod.Name, pod.UID, true)
-	} else {
-		return pod.Spec.NodeName, len(pvclist), false
-	}
-	return pod.Spec.NodeName, len(pvclist), done
+	return err == nil
 }
 
 // untaintNodes untaints s list of nodes.
@@ -499,7 +590,7 @@ func getFailoverTaint(rgName string) string {
 func waitForRGStateToUpdate(ctx context.Context, rgName string, condition string) *repv1.DellCSIReplicationGroup {
 	var rg *repv1.DellCSIReplicationGroup
 	for i := 0; i < 10; i++ {
-		time.Sleep(5 * time.Second)
+		time.Sleep(3 * time.Second)
 		rg, err := K8sAPI.GetReplicationGroup(ctx, rgName)
 		if err != nil {
 			log.Errorf("Error reaading RG %s: %s", rgName, err.Error())
