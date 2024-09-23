@@ -3,7 +3,7 @@ module podmon
 go 1.23
 
 require (
-	github.com/bramvdbogaerde/go-scp v1.5.0
+	github.com/bramvdbogaerde/go-scp v0.0.0-20201229172121-7a6c0268fa67
 	github.com/container-storage-interface/spec v1.10.0
 	github.com/cucumber/godog v0.14.1
 	github.com/dell/dell-csi-extensions/podmon v1.5.0
