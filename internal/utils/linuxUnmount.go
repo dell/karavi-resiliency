@@ -27,6 +27,6 @@ func Unmount(devName string, flags int) error {
 }
 
 // Creat is a wrapper around syscall.Creat
-func Creat(filepath string, flags int) (int, error) {
-	return syscall.Creat(filepath, uint32(flags))
+func Creat(filepath string, flags uint32) (int, error) {
+	return syscall.Creat(filepath, flags)
 }
