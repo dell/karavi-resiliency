@@ -22,8 +22,6 @@ require (
 	k8s.io/cri-api v0.31.1
 )
 
-//replace github.com/imdario/mergo => dario.cat/mergo v1.0.1
-
 require (
 	github.com/cucumber/gherkin/go/v26 v26.2.0 // indirect
 	github.com/cucumber/messages/go/v21 v21.0.1 // indirect
