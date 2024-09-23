@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"testing"
 
-	"k8s.io/cri-api/pkg/apis/runtime/v1"
+	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 func TestListContainers(t *testing.T) {
@@ -32,7 +32,7 @@ func TestListContainers(t *testing.T) {
 	if err != nil {
 		t.Errorf("NewCRIClient: %s", err)
 	}
-	req := &v1alpha2.ListContainersRequest{}
+	req := &v1.ListContainersRequest{}
 	rep, err := client.ListContainers(context.Background(), req)
 	if err != nil {
 		t.Errorf("ListContainers: %s", err)

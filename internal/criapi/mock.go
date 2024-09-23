@@ -20,7 +20,7 @@ import (
 	"context"
 	"errors"
 
-	"k8s.io/cri-api/pkg/apis/runtime/v1"
+	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 // MockClient is a mock client supporting the criapi.
@@ -47,7 +47,7 @@ func (mock *MockClient) Close() error {
 }
 
 // ListContainers would list individual containers but is not implemented for the mock client.
-func (mock *MockClient) ListContainers(_ context.Context, _ *v1alpha2.ListContainersRequest) (*v1alpha2.ListContainersResponse, error) {
+func (mock *MockClient) ListContainers(_ context.Context, _ *v1.ListContainersRequest) (*v1.ListContainersResponse, error) {
 	return nil, errors.New("unimplemented")
 }
 
