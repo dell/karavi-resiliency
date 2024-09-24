@@ -186,7 +186,7 @@ func (i *integration) givenKubernetes(configPath string) error {
 	if err != nil {
 		message := fmt.Sprintf("kubernetes connection error: %s", err)
 		log.Info(message)
-		return fmt.Errorf(message)
+		return fmt.Errorf("%s", message)
 	}
 
 	i.isOpenshift, err = i.detectOpenshift()
@@ -751,7 +751,7 @@ func (i *integration) theseStorageClassesExistInTheCluster(storageClassList stri
 	list, err := i.k8s.GetClient().StorageV1().StorageClasses().List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		message := fmt.Sprintf("listing StorageClasses error: %s", err)
-		return fmt.Errorf(message)
+		return fmt.Errorf("%s", message)
 	}
 
 	// storageClassList is a comma delimited list of storageClasses to check for in the cluster
@@ -841,7 +841,7 @@ func (i *integration) checkIfAllNodesReady() (bool, error) {
 	list, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		message := fmt.Sprintf("listing nodes error: %s", err)
-		return false, fmt.Errorf(message)
+		return false, fmt.Errorf("%s", message)
 	}
 
 	readyCount := 0
@@ -882,7 +882,7 @@ func (i *integration) checkIfNodesHaveTaints() (bool, error) {
 	list, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		message := fmt.Sprintf("listing nodes error: %s", err)
-		return false, fmt.Errorf(message)
+		return false, fmt.Errorf("%s", message)
 	}
 
 	for _, node := range list.Items {

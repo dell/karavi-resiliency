@@ -204,8 +204,8 @@ func TestPowerFlexIntegration(t *testing.T) {
 
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
-		log.Printf(message)
-		t.Errorf(message)
+		log.Print(message)
+		t.Error(message)
 		return
 	}
 
@@ -242,8 +242,8 @@ func TestUnityIntegration(t *testing.T) {
 
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
-		log.Printf(message)
-		t.Errorf(message)
+		log.Print(message)
+		t.Error(message)
 		return
 	}
 

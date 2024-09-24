@@ -284,7 +284,7 @@ func setupDynamicConfigUpdate() error {
 	if *args.driverConfigParamsFile == "" {
 		message := "--driver-config-params cannot be empty"
 		log.Error(message)
-		return fmt.Errorf(message)
+		return fmt.Errorf("%s", message)
 	}
 
 	vc := viper.New()
