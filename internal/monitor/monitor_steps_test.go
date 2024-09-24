@@ -147,7 +147,7 @@ func (f *feature) aControllerMonitor(driver string) error {
 
 func (f *feature) mockRemoveDir(_ string) error {
 	if f.failRemoveDir != "" && f.failRemoveDir != "none" {
-		return fmt.Errorf(f.failRemoveDir)
+		return fmt.Errorf("%s", f.failRemoveDir)
 	}
 	return nil
 }

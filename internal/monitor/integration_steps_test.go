@@ -811,7 +811,7 @@ func (i *integration) dumpNodeInfo() error {
 	list, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		message := fmt.Sprintf("listing nodes error: %s", err)
-		return fmt.Errorf(message)
+		return fmt.Errorf("%s", message)
 	}
 
 	for _, node := range list.Items {
