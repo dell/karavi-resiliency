@@ -81,6 +81,8 @@ var (
 	FeatureManageNodeArrayLabels bool
 	// FeatureDisasterRecovery enabled disaster recovery processing
 	FeatureDisasterRecoveryActions bool
+	// PodLabelKey is the key for podmon labels.
+	PodLabelKey string
 	// PodLabelValue is the driver name (e.g. csi-vxflexos)
 	PodLabelValue string
 )
@@ -256,6 +258,7 @@ func podMonitorHandler(eventType watch.EventType, object interface{}) error {
 func StartPodMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, labelValue string, restartDelay time.Duration) {
 	log.Infof("Starting PodMonitor FeatureManageNodeArrayLabels %t FeatureDisasterRecoveryActions %t",
 		FeatureManageNodeArrayLabels, FeatureDisasterRecoveryActions)
+	PodLabelKey = labelKey
 	PodLabelValue = labelValue
 	PodmonTaintKey = fmt.Sprintf("%s.%s", Driver.GetDriverName(), PodmonTaintKeySuffix)
 	PodmonDriverPodTaintKey = fmt.Sprintf("offline.%s.%s", Driver.GetDriverName(), PodmonDriverPodTaintKeySuffix)

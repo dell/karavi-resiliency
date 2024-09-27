@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"strings"
 	"sync"
 	"time"
@@ -15,7 +16,7 @@ import (
 
 const (
 	failoverLabelKey             = "failover.podmon.dellemc.com"
-	replicationGroupKey          = "replication-group.podmon.dellemc.com"
+	replicationGroupLabelKey     = "replication-group.podmon.dellemc.com"
 	replicationDefaultDomain     = "replication.storage.dell.com"
 	replicationGroupName         = "/replicationGroupName"
 	ActionFailoverRemote         = "FAILOVER_REMOTE"
@@ -25,13 +26,18 @@ const (
 	ReplicatedPrefix             = "replicated-"
 )
 
+// podmonInstanceId is a random string representing a podmon controller instance
+var podmonInstanceId string
+
 // keeps multiple pods from updating ReplicationGroupInfo concurrently
 var replicationGroupInfoMutex sync.Mutex
 
+// The RreplicationGroupInfo structure represents a RG CRD.
+// There is a separate ReplicationGroupInfo for the rg-123xxx (source) versus the replicat-rg-123xxx (target) RGs.
 type ReplicationGroupInfo struct {
 	RGName            string              // ReplicationGroup Name
-	PodKeysToPVNames  map[string][]string // map[podkey][pvnames]
-	pvNamesInRG       []string
+	PodKeysToPVNames  map[string][]string // contains a map of the podkey to its pvnames (either pv-xxx or replicated-pv-xxxx)
+	pvNamesInRG       []string            // This contains both pv-xxx and replicated-pv-xxx names
 	failoverMutex     sync.Mutex
 	awaitingReprotect bool   // Have failed over - need replicationGroupInfoMutexd to reprotecg
 	arrayID           string // arrayID of the array the PVs belong to
@@ -46,165 +52,66 @@ func podHasFailoverLabel(pod *v1.Pod) bool {
 	return pod.Labels[failoverLabelKey] != ""
 }
 
+// checkReplicatedPod adds the pod to a ReplicationGroup if needed, and then will initiate failover if needed.
+// Returns true if failover initiated, otherwise false
 func (cm *PodMonitorType) checkReplicatedPod(ctx context.Context, pod *v1.Pod) bool {
-	if !FeatureDisasterRecoveryActions {
-		return false
-	}
 	fields := make(map[string]interface{})
 	fields["namespace"] = pod.ObjectMeta.Namespace
 	fields["pod"] = pod.ObjectMeta.Name
-	fields["reason"] = "Pod in pending state"
+	podkey := getPodKey(pod)
+
+	if !FeatureDisasterRecoveryActions {
+		return false
+	}
 
 	// Check that this pod has the failover annotation
 	if !podHasFailoverLabel(pod) {
-		log.WithFields(fields).Infof("checkReplicatedPod Pod does not have the %s label so cannot consider DR failover", failoverLabelKey)
+		log.WithFields(fields).Debugf("checkReplicatedPod Pod does not have the %s label so cannot consider DR failover", failoverLabelKey)
 		return false
 	}
+
 	// Check that pod is initialized
 	ready, initialized, _ := podStatus(pod.Status.Conditions)
 	if !initialized {
-		log.WithFields(fields).Infof("checkReplicatedPod: Pod in wrong state: ready %t, initialized %t, pending %t, ready, initialized, pending")
+		log.WithFields(fields).Debugf("checkReplicatedPod: Pod in wrong state: ready %t, initialized %t, pending %t, ready, initialized, pending")
 		return false
 	}
 
-	podkey := getPodKey(pod)
-	log.WithFields(fields).Infof("checkReplicatedPod Reading PVs in pod %s", podkey)
-
-	// Get all the PVCs in the pod.
-	pvclist, err := K8sAPI.GetPersistentVolumeClaimsInPod(ctx, pod)
-	if err != nil {
-		log.WithFields(fields).Errorf("checkReplicatedPod Could not get PersistentVolumeClaims: %s", err)
+	// Determine if we need to add the pod to the ReplicationGroup
+	if podmonInstanceId == "" {
+		randomInt := rand.Int31()
+		podmonInstanceId = fmt.Sprintf("%x", randomInt)
 	}
-
-	// Get the PVs associated with this pod.
-	pvlist, err := K8sAPI.GetPersistentVolumesInPod(ctx, pod)
-	if err != nil {
-		log.WithFields(fields).Errorf("checkReplicatedPod Could not get PersistentVolumes: %s", err)
-		return false
+	var rgName string
+	var arrayID string
+	var ok bool
+	rgNamePodmonInstance := pod.Labels[replicationGroupLabelKey]
+	terms := strings.Split(rgNamePodmonInstance, "_")
+	if len(terms) == 2 && terms[1] == podmonInstanceId {
+		rgName = terms[0]
 	}
-
-	// Check that we have matching number of pvcs and pvs.
-	if len(pvclist) != len(pvlist) {
-		log.WithFields(fields).Errorf("checkReplicatedPod: mismatch counts pvcs %d pvs %d", len(pvclist), len(pvlist))
-	}
-
-	// Update the ControllerPodInfo to reflect the RG
-	podInfoValue, ok := cm.PodKeyToControllerPodInfo.Load(podkey)
-	if !ok {
-		podInfoValue = &ControllerPodInfo{
-			PodKey: podkey,
-			PodUID: string(pod.ObjectMeta.UID),
+	if rgName == "" {
+		arrayID, ok = cm.addPodToReplicationGroup(ctx, pod, fields)
+		if !ok {
+			log.WithFields(fields).Errorf("could not add pod %s to RG %s", podkey, rgName)
 		}
-	}
-	controllerPodInfo := podInfoValue.(*ControllerPodInfo)
-	arrayIDs, _, err := cm.podToArrayIDs(ctx, pod)
-	if err != nil {
-		log.Errorf("checkReplicatedPod: Could not determine pod to arrayIDs: %s", err)
 	} else {
-		controllerPodInfo.ArrayIDs = arrayIDs
-	}
-	if len(arrayIDs) > 1 {
-		log.Infof("checkReplicatedPod: Pod uses multiple array IDs, can't handle failover")
-		return false
-	}
-	if len(arrayIDs) == 0 {
-		log.Info("checkReplicatedPod: Pod does not use any array IDs, can't handle failover")
-		return false
-	}
-	arrayID := arrayIDs[0]
-	log.Infof("checkReplicatedPod: considering pod %s UID %s arrayID %s for replication", podkey, pod.UID, arrayID)
-
-	rgName := ""
-	storageClassName := ""
-	firstPVName := ""
-	replicatedPVNames := make([]string, 0)
-
-	// Loop through the PV getting the
-	for _, pv := range pvlist {
-		name := pv.Labels[replicationDefaultDomain+replicationGroupName]
-		if name == "" {
-			// Thsi volume not replicated, that's ok
-			continue
-		} else if rgName == "" {
-			rgName = name
-			firstPVName = pv.Name
-			storageClassName = pv.Spec.StorageClassName
-			replicatedPVNames = append(replicatedPVNames, pv.Name)
+		var rginfo *ReplicationGroupInfo
+		rgAny, ok := cm.RGNameToReplicationGroupInfo.Load(rgName)
+		if !ok {
+			rginfo = &ReplicationGroupInfo{
+				RGName:           rgName,
+				PodKeysToPVNames: make(map[string][]string),
+			}
 		} else {
-			if pv.Spec.StorageClassName != storageClassName {
-				log.Infof("checkReplicatedPod: multiple storage classes used: %s %s", storageClassName, pv.Spec.StorageClassName)
-			}
-			if name != rgName {
-				log.WithFields(fields).Infof("checkReplicatedPod pv %s has a different replicationGroupName label than pv %s", pv.Name, firstPVName)
-				return false
-			}
+			rginfo = rgAny.(*ReplicationGroupInfo)
 		}
-	}
-	log.WithFields(fields).Infof("checkReplicatedPod: rgName %s", rgName)
-
-	// Next read the replication group
-	// Next find all the global PVs in the replication group (not just limited to this pod)
-	rg, err := K8sAPI.GetReplicationGroup(ctx, rgName)
-	if rg != nil {
-		log.Infof("checkReplicatedPod: ReplicationGroup %+v", rg)
-	}
-	if err != nil || rg == nil {
-		return false
-	}
-
-	// Make sure the RG is replicating to the same cluster
-	if rg.Annotations["replication.storage.dell.com/remoteClusterID"] != "self" {
-		log.Infof("checkReplicatedPod: ReplicationGroup %s is not a single-cluster replication configuration- podmon cannot manage the failover", rgName)
-		return false
-	}
-
-	// Find all the PVs using this rg
-	pvsInRG, err := getPVsInReplicationGroup(ctx, rgName)
-	if err != nil {
-		return false
-	}
-	pvnamesInRG := make([]string, 0)
-	for _, pv := range pvsInRG.Items {
-		pvnamesInRG = append(pvnamesInRG, pv.Name)
-	}
-	log.Infof("PVs in RG: %v", pvnamesInRG)
-
-	// Update the controller pod info structure so ready for failover
-	controllerPodInfo.ReplicationGroup = rgName
-	cm.PodKeyToControllerPodInfo.Store(podkey, controllerPodInfo)
-
-	// See if there is ane existing ReplicationGroupInfo
-	replicationGroupInfoMutex.Lock()
-	var rginfo *ReplicationGroupInfo
-	rgAny, ok := cm.RGNameToReplicationGroupInfo.Load(rgName)
-	if !ok {
-		rginfo = &ReplicationGroupInfo{
-			RGName:           rgName,
-			PodKeysToPVNames: make(map[string][]string),
-		}
-	} else {
-		rginfo = rgAny.(*ReplicationGroupInfo)
-	}
-	rginfo.PodKeysToPVNames[podkey] = replicatedPVNames
-	rginfo.pvNamesInRG = pvnamesInRG
-	rginfo.arrayID = arrayID
-	cm.RGNameToReplicationGroupInfo.Store(rgName, rginfo)
-	replicationGroupInfoMutex.Unlock()
-	//log.Infof("stored ReplicationGroupInfo %+v", rginfo)
-	logReplicationGroupInfo("stored ReplicationGroupInfo: "+podkey, rginfo)
-
-	// Add replication-group label to the pod.
-	replacedLabels := make(map[string]string)
-	deletedLabels := make([]string, 0)
-	replacedLabels[replicationGroupKey] = rgName
-	err = K8sAPI.PatchPodLabels(ctx, pod.Namespace, pod.Name, replacedLabels, deletedLabels)
-	if err != nil {
-		log.Errorf("PatchPodLabels for pod %s failed: %s", podkey, err.Error())
+		arrayID = rginfo.arrayID
 	}
 
 	// If pod is ready don't trigger a failover.
 	if ready {
-		log.Infof("checkReplicatedPod: pod %s is ready", pod.Name)
+		log.Debugf("checkReplicatedPod: pod %s is ready", pod.Name)
 		return false
 	}
 
@@ -231,7 +138,172 @@ func (cm *PodMonitorType) checkReplicatedPod(ctx context.Context, pod *v1.Pod) b
 	return true
 }
 
-func (cm *PodMonitorType) addPodToReplicationGroup(ctx context.Context, pod *v1.Pod) error {
+// addPodToReplicationGroup adds a pod to the appropriate ReplicationGroup if possible.
+// It returns the arrayID of the RG and a bool indicating whether added
+func (cm *PodMonitorType) addPodToReplicationGroup(ctx context.Context, pod *v1.Pod, fields map[string]interface{}) (string, bool) {
+	var arrayID string
+	podkey := getPodKey(pod)
+	log.WithFields(fields).Infof("addPodToReplicationGroup Reading PVs in pod %s", podkey)
+
+	// Get all the PVCs in the pod.
+	pvclist, err := K8sAPI.GetPersistentVolumeClaimsInPod(ctx, pod)
+	if err != nil {
+		log.WithFields(fields).Errorf("addPodToReplicationGroup Could not get PersistentVolumeClaims: %s: %s", podkey, err.Error())
+		return arrayID, false
+	}
+
+	// Get the PVs associated with this pod.
+	pvlist, err := K8sAPI.GetPersistentVolumesInPod(ctx, pod)
+	if err != nil {
+		log.WithFields(fields).Errorf("addPodToReplicationGroup Could not get PersistentVolumes: %s", err)
+		return arrayID, false
+	}
+
+	// Check that we have matching number of pvcs and pvs.
+	if len(pvclist) != len(pvlist) {
+		log.WithFields(fields).Errorf("addPodToReplicationGroup: mismatch counts pvcs %d pvs %d", len(pvclist), len(pvlist))
+		return arrayID, false
+	}
+
+	// Update the ControllerPodInfo to reflect the RG
+	podInfoValue, ok := cm.PodKeyToControllerPodInfo.Load(podkey)
+	if !ok {
+		podInfoValue = &ControllerPodInfo{
+			PodKey: podkey,
+			PodUID: string(pod.ObjectMeta.UID),
+		}
+	}
+	controllerPodInfo := podInfoValue.(*ControllerPodInfo)
+	arrayIDs, _, err := cm.podToArrayIDs(ctx, pod)
+	if err != nil {
+		log.Errorf("addPodToReplicationGroup: Could not determine pod to arrayIDs: %s", err)
+		return arrayID, false
+	} else {
+		controllerPodInfo.ArrayIDs = arrayIDs
+	}
+	if len(arrayIDs) > 1 {
+		log.Infof("addPodToReplicationGroup: Pod uses multiple array IDs, can't handle failover")
+		return arrayID, false
+	}
+	if len(arrayIDs) == 0 {
+		log.Info("addPodToReplicationGroup: Pod does not use any array IDs, can't handle failover")
+		return arrayID, false
+	}
+	arrayID = arrayIDs[0]
+	log.Infof("addPodToReplicationGroup: considering pod %s UID %s arrayID %s for replication", podkey, pod.UID, arrayID)
+
+	rgName := ""
+	altRGName := ""
+	storageClassName := ""
+	firstPVName := ""
+	replicatedPVNames := make([]string, 0)
+	altReplicatedPVNames := make([]string, 0)
+
+	// Loop through the PV getting the
+	for _, pv := range pvlist {
+		name := pv.Labels[replicationDefaultDomain+replicationGroupName]
+		if name == "" {
+			// Thsi volume not replicated, that's ok
+			continue
+		} else if rgName == "" {
+			rgName = name
+			altRGName = flipName(rgName)
+			firstPVName = pv.Name
+			storageClassName = pv.Spec.StorageClassName
+			replicatedPVNames = append(replicatedPVNames, pv.Name)
+			altReplicatedPVNames = append(altReplicatedPVNames, flipName(pv.Name))
+		} else {
+			if pv.Spec.StorageClassName != storageClassName {
+				log.Infof("addPodToReplicationGroup: multiple storage classes used: %s %s", storageClassName, pv.Spec.StorageClassName)
+			}
+			if name != rgName {
+				log.WithFields(fields).Infof("addPodToReplicationGroup pv %s has a different replicationGroupName label than pv %s", pv.Name, firstPVName)
+				return arrayID, false
+			}
+		}
+	}
+	log.WithFields(fields).Infof("addPodToReplicationGroup: rgName %s", rgName)
+
+	// Next read the replication group
+	// Next find all the global PVs in the replication group (not just limited to this pod)
+	rg, err := K8sAPI.GetReplicationGroup(ctx, rgName)
+	if err != nil || rg == nil {
+		log.Errorf("Couldn't read RG %s: rgName)")
+		return arrayID, false
+	}
+	altArrayID := rg.Labels["replication.storage.dell.com/remoteSystemID"]
+
+	// Make sure the RG is replicating to the same cluster
+	if rg.Annotations["replication.storage.dell.com/remoteClusterID"] != "self" {
+		log.Errorf("addPodToReplicationGroup: ReplicationGroup %s is not a single-cluster replication configuration- podmon cannot manage the failover", rgName)
+		return arrayID, false
+	}
+
+	// Find all the PVs using this rg (this will include both the source and targets)
+	pvsInRG, err := getPVsInReplicationGroup(ctx, rgName)
+	if err != nil {
+		return arrayID, false
+	}
+	pvNamesInRG := make([]string, 0)
+	for _, pv := range pvsInRG.Items {
+		pvNamesInRG = append(pvNamesInRG, pv.Name)
+	}
+	log.Infof("PVs in RG: %s: %v", rgName, pvNamesInRG)
+
+	// Update the controller pod info structure so ready for failover
+	controllerPodInfo.ReplicationGroup = rgName
+	cm.PodKeyToControllerPodInfo.Store(podkey, controllerPodInfo)
+
+	// See if there is ane existing ReplicationGroupInfo
+	// If so, add our pod into it.
+	replicationGroupInfoMutex.Lock()
+	var rginfo *ReplicationGroupInfo
+	rgAny, ok := cm.RGNameToReplicationGroupInfo.Load(rgName)
+	if !ok {
+		rginfo = &ReplicationGroupInfo{
+			RGName:           rgName,
+			PodKeysToPVNames: make(map[string][]string),
+		}
+	} else {
+		rginfo = rgAny.(*ReplicationGroupInfo)
+	}
+	rginfo.PodKeysToPVNames[podkey] = replicatedPVNames
+	rginfo.pvNamesInRG = pvNamesInRG
+	rginfo.arrayID = arrayID
+	cm.RGNameToReplicationGroupInfo.Store(rgName, rginfo)
+	replicationGroupInfoMutex.Unlock()
+	//log.Infof("stored ReplicationGroupInfo %+v", rginfo)
+	logReplicationGroupInfo("addPodToReplicationGroup: stored ReplicationGroupInfo: "+podkey, rginfo)
+
+	// While we're add it, add ourself to the pair RG as well.
+	var altRgInfo *ReplicationGroupInfo
+	replicationGroupInfoMutex.Lock()
+	altRgAny, ok := cm.RGNameToReplicationGroupInfo.Load(altRGName)
+	if !ok {
+		altRgInfo = &ReplicationGroupInfo{
+			RGName:           altRGName,
+			PodKeysToPVNames: make(map[string][]string),
+		}
+	} else {
+		altRgInfo = altRgAny.(*ReplicationGroupInfo)
+	}
+	altRgInfo.PodKeysToPVNames[podkey] = altReplicatedPVNames
+	altRgInfo.pvNamesInRG = pvNamesInRG
+	altRgInfo.arrayID = altArrayID
+	cm.RGNameToReplicationGroupInfo.Store(altRGName, altRgInfo)
+	replicationGroupInfoMutex.Unlock()
+	//log.Infof("stored ReplicationGroupInfo %+v", rginfo)
+	logReplicationGroupInfo("addPodToReplicationGroup: stored AltReplicationGroupInfo: "+podkey, altRgInfo)
+
+	// Add replication-group label to the pod.
+	replacedLabels := make(map[string]string)
+	deletedLabels := make([]string, 0)
+	replacedLabels[replicationGroupLabelKey] = rgName + "_" + podmonInstanceId
+	err = K8sAPI.PatchPodLabels(ctx, pod.Namespace, pod.Name, replacedLabels, deletedLabels)
+	if err != nil {
+		log.Errorf("addPodToReplicationGroup: PatchPodLabels for pod %s failed: %s", podkey, err.Error())
+	}
+	return arrayID, true
 }
 
 func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
@@ -334,17 +406,32 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 	nf1pods := len(rginfo.PodKeysToPVNames)
 	f1chan := make(chan bool, nf1pods)
 	f1 := func(podkey string) bool {
+		namespace, name := splitPodKey(podkey)
 		var done bool
-		for i := 0; i < 10; i++ {
-			if done = forceDeletePod(ctx, podkey); done {
-				break
+		var errCount int
+		for i := 0; i < 5; i++ {
+			pod, err := K8sAPI.GetPod(ctx, namespace, name)
+			if err == nil {
+				_, _, pending := podStatus(pod.Status.Conditions)
+				if pending {
+					done = true
+					f1chan <- done
+					return done
+				} else {
+					log.Infof("f1: force deleting pod %s", podkey)
+					err = K8sAPI.DeletePod(ctx, namespace, name, pod.UID, true)
+					if err != nil {
+						log.Errorf("error force deleting pod: %s  %s", podkey, err.Error())
+					}
+				}
+			} else {
+				errCount = errCount + 1
+				if errCount >= 2 {
+					f1chan <- true
+					return done
+				}
 			}
-		}
-		time.Sleep(5 * time.Second)
-		for i := 0; i < 10; i++ {
-			if done = forceDeletePod(ctx, podkey); done {
-				break
-			}
+			time.Sleep(2 * time.Second)
 		}
 		f1chan <- done
 		return done
@@ -438,14 +525,14 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 	var failoverTimeout bool
 	f2 := func(podkey string) bool {
 		var done bool
-		for i := 0; i < 50; i++ {
+		for i := 0; i < 100; i++ {
 			_, _, done = killAPodToRemapPVCs(ctx, podkey, podKeyToTargetPVCNames, toReplicated)
 			if done {
 				log.Infof("tryFailover: pod %s done", podkey)
 				donechan <- done
 				return done
 			}
-			time.Sleep(5 * time.Second)
+			time.Sleep(3 * time.Second)
 		}
 		log.Infof("tryFailover: pod %s timed out", podkey)
 		failoverTimeout = true
@@ -525,6 +612,9 @@ func killAPodToRemapPVCs(ctx context.Context, podkey string, podKeyToTargetPVCNa
 				done = false
 			}
 		}
+		if !done {
+			break
+		}
 	}
 	if done {
 		log.Infof("killAPodToRemapPVCs: pod %s all pvcs remapped", podkey)
@@ -580,9 +670,7 @@ func untaintNodes(taintedNodeNames map[string]string, failoverTaint string) {
 }
 
 func getFailoverTaint(rgName string) string {
-	if strings.HasPrefix(rgName, ReplicatedPrefix) {
-		rgName = rgName[len(ReplicatedPrefix):]
-	}
+	rgName = strings.TrimPrefix(rgName, ReplicatedPrefix)
 	parts := strings.Split(rgName, "-")
 	return "failover." + parts[0] + "-" + parts[1] + "-" + parts[2] + "-" + parts[3]
 }
@@ -688,7 +776,7 @@ func (cm *PodMonitorType) reprotectReplicationGroup(key any, value any) bool {
 	go cm.removeVolumeAttachmentsForPVs(ctx, rginfo)
 
 	cm.RGNameToReplicationGroupInfo.Store(rgName, rginfo)
-	rgPairName := getRGPairName(rgName)
+	rgPairName := flipName(rgName)
 	// Initiate a reprotect
 	log.Infof("reprotectReplicationGroup: Attempting to initiate a reprotect on RG %s", rgPairName)
 
@@ -749,8 +837,8 @@ func (cm *PodMonitorType) removeVolumeAttachmentsForPVs(ctx context.Context, rgi
 	}
 }
 
-// getRGPairName takes an RG name and returns the name of the paired RG.
-func getRGPairName(name string) string {
+// flipName takes name name starting with "replicated-xxx" and returns xxx, or vice versa.
+func flipName(name string) string {
 	if strings.HasPrefix(name, ReplicatedPrefix) {
 		return name[len(ReplicatedPrefix):]
 	}

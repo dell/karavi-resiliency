@@ -291,6 +291,14 @@ func (api *Client) GetPersistentVolumesWithLabels(ctx context.Context, labelSele
 	return pvs, err
 }
 
+func (api *Client) GetPersistentVolumeClaimsWithLabels(ctx context.Context, labelSelector string) (*v1.PersistentVolumeClaimList, error) {
+	listOptions := metav1.ListOptions{
+		LabelSelector: labelSelector,
+	}
+	pvcs, err := api.Client.CoreV1().PersistentVolumeClaims(v1.NamespaceAll).List(ctx, listOptions)
+	return pvcs, err
+}
+
 // GetPersistentVolumeClaim returns a PVC object given its namespace and name
 func (api *Client) GetPersistentVolumeClaim(ctx context.Context, namespace, pvcName string) (*v1.PersistentVolumeClaim, error) {
 	var err error
