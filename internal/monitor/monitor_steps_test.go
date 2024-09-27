@@ -42,7 +42,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes/fake"
-	cri "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	cri "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 const (
@@ -147,7 +147,7 @@ func (f *feature) aControllerMonitor(driver string) error {
 
 func (f *feature) mockRemoveDir(_ string) error {
 	if f.failRemoveDir != "" && f.failRemoveDir != "none" {
-		return fmt.Errorf(f.failRemoveDir)
+		return fmt.Errorf("%s", f.failRemoveDir)
 	}
 	return nil
 }

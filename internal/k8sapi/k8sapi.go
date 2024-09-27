@@ -493,7 +493,7 @@ func (api *Client) CreateEvent(sourceComponent string, object runtime.Object, ev
 		broadcaster := record.NewBroadcaster()
 		broadcaster.StartLogging(log.Infof)
 		broadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: api.Client.CoreV1().Events(v1.NamespaceAll)})
-		api.eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf(sourceComponent)})
+		api.eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("%s", sourceComponent)})
 	}
 	api.eventRecorder.Eventf(object, eventType, reason, messageFmt, args)
 	return nil

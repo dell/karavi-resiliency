@@ -196,8 +196,8 @@ func TestPowerFlexShortIntegration(t *testing.T) {
 
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
-		log.Printf(message)
-		t.Errorf(message)
+		log.Print(message)
+		t.Error(message)
 		return
 	}
 
@@ -234,8 +234,8 @@ func TestUnityShortIntegration(t *testing.T) {
 
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
-		log.Printf(message)
-		t.Errorf(message)
+		log.Print(message)
+		t.Error(message)
 		return
 	}
 
@@ -272,8 +272,8 @@ func TestPowerScaleShortIntegration(t *testing.T) {
 
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
-		log.Printf(message)
-		t.Errorf(message)
+		log.Print(message)
+		t.Error(message)
 		return
 	}
 
@@ -310,8 +310,8 @@ func TestPowerStoreShortIntegration(t *testing.T) {
 
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
-		log.Printf(message)
-		t.Errorf(message)
+		log.Print(message)
+		t.Error(message)
 		return
 	}
 
@@ -348,8 +348,8 @@ func TestPowerMaxShortIntegration(t *testing.T) {
 
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
-		log.Printf(message)
-		t.Errorf(message)
+		log.Print(message)
+		t.Error(message)
 		return
 	}
 
