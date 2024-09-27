@@ -78,6 +78,7 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 		cm.PodKeyToCrashLoopBackOffCount.Delete(podKey)
 		return nil
 	}
+	go kubevirtHack(pod)
 	// Single thread processing of this pod
 	Lock(podKey, pod, LockSleepTimeDelay)
 	defer Unlock(podKey)
@@ -181,8 +182,8 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 				}
 			}
 		}
-
 	}
+
 	// Try a failover if applicable
 	if podHasFailoverLabel(pod) {
 		// no Node association for podready, initialized, _ := podStatus(pod.Status.Conditions)
@@ -888,13 +889,15 @@ func stringInSlice(search string, slice []string) bool {
 	return false
 }
 
-// ifAllMapEntries checks all entries in checkmap to see if their values match value.
-// If so, returns true, if not, returns false.
-func ifAllMapEntries(checkMap map[string]bool, value bool) bool {
-	for _, v := range checkMap {
-		if v != value {
-			return false
-		}
+func kubevirtHack(pod *v1.Pod) {
+	// Check if pod has a kubevirt label. If so add a podmon label. This is a "hack" for Florian.
+	if pod.Labels["kubevirt.io"] == "virt-launcher" && pod.Labels[PodLabelKey] == "" {
+		podKey := getPodKey((pod))
+		ctx := context.Background()
+		log.Infof("Adding podmon label to kubevirt.io virt-launcher: %s", podKey)
+		replacedLabels := make(map[string]string)
+		deletedLabels := make([]string, 0)
+		replacedLabels[PodLabelKey] = PodLabelValue
+		K8sAPI.PatchPodLabels(ctx, pod.Namespace, pod.Name, replacedLabels, deletedLabels)
 	}
-	return true
 }
