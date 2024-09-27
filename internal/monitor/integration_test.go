@@ -204,8 +204,8 @@ func TestPowerFlexIntegration(t *testing.T) {
 
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
-		log.Printf(message)
-		t.Errorf(message)
+		log.Print(message)
+		t.Error(message)
 		return
 	}
 
@@ -242,8 +242,8 @@ func TestUnityIntegration(t *testing.T) {
 
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
-		log.Printf(message)
-		t.Errorf(message)
+		log.Print(message)
+		t.Error(message)
 		return
 	}
 
@@ -280,8 +280,8 @@ func TestPowerScaleIntegration(t *testing.T) {
 
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
-		log.Printf(message)
-		t.Errorf(message)
+		log.Print(message)
+		t.Error(message)
 		return
 	}
 
@@ -318,8 +318,8 @@ func TestPowerStoreIntegration(t *testing.T) {
 
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
-		log.Printf(message)
-		t.Errorf(message)
+		log.Print(message)
+		t.Error(message)
 		return
 	}
 
@@ -356,8 +356,8 @@ func TestPowerMaxIntegration(t *testing.T) {
 
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
-		log.Printf(message)
-		t.Errorf(message)
+		log.Print(message)
+		t.Error(message)
 		return
 	}
 
@@ -394,8 +394,8 @@ func TestPowerflexArrayInterfaceDown(t *testing.T) {
 
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
-		log.Printf(message)
-		t.Errorf(message)
+		log.Print(message)
+		t.Error(message)
 		return
 	}
 
@@ -432,8 +432,8 @@ func TestUnityArrayInterfaceDown(t *testing.T) {
 
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
-		log.Printf(message)
-		t.Errorf(message)
+		log.Print(message)
+		t.Error(message)
 		return
 	}
 
@@ -470,8 +470,8 @@ func TestPowerStoreArrayInterfaceDown(t *testing.T) {
 
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
-		log.Printf(message)
-		t.Errorf(message)
+		log.Print(message)
+		t.Error(message)
 		return
 	}
 
@@ -508,8 +508,8 @@ func TestPowerMaxArrayInterfaceDown(t *testing.T) {
 
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
-		log.Printf(message)
-		t.Errorf(message)
+		log.Print(message)
+		t.Error(message)
 		return
 	}
 

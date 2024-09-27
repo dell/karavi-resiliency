@@ -25,13 +25,13 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	"k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 // Client represents the client grpc connection to the ContainerRuntimerInterface
 type Client struct {
-	CRIConn              *grpc.ClientConn              // A grpc client connection to CRI
-	RuntimeServiceClient v1alpha2.RuntimeServiceClient // A RuntimeService climent
+	CRIConn              *grpc.ClientConn        // A grpc client connection to CRI
+	RuntimeServiceClient v1.RuntimeServiceClient // A RuntimeService climent
 }
 
 // CRIClient is an intstance of the Client for the CRI connection
@@ -64,7 +64,7 @@ func NewCRIClient(criSock string, _ ...grpc.DialOption) (*Client, error) {
 			time.Sleep(CRIClientDialRetry)
 		} else {
 			log.Infof("Connected to CRI: %s", criSock)
-			CRIClient.RuntimeServiceClient = v1alpha2.NewRuntimeServiceClient(CRIClient.CRIConn)
+			CRIClient.RuntimeServiceClient = v1.NewRuntimeServiceClient(CRIClient.CRIConn)
 			return &CRIClient, nil
 		}
 	}
@@ -89,7 +89,7 @@ func (cri *Client) Close() error {
 }
 
 // ListContainers lists all the containers in the Container Runtime.
-func (cri *Client) ListContainers(ctx context.Context, req *v1alpha2.ListContainersRequest) (*v1alpha2.ListContainersResponse, error) {
+func (cri *Client) ListContainers(ctx context.Context, req *v1.ListContainersRequest) (*v1.ListContainersResponse, error) {
 	return CRIClient.RuntimeServiceClient.ListContainers(ctx, req)
 }
 
@@ -121,7 +121,7 @@ func (cri *Client) GetContainerInfo(_ context.Context) (map[string]*ContainerInf
 	if err != nil {
 		return result, err
 	}
-	req := &v1alpha2.ListContainersRequest{}
+	req := &v1.ListContainersRequest{}
 	rep, err := client.ListContainers(context.Background(), req)
 	if err != nil {
 		return result, err

@@ -172,7 +172,7 @@ func makeEntry(podTag, rootDir string, index int, initialPod bool) {
 			f.Close()
 			if !logged {
 				if (counter % 10) == 0 {
-					fmt.Printf(tag)
+					fmt.Print(tag)
 					logged = true
 				}
 			}

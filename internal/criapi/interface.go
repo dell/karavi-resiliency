@@ -19,7 +19,7 @@ package criapi
 import (
 	"context"
 
-	v1 "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 // ContainerInfo is the information obtained for each container:

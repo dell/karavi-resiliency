@@ -207,7 +207,7 @@ func (cmd *CommandExecution) Run(commands ...string) error {
 			return r.err
 		case <-timeout:
 			msg := fmt.Sprintf("command '%s' on host %s timed out", strings.Join(commands, ","), cmd.AccessInfo.Hostname)
-			err = fmt.Errorf(msg)
+			err = fmt.Errorf("%s", msg)
 			return err
 		}
 	}
