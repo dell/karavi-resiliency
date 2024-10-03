@@ -475,3 +475,8 @@ func (mock *K8sMock) GetPersistentVolumesWithLabels(ctx context.Context, labelSe
 	// TBD
 	return nil, nil
 }
+
+func (api *K8sMock) PatchStatefulSetReplicas(ctx context.Context, namespace, name string, replicas int32) (int32, error) {
+	//TBD
+	return 1, nil
+}

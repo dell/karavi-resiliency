@@ -127,6 +127,9 @@ type K8sAPI interface {
 
 	// UpdatereplicationGroup will update an existing Replication Group.
 	UpdateReplicationGroup(ctx context.Context, rg *repv1.DellCSIReplicationGroup) error
+
+	// Patch the number of replicas in a StatefulSet. It returns the previous numbber of replicas and error.
+	PatchStatefulSetReplicas(ctx context.Context, namespace, name string, replicas int32) (int32, error)
 }
 
 const (

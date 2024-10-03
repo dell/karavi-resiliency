@@ -522,6 +522,33 @@ func (api *Client) PatchPodLabels(ctx context.Context, podNamespace, podName str
 	return err
 }
 
+func (api *Client) PatchStatefulSetReplicas(ctx context.Context, namespace, name string, replicas int32) (int32, error) {
+	getopt := metav1.GetOptions{}
+	statefulSet, err := api.Client.AppsV1().StatefulSets(namespace).Get(ctx, name, getopt)
+	if err != nil {
+		return 1, err
+	}
+	originalReplicas := *statefulSet.Spec.Replicas
+	oldData, err := json.Marshal(statefulSet)
+	if err != nil {
+		return originalReplicas, err
+	}
+	statefulSet.Spec.Replicas = &replicas
+	newData, err := json.Marshal(statefulSet)
+	if err != nil {
+		return originalReplicas, err
+	}
+	log.Infof("Patching StatfulSet %s/%s replicas was %d to %d", namespace, name, originalReplicas, replicas)
+	// Produce a patch update object
+	patchBytes, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, statefulSet)
+	if err != nil {
+		return originalReplicas, err
+	}
+	patchOptions := metav1.PatchOptions{FieldManager: "podmon"}
+	_, err = api.Client.AppsV1().StatefulSets(namespace).Patch(ctx, statefulSet.Name, types.StrategicMergePatchType, patchBytes, patchOptions)
+	return originalReplicas, err
+}
+
 // TaintNode applies the specified 'taintKey' string and 'effect' to the node with 'nodeName'
 // The 'remove' flag indicates if the taint should be removed from the node, if it exists.
 func (api *Client) TaintNode(ctx context.Context, nodeName, taintKey string, effect v1.TaintEffect, remove bool) error {
