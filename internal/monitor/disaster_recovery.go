@@ -41,10 +41,12 @@ type ReplicationGroupInfo struct {
 	failoverMutex     sync.Mutex
 	awaitingReprotect bool   // Have failed over - need replicationGroupInfoMutexd to reprotecg
 	arrayID           string // arrayID of the array the PVs belong to
+	failoverType      string
 }
 
 func logReplicationGroupInfo(place string, rginfo *ReplicationGroupInfo) {
-	log.Infof("%s: RGINFO RGName %s\n pods %d pvs %d pvNamesInRG %v\n awaitingReprotect %t arrayID %s", place, rginfo.RGName, len(rginfo.PodKeysToPVNames), len(rginfo.pvNamesInRG), rginfo.pvNamesInRG, rginfo.awaitingReprotect, rginfo.arrayID)
+	log.Infof("%s: RGINFO RGName %s type %s\n pods %d pvs %d pvNamesInRG %v\n awaitingReprotect %t arrayID %s", place, rginfo.RGName,
+		rginfo.failoverType, len(rginfo.PodKeysToPVNames), len(rginfo.pvNamesInRG), rginfo.pvNamesInRG, rginfo.awaitingReprotect, rginfo.arrayID)
 }
 
 // returns true if the pod has failover label
@@ -71,9 +73,9 @@ func (cm *PodMonitorType) checkReplicatedPod(ctx context.Context, pod *v1.Pod) b
 	}
 
 	// Check that pod is initialized
-	ready, initialized, _ := podStatus(pod.Status.Conditions)
+	ready, initialized, pending := podStatus(pod.Status.Conditions)
 	if !initialized {
-		log.WithFields(fields).Debugf("checkReplicatedPod: Pod in wrong state: ready %t, initialized %t, pending %t, ready, initialized, pending")
+		log.WithFields(fields).Debugf("checkReplicatedPod: Pod in wrong state: ready %t, initialized %t, pending %t", ready, initialized, pending)
 		return false
 	}
 
@@ -228,7 +230,7 @@ func (cm *PodMonitorType) addPodToReplicationGroup(ctx context.Context, pod *v1.
 	// Next find all the global PVs in the replication group (not just limited to this pod)
 	rg, err := K8sAPI.GetReplicationGroup(ctx, rgName)
 	if err != nil || rg == nil {
-		log.Errorf("Couldn't read RG %s: rgName)")
+		log.Errorf("Couldn't read RG %s:", rgName)
 		return arrayID, false
 	}
 	altArrayID := rg.Labels["replication.storage.dell.com/remoteSystemID"]
@@ -270,6 +272,7 @@ func (cm *PodMonitorType) addPodToReplicationGroup(ctx context.Context, pod *v1.
 	rginfo.PodKeysToPVNames[podkey] = replicatedPVNames
 	rginfo.pvNamesInRG = pvNamesInRG
 	rginfo.arrayID = arrayID
+	rginfo.failoverType = pod.Labels[failoverLabelKey]
 	cm.RGNameToReplicationGroupInfo.Store(rgName, rginfo)
 	replicationGroupInfoMutex.Unlock()
 	//log.Infof("stored ReplicationGroupInfo %+v", rginfo)
@@ -367,6 +370,366 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 	}
 
 	// Loop through the nodes tainting them
+	failoverType := rginfo.failoverType
+	podKeyToTargetPVCNames := make(map[string][]string)
+	ownerKeyToReplicas := make(map[string]int32)
+	taintStartTime := time.Now()
+	var npods int
+	if failoverType == "owner" {
+		podKeyToTargetPVCNames, npods = prepareOwnerFailver(ctx, rgName, rginfo, ownerKeyToReplicas)
+	} else {
+		podKeyToTargetPVCNames, npods = preparePodFailover(ctx, rgName, rginfo, nodeList, taintedNodes)
+	}
+	// failoverTaint := getFailoverTaint(rgName)
+	// for _, nodeName := range nodeList {
+	// 	tainterr := taintNode(nodeName, failoverTaint, false)
+	// 	if tainterr == nil {
+	// 		log.Infof("tryFailover: tained node %s", nodeName)
+	// 		taintedNodes[nodeName] = nodeName
+	// 	}
+	// }
+
+	// // Ket PVC names for each pod
+	// targetPVCNamesStartTime := time.Now()
+	// podKeyToTargetPVCNames := make(map[string][]string)
+	// var podKeyToTargetPVCNamesMutex sync.Mutex
+	// for podkey, _ := range rginfo.PodKeysToPVNames {
+	// 	func(podkey string) []string {
+	// 		pvcnames := make([]string, 0)
+	// 		namespace, name := splitPodKey(podkey)
+	// 		pod, err := K8sAPI.GetPod(ctx, namespace, name)
+	// 		if err != nil {
+	// 			log.Errorf("tryFailover couldn't read pod: %s: %s", podkey, err.Error())
+	// 			return pvcnames
+	// 		}
+	// 		for _, vol := range pod.Spec.Volumes {
+	// 			if vol.VolumeSource.PersistentVolumeClaim != nil {
+	// 				pvcname := vol.VolumeSource.PersistentVolumeClaim.ClaimName
+	// 				pvcnames = append(pvcnames, pvcname)
+	// 			}
+	// 		}
+	// 		log.Debugf("tryFailover: podkey %s pvcnames %v", podkey, pvcnames)
+	// 		podKeyToTargetPVCNamesMutex.Lock()
+	// 		podKeyToTargetPVCNames[podkey] = pvcnames
+	// 		podKeyToTargetPVCNamesMutex.Unlock()
+	// 		return pvcnames
+	// 	}(podkey)
+	// }
+	// log.Infof("pvcNames time %v", time.Now().Sub(targetPVCNamesStartTime))
+
+	// // Loop through the pods to see if they're in pending or creating state
+	// f1StartTime := time.Now()
+	// nf1pods := len(rginfo.PodKeysToPVNames)
+	// f1chan := make(chan bool, nf1pods)
+	// f1 := func(podkey string) bool {
+	// 	namespace, name := splitPodKey(podkey)
+	// 	var done bool
+	// 	var errCount int
+	// 	for i := 0; i < 5; i++ {
+	// 		pod, err := K8sAPI.GetPod(ctx, namespace, name)
+	// 		if err == nil {
+	// 			_, _, pending := podStatus(pod.Status.Conditions)
+	// 			if pending {
+	// 				done = true
+	// 				f1chan <- done
+	// 				return done
+	// 			} else {
+	// 				log.Infof("f1: force deleting pod %s", podkey)
+	// 				err = K8sAPI.DeletePod(ctx, namespace, name, pod.UID, true)
+	// 				if err != nil {
+	// 					log.Errorf("error force deleting pod: %s  %s", podkey, err.Error())
+	// 				}
+	// 			}
+	// 		} else {
+	// 			errCount = errCount + 1
+	// 			if errCount >= 2 {
+	// 				f1chan <- true
+	// 				return done
+	// 			}
+	// 		}
+	// 		time.Sleep(2 * time.Second)
+	// 	}
+	// 	f1chan <- done
+	// 	return done
+	// }
+
+	// npods := 0
+	// for podkey, _ := range rginfo.PodKeysToPVNames {
+	// 	go f1(podkey)
+	// 	npods++
+	// }
+
+	// var ncomplete, nincomplete int
+	// for i := 0; i < nf1pods; i++ {
+	// 	done := <-f1chan
+	// 	if done {
+	// 		ncomplete++
+	// 	} else {
+	// 		nincomplete++
+	// 	}
+	// }
+	// log.Infof("f1 time %v", time.Now().Sub(f1StartTime))
+	// log.Infof("tryFailover: forceDeletePod pods %d complete %d incomplete %d", nf1pods, ncomplete, nincomplete)
+
+	// Read the volumes in the Replication Group
+	// pvsInRG, err := getPVsInReplicationGroup(ctx, rgName)
+	// if err != nil {
+	// 	return false
+	// }
+	// // // We only want to count the regular PVs or the replicated PVs, whichever is higher.
+	// var rgpvscount, rgreplicatedpvscount int
+	// for _, pv := range pvsInRG.Items {
+	// 	if strings.HasPrefix(pv.Name, ReplicatedPrefix) {
+	// 		rgreplicatedpvscount++
+	// 	} else {
+	// 		rgpvscount++
+	// 	}
+	// }
+	// if rgreplicatedpvscount > rgpvscount {
+	// 	rgpvscount = rgreplicatedpvscount
+	// }
+	// If the number of PVs in the replication group not equal to the number
+	// of PVs we know about from the pods, we cannot fail over.
+	// if rgpvscount != npvsinpods {
+	// 	log.Infof("tryFailover; aborting: RG has %d unique PVs, all %d pods have total %d PVs, cannot failover because they're not equal", rgpvscount, npods, npvsinpods)
+	// 	return false
+	// }
+	log.Infof("ATTEMPTING FAILOVER REPLICATION GROUP %s target %s pods %d", rgName, rgTarget, npods)
+	failoverTaint := getFailoverTaint(rgName)
+	unplanned := true
+	rgToLoad := rgName
+	if unplanned {
+		rgToLoad = rgTarget
+	}
+	rg, err := K8sAPI.GetReplicationGroup(ctx, rgToLoad)
+	if err != nil || rg == nil {
+		if err == nil {
+			err = errors.New("not found")
+		}
+		log.Errorf("tryFailover: aborting: Could not get ReplicationGrop %s: %s", rgName, err)
+		untaintNodes(taintedNodes, failoverTaint)
+		return false
+	}
+
+	startingTime := rg.Status.ReplicationLinkState.LastSuccessfulUpdate.Time
+	if unplanned {
+		rg.Spec.Action = ActionFailoverLocalUnplanned
+		log.Infof("Updating RG %s with action %s", rg.Name, rg.Spec.Action)
+		err := K8sAPI.UpdateReplicationGroup(ctx, rg)
+		if err != nil {
+			log.Errorf("tryFailover: aborting: Error updating RG %s with action %s: %s", rg.Name, rg.Spec.Action, err.Error())
+			untaintNodes(taintedNodes, failoverTaint)
+			return false
+		}
+		// rg = waitForRGStateToUpdate(ctx, rg.Name, "FAILOVER")
+		// log.Infof("Unplanned Failover completed RG %s:\n Last Action %+v\n Last Condition %+v\nLink State %+v", rgName, rg.Status.LastAction, rg.Status.Conditions[0], rg.Status.ReplicationLinkState.State)
+	} else {
+		rg.Spec.Action = ActionFailoverRemote
+		log.Infof("Updating RG %s with action %s", rg.Name, rg.Spec.Action)
+		err := K8sAPI.UpdateReplicationGroup(ctx, rg)
+		if err != nil {
+			log.Errorf("tryFailover: aborting: Error updating RG %s with action %s: %s", rg.Name, rg.Spec.Action, err.Error())
+			untaintNodes(taintedNodes, failoverTaint)
+			return false
+		}
+	}
+	// Set up a channel to indicate each pod has completed or timedout.
+	// npods = len(rginfo.PodKeysToPVNames)
+
+	//donechan := make(chan bool, npods)
+	// Kill the pods again, hoping each container will restart
+	// Loop through the pods to see if they're in pending or creating state
+	// var failoverTimeout bool
+	// f2 := func(podkey string) bool {
+	// 	var done bool
+	// 	for i := 0; i < 100; i++ {
+	// 		_, _, done = killAPodToRemapPVCs(ctx, podkey, podKeyToTargetPVCNames, toReplicated)
+	// 		if done {
+	// 			log.Infof("tryFailover: pod %s done", podkey)
+	// 			donechan <- done
+	// 			return done
+	// 		}
+	// 		time.Sleep(3 * time.Second)
+	// 	}
+	// 	log.Infof("tryFailover: pod %s timed out", podkey)
+	// 	failoverTimeout = true
+	// 	donechan <- done
+	// 	return done
+	// }
+
+	// f2StartTime := time.Now()
+	// for podkey, _ := range rginfo.PodKeysToPVNames {
+	// 	go f2(podkey)
+	// }
+	// // Waiting on the pods to be done
+	// for i := 0; i < npods; i++ {
+	// 	log.Debugf("waiting on donechan %d", i)
+	// 	done := <-donechan
+	// 	log.Debugf("done %d %t", i, done)
+	// }
+	// log.Infof("f2 time %v", time.Since(f2StartTime))
+
+	// The failover will only complete after the PVs are remapped?
+	rg = waitForRGStateToUpdate(ctx, rgTarget, "UNPLANNED_FAILOVER_LOCAL")
+	if rg != nil {
+		log.Infof("Unplanned Failover completed RG %s:\n Last Action %+v\n Last Condition %+v\nLink State %+v", rgName, rg.Status.LastAction, rg.Status.Conditions[0], rg.Status.ReplicationLinkState.State)
+	}
+	failoverTime := time.Since(startingTime)
+	log.Infof("failoverTime: %s", failoverTime)
+
+	if failoverType == "owner" {
+		err = finishOwnerFailover(ctx, rgName, rginfo, ownerKeyToReplicas)
+	} else {
+		finishPodFailover(ctx, rgName, rginfo, podKeyToTargetPVCNames, taintedNodes, toReplicated)
+	}
+
+	// if failoverTimeout {
+	// 	message := fmt.Sprintf("failover timeout: %v", time.Since(startingTime))
+	// 	logReplicationGroupInfo(message, rginfo)
+	// }
+	// log.Infof("failover time: %v", time.Since(startingTime))
+
+	// untaint the nodes allow pods to be created
+	untaintNodes(taintedNodes, failoverTaint)
+	log.Infof("tainted time %v", time.Since(taintStartTime))
+
+	// Set awaitingReprotect on the RGInfo and save it.
+	rginfo.awaitingReprotect = true
+	cm.RGNameToReplicationGroupInfo.Store(rginfo.RGName, rginfo)
+
+	// Create an event for the replication
+	// // This code will not work on the RG custom resource without an event recorder
+	// eventRG := rg1
+	// if rg1.Name != rgName {
+	// 	eventRG = rg2
+	// }
+	// if err = K8sAPI.CreateEvent(podmon, eventRG, k8sapi.EventTypeWarning, "Replication failover",
+	// 	"replication failed over from RG %s to %s", rgName, rgTarget); err != nil {
+	// 	log.Errorf("Error reporting replication failover event: %s %s: %s", rgName, rgTarget, err.Error())
+	// }
+
+	return true
+}
+
+// prepareOwnerFail prepares for a failover with the pods are paused by adjusting the replica in their owner.
+// PrepareOwererFailover returns a map of ownerKey to number of replicas, a map of podKey to PVC names, and number of pods
+func prepareOwnerFailver(ctx context.Context, rgName string, rgInfo *ReplicationGroupInfo,
+	ownerKeyToReplicas map[string]int32) (map[string][]string, int) {
+	podKeyToTargetPVCNames, err := getPVCNamesForEachPod(ctx, rgInfo.PodKeysToPVNames)
+	if err != nil {
+		return podKeyToTargetPVCNames, 0
+	}
+	f3 := func(podkey string) error {
+		var err error
+		for retries := 0; retries < 3; retries++ {
+			namespace, name := splitPodKey(podkey)
+			pod, err := K8sAPI.GetPod(ctx, namespace, name)
+			if err != nil {
+				log.Errorf("Could not get pod: %s: %s", podkey, err.Error())
+				return err
+			}
+			if len(pod.OwnerReferences) > 0 {
+				for _, ref := range pod.OwnerReferences {
+					if ref.Kind == "StatefulSet" {
+						statefulSetName := ref.Name
+						statefulSetKey := namespace + "/" + statefulSetName
+						originalReplicas, err := K8sAPI.PatchStatefulSetReplicas(ctx, namespace, statefulSetName, 0)
+						log.Infof("%s originalReplicas %d", statefulSetKey, originalReplicas)
+						if err != nil {
+							log.Errorf("Could not patch StatefulSet: %s, %s", statefulSetKey, err.Error())
+							return err
+						}
+						if originalReplicas > 0 {
+							ownerKeyToReplicas[statefulSetKey] = originalReplicas
+						}
+					}
+				}
+			}
+		}
+		return err
+	}
+
+	var npods int
+	for podkey := range rgInfo.PodKeysToPVNames {
+		npods++
+		f3(podkey)
+	}
+
+	// Loop through the pods to see if they're in pending state
+	f1StartTime := time.Now()
+	nf1pods := len(rgInfo.PodKeysToPVNames)
+	f1chan := make(chan bool, nf1pods)
+	f1 := func(podkey string) bool {
+		namespace, name := splitPodKey(podkey)
+		var done bool
+		var errCount int
+		for i := 0; i < 5; i++ {
+			pod, err := K8sAPI.GetPod(ctx, namespace, name)
+			if err == nil {
+				_, _, pending := podStatus(pod.Status.Conditions)
+				if pending {
+					done = true
+					f1chan <- done
+					return done
+				} else {
+					log.Infof("f1: force deleting pod %s", podkey)
+					err = K8sAPI.DeletePod(ctx, namespace, name, pod.UID, true)
+					if err != nil {
+						log.Errorf("error force deleting pod: %s  %s", podkey, err.Error())
+					}
+				}
+			} else {
+				errCount = errCount + 1
+				if errCount >= 2 {
+					f1chan <- true
+					return done
+				}
+			}
+			time.Sleep(2 * time.Second)
+		}
+		f1chan <- done
+		return done
+	}
+
+	npods = 0
+	for podkey, _ := range rgInfo.PodKeysToPVNames {
+		go f1(podkey)
+		npods++
+	}
+
+	var ncomplete, nincomplete int
+	for i := 0; i < nf1pods; i++ {
+		done := <-f1chan
+		if done {
+			ncomplete++
+		} else {
+			nincomplete++
+		}
+	}
+	log.Infof("prepareOwnerFailover: ownerKeyToReplicas %v", ownerKeyToReplicas)
+	log.Infof("f1 time %v complete %d incomplete %d", time.Since(f1StartTime), ncomplete, nincomplete)
+	return podKeyToTargetPVCNames, npods
+}
+
+func finishOwnerFailover(ctx context.Context, rgName string, rgInfo *ReplicationGroupInfo, ownerKeyToReplicas map[string]int32) error {
+	var errorRet error
+	time.Sleep(30 * time.Second)
+	log.Infof("finishOwnerFailover: ownerKeyToReplicas %v", ownerKeyToReplicas)
+	for ownerKey, replicas := range ownerKeyToReplicas {
+		// reason, done := waitOnPVCsRemapping(ctx, podkey, podKeyToTargetPVCNames, toReplicated) (string, bool)
+		parts := strings.Split(ownerKey, "/")
+		_, err := K8sAPI.PatchStatefulSetReplicas(ctx, parts[0], parts[1], replicas)
+		if err != nil {
+			log.Errorf("PatchStatefulSetReplicats %s error %s", ownerKey, err.Error())
+			errorRet = err
+		}
+	}
+	return errorRet
+}
+
+// preparePodFailover taints the node and gets the pods in a Pending state if possibe. It returns the podKeysToPVNames, npod, npvs
+func preparePodFailover(ctx context.Context, rgName string, rginfo *ReplicationGroupInfo, nodeList []string, taintedNodes map[string]string) (map[string][]string, int) {
+	// Loop through the nodes tainting them
 	failoverTaint := getFailoverTaint(rgName)
 	for _, nodeName := range nodeList {
 		tainterr := taintNode(nodeName, failoverTaint, false)
@@ -377,32 +740,36 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 	}
 
 	// Ket PVC names for each pod
-	podKeyToTargetPVCNames := make(map[string][]string)
-	var podKeyToTargetPVCNamesMutex sync.Mutex
-	for podkey, _ := range rginfo.PodKeysToPVNames {
-		func(podkey string) []string {
-			pvcnames := make([]string, 0)
-			namespace, name := splitPodKey(podkey)
-			pod, err := K8sAPI.GetPod(ctx, namespace, name)
-			if err != nil {
-				log.Errorf("tryFailover couldn't read pod: %s: %s", podkey, err.Error())
-				return pvcnames
-			}
-			for _, vol := range pod.Spec.Volumes {
-				if vol.VolumeSource.PersistentVolumeClaim != nil {
-					pvcname := vol.VolumeSource.PersistentVolumeClaim.ClaimName
-					pvcnames = append(pvcnames, pvcname)
-				}
-			}
-			log.Debugf("tryFailover: podkey %s pvcnames %v", podkey, pvcnames)
-			podKeyToTargetPVCNamesMutex.Lock()
-			podKeyToTargetPVCNames[podkey] = pvcnames
-			podKeyToTargetPVCNamesMutex.Unlock()
-			return pvcnames
-		}(podkey)
-	}
+	targetPVCNamesStartTime := time.Now()
+	podKeyToTargetPVCNames, _ := getPVCNamesForEachPod(ctx, rginfo.PodKeysToPVNames)
+	// podKeyToTargetPVCNames := make(map[string][]string)
+	// var podKeyToTargetPVCNamesMutex sync.Mutex
+	// for podkey, _ := range rginfo.PodKeysToPVNames {
+	// 	func(podkey string) []string {
+	// 		pvcnames := make([]string, 0)
+	// 		namespace, name := splitPodKey(podkey)
+	// 		pod, err := K8sAPI.GetPod(ctx, namespace, name)
+	// 		if err != nil {
+	// 			log.Errorf("tryFailover couldn't read pod: %s: %s", podkey, err.Error())
+	// 			return pvcnames
+	// 		}
+	// 		for _, vol := range pod.Spec.Volumes {
+	// 			if vol.VolumeSource.PersistentVolumeClaim != nil {
+	// 				pvcname := vol.VolumeSource.PersistentVolumeClaim.ClaimName
+	// 				pvcnames = append(pvcnames, pvcname)
+	// 			}
+	// 		}
+	// 		log.Debugf("tryFailover: podkey %s pvcnames %v", podkey, pvcnames)
+	// 		podKeyToTargetPVCNamesMutex.Lock()
+	// 		podKeyToTargetPVCNames[podkey] = pvcnames
+	// 		podKeyToTargetPVCNamesMutex.Unlock()
+	// 		return pvcnames
+	// 	}(podkey)
+	// }
+	log.Infof("pvcNames time %v", time.Since(targetPVCNamesStartTime))
 
 	// Loop through the pods to see if they're in pending or creating state
+	f1StartTime := time.Now()
 	nf1pods := len(rginfo.PodKeysToPVNames)
 	f1chan := make(chan bool, nf1pods)
 	f1 := func(podkey string) bool {
@@ -452,94 +819,67 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 			nincomplete++
 		}
 	}
+	log.Infof("f1 time %v", time.Since(f1StartTime))
 	log.Infof("tryFailover: forceDeletePod pods %d complete %d incomplete %d", nf1pods, ncomplete, nincomplete)
+	return podKeyToTargetPVCNames, npods
+}
 
-	// Read the volumes in the Replication Group
-	// pvsInRG, err := getPVsInReplicationGroup(ctx, rgName)
-	// if err != nil {
-	// 	return false
-	// }
-	// // // We only want to count the regular PVs or the replicated PVs, whichever is higher.
-	// var rgpvscount, rgreplicatedpvscount int
-	// for _, pv := range pvsInRG.Items {
-	// 	if strings.HasPrefix(pv.Name, ReplicatedPrefix) {
-	// 		rgreplicatedpvscount++
-	// 	} else {
-	// 		rgpvscount++
-	// 	}
-	// }
-	// if rgreplicatedpvscount > rgpvscount {
-	// 	rgpvscount = rgreplicatedpvscount
-	// }
-	// If the number of PVs in the replication group not equal to the number
-	// of PVs we know about from the pods, we cannot fail over.
-	// if rgpvscount != npvsinpods {
-	// 	log.Infof("tryFailover; aborting: RG has %d unique PVs, all %d pods have total %d PVs, cannot failover because they're not equal", rgpvscount, npods, npvsinpods)
-	// 	return false
-	// }
-	log.Infof("ATTEMPTING FAILOVER REPLICATION GROUP %s target %s pods %d pvs %d", rgName, rgTarget, npods)
-	unplanned := true
-	rgToLoad := rgName
-	if unplanned {
-		rgToLoad = rgTarget
-	}
-	rg, err := K8sAPI.GetReplicationGroup(ctx, rgToLoad)
-	if err != nil || rg == nil {
-		if err == nil {
-			err = errors.New("not found")
+func getPVCNamesForEachPod(ctx context.Context, podKeyMap map[string][]string) (map[string][]string, error) {
+	// Ket PVC names for each pod
+	var errout error
+	targetPVCNamesStartTime := time.Now()
+	podKeyToTargetPVCNames := make(map[string][]string)
+	for podkey := range podKeyMap {
+		pvcnames := make([]string, 0)
+		namespace, name := splitPodKey(podkey)
+		pod, err := K8sAPI.GetPod(ctx, namespace, name)
+		if err != nil {
+			// TODO: handle this better
+			log.Errorf("tryFailover couldn't read pod: %s: %s", podkey, err.Error())
+			errout = err
+			continue
 		}
-		log.Errorf("tryFailover: aborting: Could not get ReplicationGrop %s: %s", rgName, err)
-		untaintNodes(taintedNodes, failoverTaint)
-		return false
+		for _, vol := range pod.Spec.Volumes {
+			if vol.VolumeSource.PersistentVolumeClaim != nil {
+				pvcname := vol.VolumeSource.PersistentVolumeClaim.ClaimName
+				pvcnames = append(pvcnames, pvcname)
+			}
+		}
+		log.Debugf("getPVCNamesForEachPod: podkey %s pvcnames %v", podkey, pvcnames)
+		podKeyToTargetPVCNames[podkey] = pvcnames
 	}
+	log.Infof("pvcNames time %v", time.Since(targetPVCNamesStartTime))
+	return podKeyToTargetPVCNames, errout
+}
 
-	startingTime := rg.Status.ReplicationLinkState.LastSuccessfulUpdate.Time
-	if unplanned {
-		rg.Spec.Action = ActionFailoverLocalUnplanned
-		log.Infof("Updating RG %s with action %s", rg.Name, rg.Spec.Action)
-		err := K8sAPI.UpdateReplicationGroup(ctx, rg)
-		if err != nil {
-			log.Errorf("tryFailover: aborting: Error updating RG %s with action %s: %s", rg.Name, rg.Spec.Action, err.Error())
-			untaintNodes(taintedNodes, failoverTaint)
-			return false
-		}
-		// rg = waitForRGStateToUpdate(ctx, rg.Name, "FAILOVER")
-		// log.Infof("Unplanned Failover completed RG %s:\n Last Action %+v\n Last Condition %+v\nLink State %+v", rgName, rg.Status.LastAction, rg.Status.Conditions[0], rg.Status.ReplicationLinkState.State)
-	} else {
-		rg.Spec.Action = ActionFailoverRemote
-		log.Infof("Updating RG %s with action %s", rg.Name, rg.Spec.Action)
-		err := K8sAPI.UpdateReplicationGroup(ctx, rg)
-		if err != nil {
-			log.Errorf("tryFailover: aborting: Error updating RG %s with action %s: %s", rg.Name, rg.Spec.Action, err.Error())
-			untaintNodes(taintedNodes, failoverTaint)
-			return false
-		}
-	}
+func finishPodFailover(ctx context.Context, rgName string, rginfo *ReplicationGroupInfo,
+	podKeyToTargetPVCNames map[string][]string, taintedNodes map[string]string, toReplicated bool) bool {
+	var failoverTimeout bool
 
 	// Set up a channel to indicate each pod has completed or timedout.
-	npods = len(rginfo.PodKeysToPVNames)
+	npods := len(rginfo.PodKeysToPVNames)
 	donechan := make(chan bool, npods)
 
 	// Kill the pods again, hoping each container will restart
 	// Loop through the pods to see if they're in pending or creating state
-	var failoverTimeout bool
 	f2 := func(podkey string) bool {
 		var done bool
 		for i := 0; i < 100; i++ {
 			_, _, done = killAPodToRemapPVCs(ctx, podkey, podKeyToTargetPVCNames, toReplicated)
 			if done {
-				log.Infof("tryFailover: pod %s done", podkey)
+				log.Infof("tryFailover: rg %s pod %s done", rgName, podkey)
 				donechan <- done
 				return done
 			}
 			time.Sleep(3 * time.Second)
 		}
-		log.Infof("tryFailover: pod %s timed out", podkey)
+		log.Infof("tryFailover: rg %spod %s timed out", rgName, podkey)
 		failoverTimeout = true
 		donechan <- done
 		return done
 	}
 
+	f2StartTime := time.Now()
 	for podkey, _ := range rginfo.PodKeysToPVNames {
 		go f2(podkey)
 	}
@@ -549,37 +889,51 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 		done := <-donechan
 		log.Debugf("done %d %t", i, done)
 	}
+	log.Infof("f2 time %v", time.Since(f2StartTime))
 
-	// The failover will only complete after the PVs are remapped?
-	rg = waitForRGStateToUpdate(ctx, rgTarget, "UNPLANNED_FAILOVER_LOCAL")
-	if rg != nil {
-		log.Infof("Unplanned Failover completed RG %s:\n Last Action %+v\n Last Condition %+v\nLink State %+v", rgName, rg.Status.LastAction, rg.Status.Conditions[0], rg.Status.ReplicationLinkState.State)
+	return failoverTimeout
+
+}
+
+// waitOnPVCsRemapping waits on all the PVCs a pod is using to have their PVs remapped to the failover target.
+// It returns reason for failure and bool indicating done
+func waitOnPVCsRemapping(ctx context.Context, podkey string, podKeyToTargetPVCNames map[string][]string, toReplicated bool) (string, bool) {
+	var reason string
+	namespace, _ := splitPodKey(podkey)
+	// Get the PVCs in the pod. The list of pvc names was precalculated and passed in in podKeyToTargetPVCNames.
+	// Get all the PVCs in the pod.
+	targetPvcList := podKeyToTargetPVCNames[podkey]
+	for retries := 0; retries < 20; retries++ {
+		done := true
+		for _, pvcName := range targetPvcList {
+			pvc, _ := K8sAPI.GetPersistentVolumeClaim(ctx, namespace, pvcName)
+			if pvc == nil {
+				reason = fmt.Sprintf("pvc %s nil", pvcName)
+				done = false
+			} else {
+				if pvc.Spec.VolumeName == "" {
+					reason = fmt.Sprintf("pvc %s empty VolumeName %s", pvcName, pvc.Spec.VolumeName)
+					done = false
+				}
+				if toReplicated && !strings.HasPrefix(pvc.Spec.VolumeName, ReplicatedPrefix) {
+					reason = fmt.Sprintf("pvc %s toReplicated %t pv name %s", pvcName, toReplicated, pvc.Spec.VolumeName)
+					done = false
+				}
+				if !toReplicated && strings.HasPrefix(pvc.Spec.VolumeName, ReplicatedPrefix) {
+					reason = fmt.Sprintf("pvc %s toReplicated %t pv name %s", pvcName, toReplicated, pvc.Spec.VolumeName)
+					done = false
+				}
+			}
+			if !done {
+				break
+			}
+		}
+		if done {
+			return "", done
+		}
+		time.Sleep(3 * time.Second)
 	}
-	if failoverTimeout {
-		message := fmt.Sprintf("failover timeout: %v", time.Now().Sub(startingTime))
-		logReplicationGroupInfo(message, rginfo)
-	}
-	log.Infof("failover time: %v", time.Now().Sub(startingTime))
-
-	// untaint the nodes allow pods to be created
-	untaintNodes(taintedNodes, failoverTaint)
-
-	// Set awaitingReprotect on the RGInfo and save it.
-	rginfo.awaitingReprotect = true
-	cm.RGNameToReplicationGroupInfo.Store(rginfo.RGName, rginfo)
-
-	// Create an event for the replication
-	// // This code will not work on the RG custom resource without an event recorder
-	// eventRG := rg1
-	// if rg1.Name != rgName {
-	// 	eventRG = rg2
-	// }
-	// if err = K8sAPI.CreateEvent(podmon, eventRG, k8sapi.EventTypeWarning, "Replication failover",
-	// 	"replication failed over from RG %s to %s", rgName, rgTarget); err != nil {
-	// 	log.Errorf("Error reporting replication failover event: %s %s: %s", rgName, rgTarget, err.Error())
-	// }
-
-	return true
+	return reason, false
 }
 
 // Returns pod.Spec.NodeName, bool indicating all PVCs remapped or not
