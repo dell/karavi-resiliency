@@ -321,11 +321,11 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 		rgTarget = ReplicatedPrefix + rgName
 		toReplicated = true
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), FailoverTimeout)
-	defer cancel()
 	var rginfo *ReplicationGroupInfo
 	replicationGroupInfoMutex.Lock()
 	defer replicationGroupInfoMutex.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), FailoverTimeout)
+	defer cancel()
 	rgAny, ok := cm.RGNameToReplicationGroupInfo.Load(rgName)
 	if !ok {
 		log.Infof("tryFailover: ReplicationGroupInfo not found: %s", rgName)
@@ -578,7 +578,7 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 	log.Infof("failoverTime: %s", failoverTime)
 
 	if failoverType == "owner" {
-		err = finishOwnerFailover(ctx, rgName, rginfo, ownerKeyToReplicas)
+		finishOwnerFailover(ctx, rgName, rginfo, ownerKeyToReplicas, podKeyToTargetPVCNames, toReplicated)
 	} else {
 		finishPodFailover(ctx, rgName, rginfo, podKeyToTargetPVCNames, taintedNodes, toReplicated)
 	}
@@ -711,20 +711,52 @@ func prepareOwnerFailver(ctx context.Context, rgName string, rgInfo *Replication
 	return podKeyToTargetPVCNames, npods
 }
 
-func finishOwnerFailover(ctx context.Context, rgName string, rgInfo *ReplicationGroupInfo, ownerKeyToReplicas map[string]int32) error {
-	var errorRet error
-	time.Sleep(30 * time.Second)
-	log.Infof("finishOwnerFailover: ownerKeyToReplicas %v", ownerKeyToReplicas)
-	for ownerKey, replicas := range ownerKeyToReplicas {
-		// reason, done := waitOnPVCsRemapping(ctx, podkey, podKeyToTargetPVCNames, toReplicated) (string, bool)
+func finishOwnerFailover(ctx context.Context, rgName string, rgInfo *ReplicationGroupInfo, ownerKeyToReplicas map[string]int32,
+	podKeyToTargetPVCNames map[string][]string, toReplicated bool) error {
+	f4chan := make(chan bool, len(ownerKeyToReplicas))
+	f4 := func(ownerKey string, replicas int32) {
+		retval := true
 		parts := strings.Split(ownerKey, "/")
-		_, err := K8sAPI.PatchStatefulSetReplicas(ctx, parts[0], parts[1], replicas)
+		if len(parts) < 2 {
+			log.Errorf("bad owner key: %s", ownerKey)
+			f4chan <- false
+			return
+		}
+		namespace := parts[0]
+		ownerName := parts[1]
+		log.Infof("finishOwnerFailover: ownerKeyToReplicas %v", ownerKeyToReplicas)
+		// Wait on all the pvcs by pods matching the same namespace.
+		for podKey, _ := range podKeyToTargetPVCNames {
+			if strings.HasPrefix(podKey, namespace+"/") {
+				reason, done := waitOnPVCsRemapping(ctx, podKey, podKeyToTargetPVCNames, toReplicated)
+				log.Infof("pvc remapping for pod %s done %t reason %s", podKey, done, reason)
+			}
+		}
+		_, err := K8sAPI.PatchStatefulSetReplicas(ctx, namespace, ownerName, replicas)
 		if err != nil {
 			log.Errorf("PatchStatefulSetReplicats %s error %s", ownerKey, err.Error())
-			errorRet = err
+			retval = false
+		}
+		f4chan <- retval
+	}
+
+	var f4cnt int
+	for ownerKey, replicas := range ownerKeyToReplicas {
+		go f4(ownerKey, replicas)
+		f4cnt = f4cnt + 1
+	}
+
+	var ncomplete, nincomplete int
+	for i := 0; i < f4cnt; i++ {
+		done := <-f4chan
+		if done {
+			ncomplete++
+		} else {
+			nincomplete++
 		}
 	}
-	return errorRet
+	log.Infof("finishOwnerFailover %s complete %d incomplete %d", rgName, ncomplete, nincomplete)
+	return nil
 }
 
 // preparePodFailover taints the node and gets the pods in a Pending state if possibe. It returns the podKeysToPVNames, npod, npvs
@@ -906,6 +938,7 @@ func waitOnPVCsRemapping(ctx context.Context, podkey string, podKeyToTargetPVCNa
 	for retries := 0; retries < 20; retries++ {
 		done := true
 		for _, pvcName := range targetPvcList {
+			log.Infof("waitOnPVCsRemapping getting pvc %s/%s", namespace, pvcName)
 			pvc, _ := K8sAPI.GetPersistentVolumeClaim(ctx, namespace, pvcName)
 			if pvc == nil {
 				reason = fmt.Sprintf("pvc %s nil", pvcName)

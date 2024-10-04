@@ -11,7 +11,7 @@ Array2ID=1102ecb40dadf70f
 Array2IP=10.247.39.206
 ClusterNodes="10.247.102.211 10.247.102.213 10.247.102.215"
 
-REPLICATIONGROUPNAME=rg-8bc2de53-a35a-4fd0-a841-761b1883b2e6
+REPLICATIONGROUPNAME=rg-17391a43-cf8b-4af5-bfd9-9eb96785303f
 
 getSourceRG() {
 	kubectl get rg | grep "^$REPLICATIONGROUPNAME"
@@ -32,6 +32,31 @@ getTargetRGLinkState() {
 
 APPNAMESPACES=`kubectl get namespaces | awk '/pmtv/ { printf "%s ",$1; }'`
 echo "Applicaion namespaces: $APPNAMESPACES"
+
+# numberPodsRunning returns the number of pods runnint
+numberPodsRunning() {
+        running=0
+        for ns in $APPNAMESPACES; do
+                nsRunning=$(kubectl get pods -n $ns | grep -v NAME | grep Running | wc -l )
+                running=$(expr  $running + $nsRunning)
+        done
+	echo $running
+        return $running
+}
+
+echo "number running $(numberPodsRunning) "
+
+# $1 is the number of pods that need to be running
+waitOnNPodsRunning() {
+        echo "Waiting on $1 pods to be running"
+        nsRunning=0
+        while [ $1 -ne $nsRunning ]; do
+                nsRunning=$(numberPodsRunning)
+                echo -n "Running $nsRunning waiting for $1 "
+		date
+                sleep 5
+        done
+}
 
 # allPodsRunning returns the number of pods not running
 allPodsRunning() {
@@ -145,14 +170,13 @@ isReadyForFailover() {
 	return 0
 }
 
-waitOnFailover() {
-	echo "waiting on failover"
-	# Wait on the taints and then the untaints
+# args: $1 number of pods that should be running
+waitOnFailoverComplete() {
+	npods=$1
+	echo "waiting on FAILOVER link state"
 	waitOnFailedOverLinkState
-
-	waitonAllPodsRunning
-	echo "all pods now running"
-	echo "failover done"
+	echo "waiting on $npods pods running"
+	waitOnNPodsRunning $npods
 }
 
 #=================================================== test iteration =============================================================
@@ -160,12 +184,16 @@ set iterationNumber=0
 
 testIteration() {
 	echo link states $(getSourceRGLinkState) $(getTargetRGLinkState)
+	echo "replication-group labeled pods: "
+	kubectl get pods -A -o wide -l replication-group.podmon.dellemc.com
 
 	export clusterMode=$(getClusterMode)
 	echo clusterMode $clusterMode
 	isReadyForFailover
 	status=$?
 	echo status $status
+	npodsrunning=$(numberPodsRunning)
+	echo $npodsrunning pods running AAA
 	# if ready for failover, kill connectivity to the appropriate array which should trigger a failover
 	if [ $status -eq 0 ]; then
 		echo "trying $mode"
@@ -181,7 +209,7 @@ testIteration() {
 		return 1
 	fi 
 
-	time waitOnFailover
+	time waitOnFailoverComplete $npodsrunning
 
 	# Restore connectivity to the array
 	echo ping -c 1 $Array1IP
@@ -221,8 +249,8 @@ testIteration() {
 		if [ "$srcLinkState" == "SYNCHRONIZED"  -a "$targetLinkState" == "SYNCHRONIZED" ]; then
 			waiting=0
 		else
+			echo -n "waiting on SYNCHRONIZED: srcLinkState $srcLinkState targetLinkState $targetLinkState "
 			date
-			echo "waiting on SYNCHRONIZED: srcLinkState $srcLinkState targetLinkState $targetLinkState"
 			sleep 10
 		fi
 	done
@@ -245,8 +273,8 @@ waitOnFailedOverLinkState() {
 		if [ "$srcLinkState" == "FAILEDOVER"  -o "$targetLinkState" == "FAILEDOVER" ]; then
 			waiting=0
 		else
+			echo -n "waiting on FAILEDOVER: srcLinkState $srcLinkState targetLinkState $targetLinkState "
 			date
-			echo "waiting on FAILEDOVER: srcLinkState $srcLinkState targetLinkState $targetLinkState"
 			sleep 10
 		fi
 	done
@@ -264,8 +292,8 @@ waitOnSynchronizedLinkState() {
 		if [ "$srcLinkState" == "SYNCHRONIZED"  -a "$targetLinkState" == "SYNCHRONIZED" ]; then
 			waiting=0
 		else
+			echo -n "waiting on SYNCHRONIZED: srcLinkState $srcLinkState targetLinkState $targetLinkState "
 			date
-			echo "waiting on SYNCHRONIZED: srcLinkState $srcLinkState targetLinkState $targetLinkState"
 			sleep 10
 		fi
 	done
@@ -282,10 +310,10 @@ do
 done
 }
 
-# $1 is the scale to be run
+# $1 is the number of pods scale to be run
 runScale(){
-	sh ../podmontest/insv.sh --instances $1 --storage-class rep217to206
-	sleep 60
+	sh ../podmontest/insv.sh --nvolumes 2 --instances $1 --storage-class rep217to206
+	#sleep 60
 	APPNAMESPACES=`kubectl get namespaces | awk '/pmtv/ { printf "%s ",$1; }'`
 	echo "Applicaion namespaces: $APPNAMESPACES"
 	waitonAllPodsRunning
@@ -293,73 +321,15 @@ runScale(){
 	runIterations
 }
 
-runScale 5
-runScale 10
-runScale 20
-runScale 30
-runScale 40
-runScale 50
-runScale 60
-runScale 70
-runScale 80
-runScale 90
-runScale 100
+runScale 2
+#runScale 5
+#runScale 10
+#runScale 15
+#runScale 20
+#runScale 30
+#runScale 40
+#runScale 50
 
 exit 0
 
 
-# sh ../podmontest/insv.sh --instances 5 --storage-class rep217to206
-# sleep 60
-# waitonAllPodsRunning
-# waitOnSynchronizedLinkState
-# runIterations
-# sleep 60
-# sh ../podmontest/insv.sh --instances 10 --storage-class rep217to206
-# sleep 60
-# waitonAllPodsRunning
-# waitOnSynchronizedLinkState
-# runIterations
-# sh ../podmontest/insv.sh --instances 15 --storage-class rep217to206
-# sleep 60
-# waitonAllPodsRunning
-# waitOnSynchronizedLinkState
-# runIterations
-
-#sh ../podmontest/insv.sh --instances 20 --storage-class rep217to206
-#sleep 60
-#APPNAMESPACES=`kubectl get namespaces | awk '/pmtv/ { printf "%s ",$1; }'`
-#echo "Applicaion namespaces: $APPNAMESPACES"
-#waitonAllPodsRunning
-#waitOnSynchronizedLinkState
-#runIterations
-#sh ../podmontest/insv.sh --instances 25 --storage-class rep217to206
-#sleep 60
-#APPNAMESPACES=`kubectl get namespaces | awk '/pmtv/ { printf "%s ",$1; }'`
-#echo "Applicaion namespaces: $APPNAMESPACES"
-#waitonAllPodsRunning
-#waitOnSynchronizedLinkState
-#runIterations
-#sh ../podmontest/insv.sh --instances 30 --storage-class rep217to206
-#sleep 60
-#APPNAMESPACES=`kubectl get namespaces | awk '/pmtv/ { printf "%s ",$1; }'`
-#echo "Applicaion namespaces: $APPNAMESPACES"
-#waitonAllPodsRunning
-#waitOnSynchronizedLinkState
-#runIterations
-
-#sh ../podmontest/insv.sh --instances 70 --storage-class rep217to206
-#sleep 60
-#APPNAMESPACES=`kubectl get namespaces | awk '/pmtv/ { printf "%s ",$1; }'`
-#echo "Applicaion namespaces: $APPNAMESPACES"
-#waitonAllPodsRunning
-#waitOnSynchronizedLinkState
-#runIterations
-
-
-#sh ../podmontest/insv.sh --instances 40 --storage-class rep217to206
-#sleep 60
-#APPNAMESPACES=`kubectl get namespaces | awk '/pmtv/ { printf "%s ",$1; }'`
-#echo "Applicaion namespaces: $APPNAMESPACES"
-#waitonAllPodsRunning
-#waitOnSynchronizedLinkState
-#runIterations
