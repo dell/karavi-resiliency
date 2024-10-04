@@ -309,7 +309,7 @@ func (api *Client) GetPersistentVolumeClaim(ctx context.Context, namespace, pvcN
 	getopt := metav1.GetOptions{}
 	pvc, err := pvcinterface.Get(ctx, pvcName, getopt)
 	if err != nil {
-		log.Errorf("error retrieving PVC: %s : %s", pvcName, err.Error())
+		log.Errorf("error retrieving PVC: %s/%s : %s", namespace, pvcName, err.Error())
 	}
 	return pvc, err
 }
