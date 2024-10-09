@@ -190,7 +190,7 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 		_, initialized, pending := podStatus(pod.Status.Conditions)
 		// if initialized && !ready
 		if initialized && !pending {
-			cm.checkReplicatedPod(ctx, pod)
+			go cm.checkReplicatedPod(pod)
 		}
 	}
 	return nil
