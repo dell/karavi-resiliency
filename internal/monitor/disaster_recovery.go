@@ -37,6 +37,7 @@ var replicationGroupInfoMutex sync.Mutex
 type ReplicationGroupInfo struct {
 	RGName            string              // ReplicationGroup Name
 	PodKeysToPVNames  map[string][]string // contains a map of the podkey to its pvnames (either pv-xxx or replicated-pv-xxxx)
+	PodKeysToPVCNames map[string][]string // contains a map of the podkey to its PVC names (non-replicated)
 	pvNamesInRG       []string            // This contains both pv-xxx and replicated-pv-xxx names
 	failoverMutex     sync.Mutex
 	awaitingReprotect bool   // Have failed over - need replicationGroupInfoMutexd to reprotecg
@@ -56,11 +57,14 @@ func podHasFailoverLabel(pod *v1.Pod) bool {
 
 // checkReplicatedPod adds the pod to a ReplicationGroup if needed, and then will initiate failover if needed.
 // Returns true if failover initiated, otherwise false
-func (cm *PodMonitorType) checkReplicatedPod(ctx context.Context, pod *v1.Pod) bool {
+func (cm *PodMonitorType) checkReplicatedPod(pod *v1.Pod) bool {
 	fields := make(map[string]interface{})
 	fields["namespace"] = pod.ObjectMeta.Namespace
 	fields["pod"] = pod.ObjectMeta.Name
 	podkey := getPodKey(pod)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
 
 	if !FeatureDisasterRecoveryActions {
 		return false
@@ -154,6 +158,11 @@ func (cm *PodMonitorType) addPodToReplicationGroup(ctx context.Context, pod *v1.
 		return arrayID, false
 	}
 
+	pvcNames := make([]string, 0)
+	for _, pvc := range pvclist {
+		pvcNames = append(pvcNames, pvc.Name)
+	}
+
 	// Get the PVs associated with this pod.
 	pvlist, err := K8sAPI.GetPersistentVolumesInPod(ctx, pod)
 	if err != nil {
@@ -201,7 +210,7 @@ func (cm *PodMonitorType) addPodToReplicationGroup(ctx context.Context, pod *v1.
 	replicatedPVNames := make([]string, 0)
 	altReplicatedPVNames := make([]string, 0)
 
-	// Loop through the PV getting the
+	// Loop through the PV getting the pv list
 	for _, pv := range pvlist {
 		name := pv.Labels[replicationDefaultDomain+replicationGroupName]
 		if name == "" {
@@ -263,13 +272,15 @@ func (cm *PodMonitorType) addPodToReplicationGroup(ctx context.Context, pod *v1.
 	rgAny, ok := cm.RGNameToReplicationGroupInfo.Load(rgName)
 	if !ok {
 		rginfo = &ReplicationGroupInfo{
-			RGName:           rgName,
-			PodKeysToPVNames: make(map[string][]string),
+			RGName:            rgName,
+			PodKeysToPVNames:  make(map[string][]string),
+			PodKeysToPVCNames: make(map[string][]string),
 		}
 	} else {
 		rginfo = rgAny.(*ReplicationGroupInfo)
 	}
 	rginfo.PodKeysToPVNames[podkey] = replicatedPVNames
+	rginfo.PodKeysToPVCNames[podkey] = pvcNames
 	rginfo.pvNamesInRG = pvNamesInRG
 	rginfo.arrayID = arrayID
 	rginfo.failoverType = pod.Labels[failoverLabelKey]
@@ -284,13 +295,15 @@ func (cm *PodMonitorType) addPodToReplicationGroup(ctx context.Context, pod *v1.
 	altRgAny, ok := cm.RGNameToReplicationGroupInfo.Load(altRGName)
 	if !ok {
 		altRgInfo = &ReplicationGroupInfo{
-			RGName:           altRGName,
-			PodKeysToPVNames: make(map[string][]string),
+			RGName:            altRGName,
+			PodKeysToPVNames:  make(map[string][]string),
+			PodKeysToPVCNames: make(map[string][]string),
 		}
 	} else {
 		altRgInfo = altRgAny.(*ReplicationGroupInfo)
 	}
 	altRgInfo.PodKeysToPVNames[podkey] = altReplicatedPVNames
+	altRgInfo.PodKeysToPVCNames[podkey] = pvcNames
 	altRgInfo.pvNamesInRG = pvNamesInRG
 	altRgInfo.arrayID = altArrayID
 	cm.RGNameToReplicationGroupInfo.Store(altRGName, altRgInfo)
@@ -615,10 +628,11 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 // PrepareOwererFailover returns a map of ownerKey to number of replicas, a map of podKey to PVC names, and number of pods
 func prepareOwnerFailver(ctx context.Context, rgName string, rgInfo *ReplicationGroupInfo,
 	ownerKeyToReplicas map[string]int32) (map[string][]string, int) {
-	podKeyToTargetPVCNames, err := getPVCNamesForEachPod(ctx, rgInfo.PodKeysToPVNames)
+	podKeyToTargetPVCNames, err := getPVCNamesForEachPod(ctx, rgInfo)
 	if err != nil {
 		return podKeyToTargetPVCNames, 0
 	}
+	f3chan := make(chan error, len(rgInfo.PodKeysToPVNames))
 	f3 := func(podkey string) error {
 		var err error
 		for retries := 0; retries < 3; retries++ {
@@ -626,6 +640,7 @@ func prepareOwnerFailver(ctx context.Context, rgName string, rgInfo *Replication
 			pod, err := K8sAPI.GetPod(ctx, namespace, name)
 			if err != nil {
 				log.Errorf("Could not get pod: %s: %s", podkey, err.Error())
+				f3chan <- err
 				return err
 			}
 			if len(pod.OwnerReferences) > 0 {
@@ -637,6 +652,7 @@ func prepareOwnerFailver(ctx context.Context, rgName string, rgInfo *Replication
 						log.Infof("%s originalReplicas %d", statefulSetKey, originalReplicas)
 						if err != nil {
 							log.Errorf("Could not patch StatefulSet: %s, %s", statefulSetKey, err.Error())
+							f3chan <- err
 							return err
 						}
 						if originalReplicas > 0 {
@@ -646,14 +662,27 @@ func prepareOwnerFailver(ctx context.Context, rgName string, rgInfo *Replication
 				}
 			}
 		}
+		f3chan <- err
 		return err
 	}
 
+	f3start := time.Now()
+	var f3cnt int
 	var npods int
 	for podkey := range rgInfo.PodKeysToPVNames {
 		npods++
-		f3(podkey)
+		go f3(podkey)
+		f3cnt++
 	}
+
+	var nerrors int
+	for i := 0; i < f3cnt; i++ {
+		err := <-f3chan
+		if err != nil {
+			nerrors++
+		}
+	}
+	log.Infof("prepareOwnerFailover completed owner patching in %s with %d errors", time.Since(f3start), nerrors)
 
 	// Loop through the pods to see if they're in pending state
 	f1StartTime := time.Now()
@@ -773,7 +802,7 @@ func preparePodFailover(ctx context.Context, rgName string, rginfo *ReplicationG
 
 	// Ket PVC names for each pod
 	targetPVCNamesStartTime := time.Now()
-	podKeyToTargetPVCNames, _ := getPVCNamesForEachPod(ctx, rginfo.PodKeysToPVNames)
+	podKeyToTargetPVCNames, _ := getPVCNamesForEachPod(ctx, rginfo)
 	// podKeyToTargetPVCNames := make(map[string][]string)
 	// var podKeyToTargetPVCNamesMutex sync.Mutex
 	// for podkey, _ := range rginfo.PodKeysToPVNames {
@@ -856,12 +885,17 @@ func preparePodFailover(ctx context.Context, rgName string, rginfo *ReplicationG
 	return podKeyToTargetPVCNames, npods
 }
 
-func getPVCNamesForEachPod(ctx context.Context, podKeyMap map[string][]string) (map[string][]string, error) {
+func getPVCNamesForEachPod(ctx context.Context, rginfo *ReplicationGroupInfo) (map[string][]string, error) {
 	// Ket PVC names for each pod
 	var errout error
 	targetPVCNamesStartTime := time.Now()
 	podKeyToTargetPVCNames := make(map[string][]string)
-	for podkey := range podKeyMap {
+	for podkey := range rginfo.PodKeysToPVNames {
+		// See if already computed for the Replication Group
+		if rginfo.PodKeysToPVCNames[podkey] != nil {
+			podKeyToTargetPVCNames[podkey] = rginfo.PodKeysToPVCNames[podkey]
+			continue
+		}
 		pvcnames := make([]string, 0)
 		namespace, name := splitPodKey(podkey)
 		pod, err := K8sAPI.GetPod(ctx, namespace, name)
