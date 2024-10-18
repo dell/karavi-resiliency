@@ -11,7 +11,7 @@ Array2ID=1102ecb40dadf70f
 Array2IP=10.247.39.206
 ClusterNodes="10.247.102.211 10.247.102.213 10.247.102.215"
 
-REPLICATIONGROUPNAME=rg-17391a43-cf8b-4af5-bfd9-9eb96785303f
+REPLICATIONGROUPNAME=rg-d6913c55-561a-464b-a6a2-7a5251ed3ccc
 
 getSourceRG() {
 	kubectl get rg | grep "^$REPLICATIONGROUPNAME"
@@ -179,6 +179,18 @@ waitOnFailoverComplete() {
 	waitOnNPodsRunning $npods
 }
 
+waitOnVolumeAttachmentsCleanup() {
+        plain=9999
+        replicated=9999
+        while [ $plain -gt 0 -a $replicated -gt 0 ]; do
+                plain=$(kubectl get volumeattachments | grep csi | grep -v replicated | wc -l)
+                replicated=$(kubectl get volumeattachments | grep csi | grep replicated | wc -l)
+                echo "volume attachments plain $plain replicated $replicated"
+                sleep 5
+        done
+}
+
+
 #=================================================== test iteration =============================================================
 set iterationNumber=0
 
@@ -255,6 +267,8 @@ testIteration() {
 		fi
 	done
 
+	waitOnVolumeAttachmentsCleanup
+
 	# print the pods and volume attachments
 	kubectl get pods -A -o wide
 	kubectl get rg
@@ -302,7 +316,7 @@ waitOnSynchronizedLinkState() {
 
 runIterations() {
 iter=0
-while [ $iter -lt 4 ]
+while [ $iter -lt 2 ]
 do
 	iter=$( expr $iter + 1 )
 	echo "iteration $iter"
@@ -313,7 +327,7 @@ done
 # $1 is the number of pods scale to be run
 runScale(){
 	sh ../podmontest/insv.sh --nvolumes 2 --instances $1 --storage-class rep217to206
-	#sleep 60
+	sleep 120
 	APPNAMESPACES=`kubectl get namespaces | awk '/pmtv/ { printf "%s ",$1; }'`
 	echo "Applicaion namespaces: $APPNAMESPACES"
 	waitonAllPodsRunning
@@ -322,13 +336,15 @@ runScale(){
 }
 
 runScale 2
-#runScale 5
-#runScale 10
-#runScale 15
-#runScale 20
-#runScale 30
-#runScale 40
-#runScale 50
+runScale 5
+runScale 10
+runScale 15
+runScale 20
+runScale 30
+runScale 35
+runScale 40
+unScale 45
+unScale 50
 
 exit 0
 
