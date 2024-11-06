@@ -373,7 +373,7 @@ func (cm *PodMonitorType) tryFailover(rgName string, nodeList []string) bool {
 	name2 := ReplicatedPrefix + name1
 	rg2, err := K8sAPI.GetReplicationGroup(ctx, name2)
 	if err != nil {
-		log.Errorf("tryFailover: Couldn't read source RG2 %s: %s", name2, err.Error())
+		log.Errorf("tryFailover: Couldn't read target RG2 %s: %s", name2, err.Error())
 		return false
 	}
 	linkState = rg2.Status.ReplicationLinkState.State
