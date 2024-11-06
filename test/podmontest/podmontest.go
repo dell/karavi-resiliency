@@ -14,6 +14,11 @@
 * limitations under the License.
  */
 
+ // Podmontest expects ROOT_DIR to point to a root directory that contains
+ // directories prefixed by data. e.g. /root/data1, /root/data2.
+ // It makes a file in each such directory called log and logs that 
+ // unique id for this program instance along with the timeistamp 
+
 package main
 
 import (
@@ -22,6 +27,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"syscall"
 	"strings"
 	"time"
 )
@@ -35,6 +41,7 @@ const InitialPod = "initial-pod"
 var (
 	rootDir      = "/"
 	enableDoExit bool
+	enableFlock  bool
 	blockFiles   map[string]*os.File
 )
 
@@ -42,6 +49,7 @@ func main() {
 	var err error
 	fmt.Printf("hello world\n")
 	flag.BoolVar(&enableDoExit, "doexit", false, "enables exit if I/O error")
+	flag.BoolVar(&enableFlock, "flock", false, "enables flock around the I/O")
 	flag.Parse()
 	blockFiles = make(map[string]*os.File)
 	podTag := make([]byte, TAGSIZE)
@@ -136,7 +144,7 @@ func readExistingEntries(rootDir string) bool {
 var counter int
 
 func makeEntry(podTag, rootDir string, index int, initialPod bool) {
-	tag := fmt.Sprintf("%x %s\n", podTag, time.Now().Format(time.Stamp))
+	tag := fmt.Sprintf("%x %d %s\n", podTag, index, time.Now().Format(time.Stamp))
 	entries, err := os.ReadDir(rootDir)
 	if err != nil {
 		fmt.Printf("Couldn't read %s\n", rootDir)
@@ -151,6 +159,9 @@ func makeEntry(podTag, rootDir string, index int, initialPod bool) {
 				fmt.Printf("Couldn't open %s %s\n", entry.Name(), err.Error())
 				doExit = true
 				continue
+			}
+			if enableFlock {
+				syscall.Flock(int(f.Fd()), syscall.F_EXLCK)
 			}
 			if index == 0 {
 				if initialPod {
@@ -168,6 +179,9 @@ func makeEntry(podTag, rootDir string, index int, initialPod bool) {
 			if err != nil {
 				doExit = true
 				fmt.Printf("Couldn't sync %s %s", entry.Name(), err.Error())
+			}
+			if enableFlock {
+				syscall.Flock(int(f.Fd()), syscall.F_UNLCK)
 			}
 			f.Close()
 			if !logged {
