@@ -5,10 +5,9 @@ appVersion: 1...0
 description: |
   Deploys prometheus configured for monitoring a CSI driver.
 keywords:
-- csi
-- storage
-- prometheus
+  - csi
+  - storage
+  - prometheus
 maintainers:
-- name: Dell
+  - name: Dell
 engine: gotpl
-
