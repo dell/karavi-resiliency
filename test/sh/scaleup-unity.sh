@@ -34,19 +34,19 @@ wait_on_running() {
 	while [ $non_running_vms -gt 0 ]; do
 		echo "Waiting on " $non_running_vms " vm to reach Running state"
 		sleep 30
-		non_running_vms=$(kubectl get vm -o wide | grep -v Running | wc -l)
+		non_running_vms=$(kubectl get vm -o wide | grep -v AGE | grep -v Running | wc -l)
 	done
 
 	while [ $non_running_vmis -gt 0 ]; do
 		echo "Waiting on " $non_running_vmis " vmi to reach Running state"
 		sleep 30
-		non_running_vmis=$(kubectl get vmi -o wide | grep -v Running | wc -l)
+		non_running_vmis=$(kubectl get vmi -o wide | grep -v AGE | grep -v Running | wc -l)
 	done
 
 	while [ $non_running_vm_controller -gt 0 ]; do
 		echo "Waiting on " $non_running_vm_controller " vm controller pod to reach Running state"
 		sleep 30
-		non_running_vm_controller=$(kubectl get pod -o wide | grep -i virt-launcher | grep -v Running | wc -l)
+		non_running_vm_controller=$(kubectl get pod -o wide | grep -v AGE | grep -i virt-launcher | grep -v Running | wc -l)
 	done
 }
 
