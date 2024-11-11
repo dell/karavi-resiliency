@@ -1,0 +1,47 @@
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  labels:
+    kubevirt.io/vm: vm-alpine-rwo
+  name: vm-alpine-rwo-scale-1
+spec:
+  running: true
+  template:
+    metadata:
+      labels:
+        kubevirt.io/vm: vm-alpine-rwo
+    spec:
+      domain:
+        devices:
+          disks:
+          - disk:
+              bus: virtio
+            name: datavolumedisk1
+          interfaces:
+          - masquerade: {}
+            name: default
+        resources:
+          requests:
+            memory: 1Gi
+      terminationGracePeriodSeconds: 0
+      networks:
+      - name: default
+        pod: {}
+      volumes:
+      - dataVolume:
+          name: alpine-rwo-dv
+        name: datavolumedisk1
+  dataVolumeTemplates:
+  - metadata:
+      name: alpine-rwo-dv
+    spec:
+      storage:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 8Gi
+        storageClassName: unity-iscsi
+      source:
+        registry:
+          url: docker://quay.io/kubevirt/alpine-container-disk-demo:v0.42.1

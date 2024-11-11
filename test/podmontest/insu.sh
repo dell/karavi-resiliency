@@ -91,19 +91,21 @@ i=1
 while [ $i -le $instances ]; do
 	echo $i
 	kubectl create namespace ${prefix}$i
-  helm install -n "${prefix}$i" "${prefix}$i" "${SCRIPTDIR}"/deploy \
-              ${DEBUG} \
-              --values deploy/values-unity-nfs.yaml \
-              --set podmonTest.namespace="${prefix}$i"  \
-              --set podmonTest.storageClassName="$storageClassName" \
-              --set podmonTest.ndevices=$ndevices \
-              --set podmonTest.nvolumes=$nvolumes \
-              --set podmonTest.deploymentType=$deploymentType \
-              --set podmonTest.replicas=$replicas \
-              --set podmonTest.podAffinity=$podAffinity \
-              --set podmonTest.unreachableTolerationSeconds=$unreachableTolerationSeconds \
-              --set podmonTest.image="$image" \
-              --set podmonTest.zone="$zone" \
-              --set podmonTest.driverLabel="$driverLabel"
+#   helm install -n "${prefix}$i" "${prefix}$i" "${SCRIPTDIR}"/deploy \
+#               ${DEBUG} \
+#               --values deploy/values-unity-nfs.yaml \
+#               --set podmonTest.namespace="${prefix}$i"  \
+#               --set podmonTest.storageClassName="$storageClassName" \
+#               --set podmonTest.ndevices=$ndevices \
+#               --set podmonTest.nvolumes=$nvolumes \
+#               --set podmonTest.deploymentType=$deploymentType \
+#               --set podmonTest.replicas=$replicas \
+#               --set podmonTest.podAffinity=$podAffinity \
+#               --set podmonTest.unreachableTolerationSeconds=$unreachableTolerationSeconds \
+#               --set podmonTest.image="$image" \
+#               --set podmonTest.zone="$zone" \
+#               --set podmonTest.driverLabel="$driverLabel"
+
+   kubectl create -f vm-create.yaml
   i=$((i + 1))
 done
