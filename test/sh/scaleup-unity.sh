@@ -21,9 +21,9 @@ MAXPODS=81
 # checks that all labeled pods are running, exits if not
 wait_on_running() {
 	non_running_pods=$(kubectl get pods -l podmon.dellemc.com/driver -A -o wide | grep -v NAMESPACE | grep -v Running | wc -l)
-	non_running_vms=$(kubectl get vm -o wide | grep -v Running | wc -l)
-	non_running_vmis=$(kubectl get vmi -o wide | grep -v Running | wc -l)
-	non_running_vm_controller=$(kubectl get pod -o wide | grep -i virt-launcher | grep -v Running | wc -l)
+	non_running_vms=$(kubectl get vm -o wide | grep -v AGE | grep -v Running | wc -l)
+	non_running_vmis=$(kubectl get vmi -o wide | grep -v AGE | grep -v Running | wc -l)
+	non_running_vm_controller=$(kubectl get pod -o wide | grep -v AGE | grep -i virt-launcher | grep -v Running | wc -l)
 
 	while [ $non_running_pods -gt 0 ]; do
 		echo "Waiting on " $non_running_pods " pod to reach Running state"
