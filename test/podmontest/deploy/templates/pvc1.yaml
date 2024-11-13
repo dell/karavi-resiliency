@@ -1,4 +1,4 @@
-{{- $root := . }}
+{{- $root := . -}}
 {{- range $i, $e := untilStep 0 (int .Values.podmonTest.ndevices) 1 }}
 kind: PersistentVolumeClaim
 apiVersion: v1

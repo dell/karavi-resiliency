@@ -343,10 +343,10 @@ func (f *feature) iInduceError(induced string) error {
 	return nil
 }
 
-func (f *feature) iInduceErrorForMaxTimes(error, wantFailCount string) error {
+func (f *feature) iInduceErrorForMaxTimes(err, wantFailCount string) error {
 	f.k8sapiMock.WantFailCount, _ = strconv.Atoi(wantFailCount)
-	err := f.iInduceError(error)
-	return err
+	error := f.iInduceError(err)
+	return error
 }
 
 func (f *feature) theLastLogMessageContains(errormsg string) error {
