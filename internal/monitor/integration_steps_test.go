@@ -906,31 +906,31 @@ func (i *integration) selectFromRange(rangeValue string) (int, error) {
 		return 0, fmt.Errorf("invalid range provided: %s. Should be <min>-<max>", rangeValue)
 	}
 
-	min, err := strconv.Atoi(components[0])
+	minimum, err := strconv.Atoi(components[0])
 	if err != nil {
 		return 0, err
 	}
 
-	max, err := strconv.Atoi(components[1])
+	maximum, err := strconv.Atoi(components[1])
 	if err != nil {
 		return 0, err
 	}
 
-	if min < -1 {
-		return -1, fmt.Errorf("invalid range. Minimum is less than 1 (%d)", min)
+	if minimum < -1 {
+		return -1, fmt.Errorf("invalid range. Minimum is less than 1 (%d)", minimum)
 	}
 
-	if max < 0 {
-		return -1, fmt.Errorf("invalid range. Maximum is less than 0 (%d)", max)
+	if maximum < 0 {
+		return -1, fmt.Errorf("invalid range. Maximum is less than 0 (%d)", maximum)
 	}
 
-	if min > max {
-		return -1, fmt.Errorf("invalid range. Minimum value specified is greater than max (%d > %d)", min, max)
+	if minimum > maximum {
+		return -1, fmt.Errorf("invalid range. Minimum value specified is greater than max (%d > %d)", minimum, maximum)
 	}
 
 	// rand.IntnRange selects from min to max, inclusive of min and exclusive of
 	// max, so use max+1 in order for max value to be a possible value.
-	selected := rand.IntnRange(min, max+1)
+	selected := rand.IntnRange(minimum, maximum+1)
 	return selected, nil
 }
 

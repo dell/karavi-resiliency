@@ -6,7 +6,7 @@ description: |
   Tests podmon
 icon: https://avatars1.githubusercontent.com/u/20958494?s=200&v=4
 keywords:
-- vxflexos-csi
-- unity-csi
-- storage
+  - vxflexos-csi
+  - unity-csi
+  - storage
 engine: gotpl
