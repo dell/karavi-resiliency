@@ -40,7 +40,7 @@ spec:
               - matchExpressions:
                 - key: "topology.kubernetes.io/zone"
                   operator: In
-                  values: 
+                  values:
                   - {{.Values.podmonTest.zone}}
 {{end}}
 {{- if eq .Values.podmonTest.podAffinity true}}
@@ -51,7 +51,7 @@ spec:
                 matchExpressions:
                 - key: "app"
                   operator: In
-                  values: 
+                  values:
                   - podmontest-{{ .Release.Namespace }}
               topologyKey: "kubernetes.io/hostname"
 {{end}}
