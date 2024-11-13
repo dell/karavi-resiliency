@@ -345,8 +345,8 @@ func (f *feature) iInduceError(induced string) error {
 
 func (f *feature) iInduceErrorForMaxTimes(err, wantFailCount string) error {
 	f.k8sapiMock.WantFailCount, _ = strconv.Atoi(wantFailCount)
-	error := f.iInduceError(err)
-	return error
+	e := f.iInduceError(err)
+	return e
 }
 
 func (f *feature) theLastLogMessageContains(errormsg string) error {
