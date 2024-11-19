@@ -23,12 +23,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"podmon/internal/k8sapi"
-	"podmon/test/ssh"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"podmon/internal/k8sapi"
+	"podmon/test/ssh"
 
 	"github.com/cucumber/godog"
 	log "github.com/sirupsen/logrus"
