@@ -1,22 +1,19 @@
-/*
-* Copyright (c) 2021-2023 Dell Inc., or its subsidiaries. All Rights Reserved.
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
- */
+//  Copyright © 2021-2024 Dell Inc. or its subsidiaries. All Rights Reserved.
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//       http://www.apache.org/licenses/LICENSE-2.0
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
 
 package ssh
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"log"
@@ -96,7 +93,7 @@ type ClientWrapper interface {
 	GetSession(string) (SessionWrapper, error)
 	Close() error
 	SendRequest(name string, wantReply bool, payload []byte) (bool, error)
-	Copy(srcFile os.File, remoteFilepath, permission string) error
+	Copy(ctx context.Context, srcFile os.File, remoteFilepath, permission string) error
 }
 
 // NewWrapper builds an ssh.ClientConfig and returns a Wrapper with it
@@ -180,8 +177,8 @@ func (w *Wrapper) SendRequest(name string, wantReply bool, payload []byte) (bool
 }
 
 // Copy is wrapper for the scpClient.CopyFromFile
-func (w *Wrapper) Copy(srcFile os.File, remoteFilepath, permission string) error {
-	return w.scpClient.CopyFromFile(srcFile, remoteFilepath, permission)
+func (w *Wrapper) Copy(ctx context.Context, srcFile os.File, remoteFilepath, permission string) error {
+	return w.scpClient.CopyFromFile(ctx, srcFile, remoteFilepath, permission)
 }
 
 // Run will execute the commands using the AccessInfo to access the host.
@@ -255,7 +252,7 @@ func (cmd *CommandExecution) GetOutput() []string {
 }
 
 // Copy will copy the file given by the 'srcFile' path to the remote host to the 'remoteFilePath' destination
-func (cmd *CommandExecution) Copy(srcFile, remoteFilepath string) error {
+func (cmd *CommandExecution) Copy(ctx context.Context, srcFile, remoteFilepath string) error {
 	hostAndPort := fmt.Sprintf("%s:%s", cmd.AccessInfo.Hostname, cmd.AccessInfo.Port)
 	_, err := cmd.SSHWrapper.GetSession(hostAndPort)
 	if err != nil {
@@ -267,7 +264,7 @@ func (cmd *CommandExecution) Copy(srcFile, remoteFilepath string) error {
 		return err
 	}
 
-	err = cmd.SSHWrapper.Copy(*src, remoteFilepath, "0655")
+	err = cmd.SSHWrapper.Copy(ctx, *src, remoteFilepath, "0655")
 	if err != nil {
 		return err
 	}

@@ -1077,6 +1077,7 @@ func (i *integration) copyOverTestScripts(address string) error {
 // This will use internal SSH library to do the set up and copying to the
 // specified node.
 func (i *integration) copyOverTestScriptsToNode(address string) error {
+	ctx := context.Background()
 	info := ssh.AccessInfo{
 		Hostname: address,
 		Port:     "22",
@@ -1109,7 +1110,7 @@ func (i *integration) copyOverTestScriptsToNode(address string) error {
 	}
 
 	for _, f := range files {
-		err = client.Copy(fmt.Sprintf("%s/%s", i.scriptsDir, f.Name()), fmt.Sprintf("%s/%s", remoteScriptDir, f.Name()))
+		err = client.Copy(ctx, fmt.Sprintf("%s/%s", i.scriptsDir, f.Name()), fmt.Sprintf("%s/%s", remoteScriptDir, f.Name()))
 		if err != nil {
 			return err
 		}
