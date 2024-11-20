@@ -40,9 +40,9 @@ echo "$(date +"%Y-%m-%d %H:%M:%S")" "-- invoking with seconds=$seconds interface
 if [ $seconds -gt 0 ]; then
   echo "$(date +"%Y-%m-%d %H:%M:%S")" -- Bringing down interfaces >>"$OUTPUT_FILE"
   for iface in $interfaces; do
-    ifconfig "$iface" down
+    ip link set dev "$iface" down
     date >>"$OUTPUT_FILE"
-    ifconfig "$iface" | grep "$iface" >>"$OUTPUT_FILE"
+    ip addr show "$iface" | grep "$iface" >>"$OUTPUT_FILE"
   done
 
   echo "$(date +"%Y-%m-%d %H:%M:%S")" -- Sleeping "$seconds" before rebooting >>"$OUTPUT_FILE"

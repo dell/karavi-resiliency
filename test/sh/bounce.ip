@@ -14,7 +14,7 @@
 # limitations under the License.
 
 # By default, get all 'ensNNN' interfaces
-interfaces=$(ifconfig -a | perl -nle 'print $1 if(m#(ens\d+):#);')
+interfaces=$(ip addr show | perl -nle 'print $1 if(m#(ens\d+):#);')
 seconds=240
 
 for param in $*; do
@@ -34,9 +34,9 @@ done
 
 echo "$(date +"%Y-%m-%d %H:%M:%S")" "-- invoking with seconds=$seconds interfaces=$interfaces" >>/root/bounce.ip.out
 for iface in $interfaces; do
-  ifconfig $iface down
+  ip link set dev $iface down
   date >>/root/bounce.ip.out
-  ifconfig $iface | grep $iface >>/root/bounce.ip.out
+  ip addr show $iface | grep $iface >>/root/bounce.ip.out
 done
 # ip route flush cache
 
@@ -45,9 +45,9 @@ sleep $seconds
 echo "$(date +"%Y-%m-%d %H:%M:%S")" -- done, going to renable interfaces >>/root/bounce.ip.out
 
 for iface in $interfaces; do
-  ifconfig $iface up
+  ip link set dev $iface up
   date >>/root/bounce.ip.out
-  ifconfig $iface | grep $iface >>/root/bounce.ip.out
+  ip addr show $iface | grep $iface >>/root/bounce.ip.out
 done
 ip route flush cache
-systemctl restart network
+systemctl restart NetworkManager
