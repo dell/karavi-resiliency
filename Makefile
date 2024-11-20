@@ -14,16 +14,13 @@
 # Includes the following generated file to get semantic version information
 
 MAJOR=1
-MINOR=10
+MINOR=12
 PATCH=0
 VERSION?="v$(MAJOR).$(MINOR).$(PATCH)"
 REGISTRY?="${REGISTRY_HOST}:${REGISTRY_PORT}/podmon"
 BASEIMAGE?="resiliency-ubimicro:latest"
 
 all: clean podman push
-
-check:
-	@scripts/check.sh ./internal/monitor ./internal/k8sapi ./internal/csiapi ./internal/criapi ./cmd/podmon
 
 unit-test:
 	(cd cmd/podmon; make unit-test)
