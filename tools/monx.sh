@@ -25,7 +25,7 @@ BEGIN	{
 	nonode = "unscheduled"
 }
 /^NAMESPACE/ { next; }
-{ 
+{
 	ns=$1; podstate=$4; time=$6; node=$8; gsub("\\..*","",node); \
 	nodes[node] = 1
 	if (podstate !~ "Running") { print ns, podstate, time, node; }
@@ -49,7 +49,7 @@ BEGIN	{
 		pendingcounts[nonode]=pendingcounts[nonode]+1;
 	}
 	totalpods = totalpods+1;
-} 
+}
 END {
 	pending = pendingcounts[nonode]
 	if (pending == "") { pending=0 }
@@ -63,7 +63,7 @@ END {
 		if (errors == "") { errors=0 }
 		crashloopbackoffs = crashloopbackoffcounts[node];
 		if (crashloopbackoffs == "") { crashloopbackoffs=0 }
-		printf "node %s running %s creaating %d errors %d\n", node, runners, creators, errors;
+		printf "node %s running %s creating %d errors %d\n", node, runners, creators, errors;
 	}
 }
 ' | sort

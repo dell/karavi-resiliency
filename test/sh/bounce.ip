@@ -13,8 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# This script is compatible with RHEL 9+
 # By default, get all 'ensNNN' interfaces
-interfaces=$(ifconfig -a | perl -nle 'print $1 if(m#(ens\d+):#);')
+interfaces=$(ip -o link show | awk -F': ' '/ens[0-9]+/ {print $2}')
 seconds=240
 
 for param in $*; do
@@ -34,20 +35,19 @@ done
 
 echo "$(date +"%Y-%m-%d %H:%M:%S")" "-- invoking with seconds=$seconds interfaces=$interfaces" >>/root/bounce.ip.out
 for iface in $interfaces; do
-  ifconfig $iface down
+  ip link set $iface down
   date >>/root/bounce.ip.out
-  ifconfig $iface | grep $iface >>/root/bounce.ip.out
+  ip link show $iface >>/root/bounce.ip.out
 done
-# ip route flush cache
 
 echo "$(date +"%Y-%m-%d %H:%M:%S")" -- waiting $seconds before reenabling interfaces >>/root/bounce.ip.out
 sleep $seconds
 echo "$(date +"%Y-%m-%d %H:%M:%S")" -- done, going to renable interfaces >>/root/bounce.ip.out
 
 for iface in $interfaces; do
-  ifconfig $iface up
+  ip link set $iface up
   date >>/root/bounce.ip.out
-  ifconfig $iface | grep $iface >>/root/bounce.ip.out
+  ip link show $iface >>/root/bounce.ip.out
 done
 ip route flush cache
-systemctl restart network
+systemctl restart NetworkManager

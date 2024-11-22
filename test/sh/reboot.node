@@ -15,7 +15,7 @@
 
 OUTPUT_FILE="/root/reboot.out"
 # By default - all 'ensNNN' interfaces
-interfaces=$(ifconfig -a | perl -nle 'print $1 if(m#(ens\d+):#);')
+interfaces=$(ip -o link show | awk -F': ' '/ens[0-9]+/ {print $2}')
 seconds=0
 
 for param in $*; do
@@ -40,9 +40,9 @@ echo "$(date +"%Y-%m-%d %H:%M:%S")" "-- invoking with seconds=$seconds interface
 if [ $seconds -gt 0 ]; then
   echo "$(date +"%Y-%m-%d %H:%M:%S")" -- Bringing down interfaces >>"$OUTPUT_FILE"
   for iface in $interfaces; do
-    ifconfig "$iface" down
+    ip link set "$iface" down
     date >>"$OUTPUT_FILE"
-    ifconfig "$iface" | grep "$iface" >>"$OUTPUT_FILE"
+    ip link show "$iface" >>"$OUTPUT_FILE"
   done
 
   echo "$(date +"%Y-%m-%d %H:%M:%S")" -- Sleeping "$seconds" before rebooting >>"$OUTPUT_FILE"
