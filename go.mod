@@ -1,6 +1,9 @@
 module podmon
 
-go 1.23
+go 1.23.0
+
+toolchain go1.23.3
+
 require (
 	github.com/bramvdbogaerde/go-scp v1.5.0
 	github.com/container-storage-interface/spec v1.6.0
