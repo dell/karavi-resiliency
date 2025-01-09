@@ -25,11 +25,13 @@ RUN GOOS=linux CGO_ENABLED=0 go build -o podmon ./cmd/podmon/
 
 # Stage to build the module image
 FROM $BASEIMAGE AS final
-LABEL vendor="Dell Inc." \
+LABEL vendor="Dell Technologies" \
+      maintainer="Dell Technologies" \
       name="csm-resiliency" \
       summary="Dell Container Storage Modules (CSM) for Resiliency" \
       description="Makes Kubernetes applications, including those that utilize persistent storage, more resilient to various failures" \
-      version="1.10.0" \
+      release="1.13.0" \
+      version="1.12.0" \
       license="Apache-2.0"
 
 COPY licenses licenses/
