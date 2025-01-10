@@ -90,8 +90,8 @@ github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/dell/dell-csi-extensions/podmon v1.6.0 h1:cwiBLPnS/b029uXy4nBn8ZBczP7ikSoFFwJHbJThqZ8=
 github.com/dell/dell-csi-extensions/podmon v1.6.0/go.mod h1:IoeJycus6VbX4/vf+ZbnXBCOWi+pYeDO5Cgaxo5QGa4=
-github.com/dell/gofsutil v1.17.0 h1:QA6gUb1mz8kXNEN4eEx47OHCz8nSqZrrCnaDUYmV5EY=
-github.com/dell/gofsutil v1.17.0/go.mod h1:PN2hWl/pVLQiTsFR0X1x+GfhfOrfW8pGgH5xGcGMeFs=
+github.com/dell/gofsutil v1.18.0 h1:dZiZjBZLqHqEQw97yU4x0SR3ydF22dw7tqNS8Fvvl2c=
+github.com/dell/gofsutil v1.18.0/go.mod h1:2WiIEgoFs87REM1TbelGtpNX1Y5itopQuBlMgDLkgBg=
 github.com/dgrijalva/jwt-go v3.2.0+incompatible/go.mod h1:E3ru+11k8xSBh+hMPgOLZmtrrCbhqsmaPHjLKYnJCaQ=
 github.com/dgryski/go-sip13 v0.0.0-20181026042036-e10d5fee7954/go.mod h1:vAd38F8PWV+bWy6jNmig1y/TA+kYO4g3RSRF0IAv0no=
 github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815/go.mod h1:WwZ+bS3ebgob9U8Nd0kOddGdZWjyMGR8Wziv+TBNwSE=
