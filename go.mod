@@ -9,7 +9,7 @@ require (
 	github.com/container-storage-interface/spec v1.6.0
 	github.com/cucumber/godog v0.15.0
 	github.com/dell/dell-csi-extensions/podmon v1.6.0
-	github.com/dell/gofsutil v1.17.0
+	github.com/dell/gofsutil v1.18.0
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/golang/mock v1.6.0
 	github.com/kubernetes-csi/csi-lib-utils v0.11.0
