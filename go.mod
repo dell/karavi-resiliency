@@ -8,7 +8,7 @@ require (
 	github.com/bramvdbogaerde/go-scp v1.5.0
 	github.com/container-storage-interface/spec v1.6.0
 	github.com/cucumber/godog v0.15.0
-	github.com/dell/dell-csi-extensions/podmon v1.6.0
+	github.com/dell/dell-csi-extensions/podmon v1.7.0
 	github.com/dell/gofsutil v1.18.0
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/golang/mock v1.6.0
@@ -17,7 +17,7 @@ require (
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/crypto v0.32.0
-	google.golang.org/grpc v1.69.2
+	google.golang.org/grpc v1.69.4
 	k8s.io/api v0.32.0
 	k8s.io/apimachinery v0.32.0
 	k8s.io/client-go v0.32.0
