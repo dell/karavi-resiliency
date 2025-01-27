@@ -18,7 +18,6 @@ MINOR=12
 PATCH=0
 VERSION?="v$(MAJOR).$(MINOR).$(PATCH)"
 REGISTRY?="${REGISTRY_HOST}:${REGISTRY_PORT}/podmon"
-BASEIMAGE?="resiliency-ubimicro:latest"
 
 all: clean podman push
 
@@ -31,12 +30,9 @@ clean:
 build:
 	GOOS=linux CGO_ENABLED=0 go build -o podmon ./cmd/podmon/
 
-build-base-image: download-csm-common
+podman: download-csm-common
 	$(eval include csm-common.mk)
-	sh ./scripts/buildubimicro.sh $(DEFAULT_BASEIMAGE)
-
-podman: build-base-image
-	podman build --no-cache -t "$(REGISTRY):$(VERSION)" --build-arg GOIMAGE=$(DEFAULT_GOIMAGE) --build-arg BASEIMAGE=$(BASEIMAGE) -f ./Dockerfile --label commit=$(shell git log --max-count 1 --format="%H") .
+	podman build --pull --no-cache -t "$(REGISTRY):$(VERSION)" --build-arg GOIMAGE=$(DEFAULT_GOIMAGE) --build-arg BASEIMAGE=$(CSM_BASEIMAGE) -f ./Dockerfile --label commit=$(shell git log --max-count 1 --format="%H") .
 
 push:
 	podman push "$(REGISTRY):$(VERSION)"

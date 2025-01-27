@@ -40,9 +40,7 @@ jobs:
         run: go mod tidy
       - name: Build podmon Docker Image
         run: |
-         chmod +x ./scripts/buildubimicro.sh
-         make build-base-image
-         podman build -t docker.io/podmon -f ./Dockerfile --build-arg GOIMAGE=golang:latest --build-arg BASEIMAGE="localhost/resiliency-ubimicro"
+         podman build -t docker.io/podmon -f ./Dockerfile --build-arg GOIMAGE=golang:latest --build-arg BASEIMAGE="quay.io/dell/container-storage-modules/csm-base-image:nightly"
          podman save docker.io/library/podmon -o /tmp/podmon.tar
          docker load -i /tmp/podmon.tar
       - name: Trivy image scanner
