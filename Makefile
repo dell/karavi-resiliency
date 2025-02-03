@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2024 Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright (c) 2021-2025 Dell Inc., or its subsidiaries. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,9 +24,10 @@ clean:
 build:
 	GOOS=linux CGO_ENABLED=0 go build -o podmon ./cmd/podmon/
 
-podman:
+podman: download-csm-common
+	$(eval include csm-common.mk)
 	go run core/semver/semver.go -f mk >semver.mk
-	make -f docker.mk podman
+	make -f docker.mk podman DEFAULT_GOIMAGE=$(DEFAULT_GOIMAGE) CSM_BASEIMAGE=$(CSM_BASEIMAGE)
 
 push:
 	make -f docker.mk push

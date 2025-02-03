@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2024 Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright (c) 2021-2025 Dell Inc., or its subsidiaries. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,9 +20,7 @@ endif
 
 REGISTRY?="${REGISTRY_HOST}:${REGISTRY_PORT}/podmon"
 
-podman: download-csm-common
-	$(eval include csm-common.mk)
-	@echo "MAJOR $(MAJOR) MINOR $(MINOR) PATCH $(PATCH) RELNOTE $(RELNOTE) SEMVER $(SEMVER)"
+podman:
 	podman build --pull --no-cache -t "$(REGISTRY):$(VERSION)" --build-arg GOIMAGE=$(DEFAULT_GOIMAGE) --build-arg BASEIMAGE=$(CSM_BASEIMAGE) -f ./Dockerfile --label commit=$(shell git log --max-count 1 --format="%H") .
 
 push:
