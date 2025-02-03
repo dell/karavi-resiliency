@@ -13,12 +13,6 @@
 # limitations under the License.
 # Includes the following generated file to get semantic version information
 
-MAJOR=1
-MINOR=12
-PATCH=0
-VERSION?="v$(MAJOR).$(MINOR).$(PATCH)"
-REGISTRY?="${REGISTRY_HOST}:${REGISTRY_PORT}/podmon"
-
 all: clean podman push
 
 unit-test:
@@ -30,12 +24,12 @@ clean:
 build:
 	GOOS=linux CGO_ENABLED=0 go build -o podmon ./cmd/podmon/
 
-podman: download-csm-common
-	$(eval include csm-common.mk)
-	podman build --pull --no-cache -t "$(REGISTRY):$(VERSION)" --build-arg GOIMAGE=$(DEFAULT_GOIMAGE) --build-arg BASEIMAGE=$(CSM_BASEIMAGE) -f ./Dockerfile --label commit=$(shell git log --max-count 1 --format="%H") .
+podman:
+	go run core/semver/semver.go -f mk >semver.mk
+	make -f docker.mk podman
 
 push:
-	podman push "$(REGISTRY):$(VERSION)"
+	make -f docker.mk push
 
 download-csm-common:
 	curl -O -L https://raw.githubusercontent.com/dell/csm/main/config/csm-common.mk
