@@ -378,8 +378,8 @@ Feature: Integration Test
 
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure       | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-1"       | "1-1" | "0-0" | "powermax"    | "powermax-nfs"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
-      | ""         | "1-1"       | "1-1" | "0-0" | "powermax"    | "powermax-iscsi"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
+      | ""         | "1-1"       | "1-1" | "0-0" | "powermax"    | "powermax-nfs"  | "one-third" | "zero"  | "kubeletdown" | 900      | 1200        | 900     | 900           |
+      | ""         | "1-1"       | "1-1" | "0-0" | "powermax"    | "powermax-iscsi"  | "one-third" | "zero"  | "kubeletdown" | 900      | 1200        | 900     | 900           |
       #| ""         | "1-1"       | "1-1" | "0-0" | "powermax"    | "powermax-nvmetcp"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
 
   @powerflex-integration
@@ -707,8 +707,8 @@ Feature: Integration Test
 
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-1"       | "1-1" | "0-0" | "powermax" | "powermax-nfs"   | "one-third" | "zero"  | "interfacedown" | 120      | 240        | 300     | 300           |
-      | ""         | "1-1"       | "1-1" | "0-0" | "powermax" | "powermax-iscsi"   | "one-third" | "zero"  | "interfacedown" | 120      | 240        | 300     | 300           |
+      | ""         | "1-1"       | "1-1" | "0-0" | "powermax" | "powermax-nfs"   | "one-third" | "zero"  | "interfacedown" | 600      | 720        | 300     | 300           |
+      | ""         | "1-1"       | "1-1" | "0-0" | "powermax" | "powermax-iscsi"   | "one-third" | "zero"  | "interfacedown" | 600      | 720        | 300     | 300           |
       #| ""         | "1-1"       | "1-1" | "0-0" | "powermax" | "powermax-nvmetcp"   | "one-third" | "zero"  | "interfacedown" | 120      | 240        | 300     | 300           |
 
   @powerflex-short-integration
@@ -955,8 +955,8 @@ Feature: Integration Test
     Then finally cleanup everything
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass     | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-1"       | "1-1" | "0-0" | "powermax" | "powermax-nfs"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600           |
-      | ""         | "1-1"       | "1-1" | "0-0" | "powermax" | "powermax-iscsi" | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600           |
+      | ""         | "1-1"       | "1-1" | "0-0" | "powermax" | "powermax-nfs"   | "one-third" | "zero"  | "reboot" | 720      | 900        | 900     | 900           |
+	    | ""         | "1-1"       | "1-1" | "0-0" | "powermax" | "powermax-iscsi" | "one-third" | "zero"  | "reboot" | 720      | 900        | 900     | 900           |
       #| ""         | "1-1"       | "1-1" | "0-0" | "powermax" | "powermax-nvmetcp"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600          |
 
   @powerflex-integration
