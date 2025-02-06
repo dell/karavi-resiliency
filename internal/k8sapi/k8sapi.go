@@ -45,7 +45,7 @@ import (
 
 // Client holds a reference to a Kubernetes client
 type Client struct {
-	Client                    *kubernetes.Clientset
+	Client                    kubernetes.Interface
 	Lock                      sync.Mutex
 	eventRecorder             record.EventRecorder
 	volumeAttachmentCache     map[string]*storagev1.VolumeAttachment
@@ -66,7 +66,7 @@ var K8sClient Client
 
 // GetClient returns instance of Kubernetes.Clientset
 func (api *Client) GetClient() *kubernetes.Clientset {
-	return api.Client
+	return api.Client.(*kubernetes.Clientset)
 }
 
 // GetContext returns clientContext and cancel function based on the duration
