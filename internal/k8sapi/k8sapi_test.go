@@ -1,3 +1,19 @@
+/*
+* Copyright (c) 2024-2025 Dell Inc., or its subsidiaries. All Rights Reserved.
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+ */
+
 package k8sapi
 
 import (
@@ -10,6 +26,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/fake"
 )
@@ -771,6 +788,118 @@ func TestGetNodeWithTimeout(t *testing.T) {
 	// 	assert.Error(t, err, "GetNodeWithTimeout should have returned an error for a timeout")
 	// 	assert.Nil(t, node, "GetNodeWithTimeout should have returned nil for a timeout")
 	// })
+}
+
+type MockEventRecorder struct {
+	events []v1.Event
+}
+
+func (m *MockEventRecorder) Eventf(object runtime.Object, eventtype, reason, messageFmt string, args ...interface{}) {
+	metaObject, _ := object.(metav1.ObjectMetaAccessor)
+	message := messageFmt
+
+	event := v1.Event{
+		InvolvedObject: v1.ObjectReference{
+			Kind:      "Pod",
+			Namespace: metaObject.GetObjectMeta().GetNamespace(),
+			Name:      metaObject.GetObjectMeta().GetName(),
+		},
+		Type:    eventtype,
+		Reason:  reason,
+		Message: message,
+	}
+	m.events = append(m.events, event)
+}
+
+func (m *MockEventRecorder) AnnotatedEventf(object runtime.Object, annotations map[string]string, eventtype, reason, messageFmt string, args ...interface{}) {
+	metaObject, _ := object.(metav1.ObjectMetaAccessor)
+	message := messageFmt
+
+	event := v1.Event{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: annotations,
+		},
+		InvolvedObject: v1.ObjectReference{
+			Kind:      "Pod",
+			Namespace: metaObject.GetObjectMeta().GetNamespace(),
+			Name:      metaObject.GetObjectMeta().GetName(),
+		},
+		Type:    eventtype,
+		Reason:  reason,
+		Message: message,
+	}
+	m.events = append(m.events, event)
+}
+
+func (m *MockEventRecorder) Event(object runtime.Object, eventtype string, reason string, message string) {
+	metaObject, _ := object.(metav1.ObjectMetaAccessor)
+	event := v1.Event{
+		InvolvedObject: v1.ObjectReference{
+			Kind:      "Pod",
+			Namespace: metaObject.GetObjectMeta().GetNamespace(),
+			Name:      metaObject.GetObjectMeta().GetName(),
+		},
+		Type:    eventtype,
+		Reason:  reason,
+		Message: message,
+	}
+	m.events = append(m.events, event)
+}
+
+func TestCreateEvent(t *testing.T) {
+	t.Run("Initialize eventRecorder when it is nil", func(t *testing.T) {
+		mockClient := createClient()
+		api := &Client{
+			Client: mockClient,
+		}
+
+		// Set the event recorder to nil initially to cover the uninitialized path
+		api.eventRecorder = nil
+
+		// Create a pod to simulate an event
+		pod := &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-pod", Namespace: "test-namespace",
+			},
+		}
+
+		// Call CreateEvent
+		err := api.CreateEvent("test-component", pod, v1.EventTypeNormal, "TestReason", "This is a test event message")
+
+		// Validate the results
+		assert.NoError(t, err, "CreateEvent returned an error")
+		assert.NotNil(t, api.eventRecorder, "eventRecorder should have been initialized")
+	})
+
+	t.Run("Use existing eventRecorder", func(t *testing.T) {
+		mockClient := createClient()
+		mockRecorder := &MockEventRecorder{}
+		api := &Client{
+			Client: mockClient,
+		}
+
+		// Set the event recorder to our mock
+		api.eventRecorder = mockRecorder
+
+		// Create a pod to simulate an event
+		pod := &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-pod",
+				Namespace: "test-namespace",
+			},
+		}
+
+		// Call CreateEvent
+		err := api.CreateEvent("test-component", pod, v1.EventTypeNormal, "TestReason", "This is a test event message")
+
+		// Validate the results
+		assert.NoError(t, err, "CreateEvent returned an error")
+		assert.Len(t, mockRecorder.events, 1, "Expected one event to be recorded")
+		assert.Equal(t, "TestReason", mockRecorder.events[0].Reason)
+		assert.Equal(t, "This is a test event message", mockRecorder.events[0].Message)
+		assert.Equal(t, "test-pod", mockRecorder.events[0].InvolvedObject.Name)
+		assert.Equal(t, "test-namespace", mockRecorder.events[0].InvolvedObject.Namespace)
+	})
 }
 
 func TestTaintNode(t *testing.T) {
