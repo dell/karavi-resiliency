@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -294,6 +295,548 @@ func TestGetPersistentVolumeClaimsInPod(t *testing.T) {
 	assert.NotNil(t, pvcs, "GetPersistentVolumeClaimsInPod returned nil")
 	assert.Len(t, pvcs, 1, "Expected 1 persistent volume claim")
 	assert.Equal(t, "test-pvc", pvcs[0].ObjectMeta.Name, "PVC name does not match")
+}
+
+func TestGetPersistentVolumesInPod(t *testing.T) {
+	mockClient := createClient()
+	api := &Client{
+		Client: mockClient,
+	}
+
+	// Define the test namespace, PVC, and PV names
+	namespace := "test-namespace"
+	pvcName := "test-pvc"
+	pvName := "test-pv"
+
+	// Create a test pod
+	testPod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod",
+			Namespace: namespace,
+		},
+		Spec: v1.PodSpec{
+			Volumes: []v1.Volume{
+				{
+					Name: "test-volume",
+					VolumeSource: v1.VolumeSource{
+						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+							ClaimName: pvcName,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Create a test PVC to simulate an existing one bound to a PV
+	testPVC := &v1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pvcName,
+			Namespace: namespace,
+		},
+		Spec: v1.PersistentVolumeClaimSpec{
+			VolumeName: pvName,
+		},
+		Status: v1.PersistentVolumeClaimStatus{
+			Phase: v1.ClaimBound,
+		},
+	}
+
+	// Create a test PV
+	testPV := &v1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: pvName,
+		},
+	}
+
+	// Add the resources to the fake client
+	_, err := mockClient.CoreV1().Pods(namespace).Create(context.Background(), testPod, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Failed to create test pod: %s", err)
+	}
+	_, err = mockClient.CoreV1().PersistentVolumeClaims(namespace).Create(context.Background(), testPVC, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Failed to create test PVC: %s", err)
+	}
+	_, err = mockClient.CoreV1().PersistentVolumes().Create(context.Background(), testPV, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Failed to create test PV: %s", err)
+	}
+
+	// Call the GetPersistentVolumesInPod function
+	pvs, err := api.GetPersistentVolumesInPod(context.Background(), testPod)
+
+	// Validate the results
+	assert.NoError(t, err, "GetPersistentVolumesInPod returned an error")
+	assert.NotNil(t, pvs, "GetPersistentVolumesInPod returned nil")
+	assert.Len(t, pvs, 1, "Expected 1 persistent volume")
+	assert.Equal(t, pvName, pvs[0].Name, "Persistent volume name does not match")
+}
+
+func TestIsVolumeAttachmentToPod(t *testing.T) {
+	mockClient := createClient()
+	api := &Client{
+		Client: mockClient,
+	}
+
+	namespace := "test-namespace"
+	nodeName := "test-node"
+	pvcName := "test-pvc"
+	pvName := "test-pv"
+	vaName := "test-va"
+
+	// Create a test pod
+	testPod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod",
+			Namespace: namespace,
+		},
+		Spec: v1.PodSpec{
+			NodeName: nodeName,
+			Volumes: []v1.Volume{
+				{
+					Name: "test-volume",
+					VolumeSource: v1.VolumeSource{
+						PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+							ClaimName: pvcName,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Create a test PVC
+	testPVC := &v1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pvcName,
+			Namespace: namespace,
+		},
+		Spec: v1.PersistentVolumeClaimSpec{
+			VolumeName: pvName,
+		},
+	}
+
+	// Create a test VolumeAttachment
+	testVA := &storagev1.VolumeAttachment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: vaName,
+		},
+		Spec: storagev1.VolumeAttachmentSpec{
+			NodeName: nodeName,
+			Source: storagev1.VolumeAttachmentSource{
+				PersistentVolumeName: &pvName,
+			},
+		},
+	}
+
+	// Add the resources to the fake client
+	_, err := mockClient.CoreV1().Pods(namespace).Create(context.Background(), testPod, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Failed to create test pod: %s", err)
+	}
+
+	_, err = mockClient.CoreV1().PersistentVolumeClaims(namespace).Create(context.Background(), testPVC, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Failed to create test PVC: %s", err)
+	}
+
+	// Call the IsVolumeAttachmentToPod function
+	result, err := api.IsVolumeAttachmentToPod(context.Background(), testVA, testPod)
+
+	// Validate the results
+	assert.NoError(t, err, "IsVolumeAttachmentToPod returned an error")
+	assert.True(t, result, "Expected the volume attachment to be associated with the pod")
+
+	// Test when pod NodeName doesn't match VolumeAttachment NodeName
+	testPod.Spec.NodeName = "different-node"
+	result, err = api.IsVolumeAttachmentToPod(context.Background(), testVA, testPod)
+	assert.NoError(t, err, "IsVolumeAttachmentToPod returned an error")
+	assert.False(t, result, "Expected the volume attachment not to be associated with the pod due to different node")
+
+	// Test when PVC's VolumeName in pod does not match VolumeAttachment PersistentVolumeName
+	testPod.Spec.NodeName = nodeName // Set it back to the original matching node
+	differentPVC := &v1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "different-pvc",
+			Namespace: namespace,
+		},
+		Spec: v1.PersistentVolumeClaimSpec{
+			VolumeName: "different-pv",
+		},
+	}
+	_, err = mockClient.CoreV1().PersistentVolumeClaims(namespace).Create(context.Background(), differentPVC, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Failed to create different PVC: %s", err)
+	}
+
+	testPod.Spec.Volumes[0].VolumeSource.PersistentVolumeClaim.ClaimName = "different-pvc"
+	result, err = api.IsVolumeAttachmentToPod(context.Background(), testVA, testPod)
+	assert.NoError(t, err, "IsVolumeAttachmentToPod returned an error")
+	assert.False(t, result, "Expected the volume attachment not to be associated with the pod due to non-matching PVC volume name")
+}
+
+func TestGetPersistentVolumeClaimName(t *testing.T) {
+	mockClient := createClient()
+	api := &Client{
+		Client: mockClient,
+	}
+
+	// Define the test PV name and PVC details
+	pvName := "test-pv"
+	pvcNamespace := "test-namespace"
+	pvcName := "test-pvc"
+
+	// Create a test PV with a ClaimRef
+	testPV := &v1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: pvName,
+		},
+		Spec: v1.PersistentVolumeSpec{
+			ClaimRef: &v1.ObjectReference{
+				Kind:      "PersistentVolumeClaim",
+				Namespace: pvcNamespace,
+				Name:      pvcName,
+			},
+		},
+	}
+
+	// Add the PV to the fake client
+	_, err := mockClient.CoreV1().PersistentVolumes().Create(context.Background(), testPV, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Failed to create test PV: %s", err)
+	}
+
+	// Call the GetPersistentVolumeClaimName function
+	result, err := api.GetPersistentVolumeClaimName(context.Background(), pvName)
+
+	// Validate the results
+	assert.NoError(t, err, "GetPersistentVolumeClaimName returned an error")
+	assert.Equal(t, pvcNamespace+"/"+pvcName, result, "Persistent volume claim name does not match")
+
+	// Test with a PV without a ClaimRef
+	emptyPV := &v1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "empty-pv",
+		},
+	}
+
+	// Add the empty PV to the fake client
+	_, err = mockClient.CoreV1().PersistentVolumes().Create(context.Background(), emptyPV, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Failed to create empty PV: %s", err)
+	}
+
+	// Call the GetPersistentVolumeClaimName function
+	result, err = api.GetPersistentVolumeClaimName(context.Background(), "empty-pv")
+
+	// Validate the results
+	assert.NoError(t, err, "GetPersistentVolumeClaimName returned an error")
+	assert.Equal(t, "", result, "Expected to return an empty string for a PV without a ClaimRef")
+}
+
+func TestGetPersistentVolume(t *testing.T) {
+	mockClient := createClient()
+	api := &Client{
+		Client: mockClient,
+	}
+
+	pvName := "test-pv"
+	testPV := &v1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: pvName,
+		},
+	}
+
+	// Add the PV to the fake client
+	_, err := mockClient.CoreV1().PersistentVolumes().Create(context.Background(), testPV, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Failed to create test PV: %s", err)
+	}
+
+	// Test successful retrieval of the PV
+	pv, err := api.GetPersistentVolume(context.Background(), pvName)
+	assert.NoError(t, err, "GetPersistentVolume returned an error")
+	assert.NotNil(t, pv, "GetPersistentVolume returned nil")
+	assert.Equal(t, pvName, pv.Name, "Persistent volume name does not match")
+
+	// Test retrieval of a non-existent PV
+	// pv, err = api.GetPersistentVolume(context.Background(), "non-existent-pv")
+	// assert.Error(t, err, "GetPersistentVolume should have returned an error for a non-existent PV")
+	// assert.Nil(t, pv, "GetPersistentVolume should have returned nil for a non-existent PV")
+
+	// Test retrieval with a nil client
+	api.Client = nil
+	pv, err = api.GetPersistentVolume(context.Background(), pvName)
+	assert.Error(t, err, "GetPersistentVolume should have returned an error for a nil client")
+	assert.Nil(t, pv, "GetPersistentVolume should have returned nil for a nil client")
+	assert.Equal(t, "No connection", err.Error(), "Error message does not match for a nil client")
+}
+
+func TestGetNode(t *testing.T) {
+	mockClient := createClient()
+	api := &Client{
+		Client: mockClient,
+	}
+
+	nodeName := "test-node"
+	testNode := &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: nodeName,
+		},
+	}
+
+	// Add the node to the fake client
+	_, err := mockClient.CoreV1().Nodes().Create(context.Background(), testNode, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Failed to create test node: %s", err)
+	}
+
+	// Test successful retrieval of the node
+	node, err := api.GetNode(context.Background(), nodeName)
+	assert.NoError(t, err, "GetNode returned an error")
+	assert.NotNil(t, node, "GetNode returned nil")
+	assert.Equal(t, nodeName, node.Name, "Node name does not match")
+
+	// // Test retrieval of a non-existent node
+	// node, err = api.GetNode(context.Background(), "non-existent-node")
+	// assert.Error(t, err, "GetNode should have returned an error for a non-existent node")
+	// assert.Nil(t, node, "GetNode should have returned nil for a non-existent node")
+}
+
+func TestGetVolumeHandleFromVA(t *testing.T) {
+	mockClient := createClient()
+	api := &Client{
+		Client: mockClient,
+	}
+
+	// Define test data
+	vaName := "test-va"
+	pvName := "test-pv"
+	volumeHandle := "test-volume-handle"
+
+	// Create a test PersistentVolume
+	testPV := &v1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: pvName,
+		},
+		Spec: v1.PersistentVolumeSpec{
+			PersistentVolumeSource: v1.PersistentVolumeSource{
+				CSI: &v1.CSIPersistentVolumeSource{
+					VolumeHandle: volumeHandle,
+				},
+			},
+		},
+	}
+
+	// Create a test VolumeAttachment
+	testVA := &storagev1.VolumeAttachment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: vaName,
+		},
+		Spec: storagev1.VolumeAttachmentSpec{
+			Source: storagev1.VolumeAttachmentSource{
+				PersistentVolumeName: &pvName,
+			},
+		},
+	}
+
+	// Add the PV to the fake client
+	_, err := mockClient.CoreV1().PersistentVolumes().Create(context.Background(), testPV, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Failed to create test PV: %s", err)
+	}
+
+	// Call the function under test
+	handle, err := api.GetVolumeHandleFromVA(context.Background(), testVA)
+
+	// Validate the results
+	assert.NoError(t, err, "GetVolumeHandleFromVA returned an error")
+	assert.Equal(t, volumeHandle, handle, "Volume handle does not match")
+
+	// Test with a non-CSI volume
+	nonCSIPV := &v1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "non-csi-pv",
+		},
+		Spec: v1.PersistentVolumeSpec{
+			PersistentVolumeSource: v1.PersistentVolumeSource{
+				// No CSI source here
+			},
+		},
+	}
+
+	// Add the non-CSI PV to the fake client
+	_, err = mockClient.CoreV1().PersistentVolumes().Create(context.Background(), nonCSIPV, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Failed to create non-CSI PV: %s", err)
+	}
+
+	nonCSIVA := &storagev1.VolumeAttachment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "non-csi-va",
+		},
+		Spec: storagev1.VolumeAttachmentSpec{
+			Source: storagev1.VolumeAttachmentSource{
+				PersistentVolumeName: &nonCSIPV.Name,
+			},
+		},
+	}
+
+	// Call the function under test with the non-CSI volume
+	handle, err = api.GetVolumeHandleFromVA(context.Background(), nonCSIVA)
+
+	// Validate the results
+	assert.Error(t, err, "GetVolumeHandleFromVA expected to return an error for non-CSI PV")
+	assert.EqualError(t, err, "PV is not a CSI volume")
+	assert.Equal(t, "", handle, "Expected volume handle to be empty for non-CSI PV")
+}
+
+func TestGetPVNameFromVA(t *testing.T) {
+	api := &Client{}
+
+	vaName := "test-va"
+	pvName := "test-pv"
+
+	// Test with a valid PersistentVolumeName
+	testVA := &storagev1.VolumeAttachment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: vaName,
+		},
+		Spec: storagev1.VolumeAttachmentSpec{
+			Source: storagev1.VolumeAttachmentSource{
+				PersistentVolumeName: &pvName,
+			},
+		},
+	}
+
+	result, err := api.GetPVNameFromVA(testVA)
+	assert.NoError(t, err, "GetPVNameFromVA returned an error")
+	assert.Equal(t, pvName, result, "PersistentVolumeName does not match")
+
+	// Test with a missing PersistentVolumeName
+	testVAWithoutPVName := &storagev1.VolumeAttachment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: vaName,
+		},
+		Spec: storagev1.VolumeAttachmentSpec{
+			Source: storagev1.VolumeAttachmentSource{
+				PersistentVolumeName: nil, // Simulating missing PersistentVolumeName
+			},
+		},
+	}
+
+	result, err = api.GetPVNameFromVA(testVAWithoutPVName)
+	expectedError := fmt.Sprintf("Could not find PersistentVolume from VolumeAttachment %s", vaName)
+	assert.Error(t, err, "GetPVNameFromVA should have returned an error")
+	assert.EqualError(t, err, expectedError)
+	assert.Equal(t, "", result, "Expected PersistentVolumeName to be empty")
+
+}
+
+func TestGetNodeWithTimeout(t *testing.T) {
+	mockClient := createClient()
+	api := &Client{
+		Client: mockClient,
+	}
+
+	// Create a test node
+	nodeName := "test-node"
+	testNode := &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: nodeName,
+		},
+	}
+
+	// Add the node to the fake client
+	_, err := mockClient.CoreV1().Nodes().Create(context.Background(), testNode, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Failed to create test node: %s", err)
+	}
+
+	// Test successful retrieval of the node within the timeout
+	t.Run("successful retrieval", func(t *testing.T) {
+		duration := 2 * time.Second
+		node, err := api.GetNodeWithTimeout(duration, nodeName)
+		assert.NoError(t, err, "GetNodeWithTimeout returned an error")
+		assert.NotNil(t, node, "GetNodeWithTimeout returned nil")
+		assert.Equal(t, nodeName, node.Name, "Node name does not match")
+	})
+
+	// Test retrieval with an immediate timeout to simulate timeout scenario
+	// t.Run("timeout scenario", func(t *testing.T) {
+	// 	// We simulate a timeout by setting a very short timeout duration.
+	// 	duration := 0 * time.Nanosecond
+	// 	node, err := api.GetNodeWithTimeout(duration, nodeName)
+	// 	assert.Error(t, err, "GetNodeWithTimeout should have returned an error for a timeout")
+	// 	assert.Nil(t, node, "GetNodeWithTimeout should have returned nil for a timeout")
+	// })
+}
+
+func TestTaintNode(t *testing.T) {
+	mockClient := createClient()
+	api := &Client{
+		Client: mockClient,
+	}
+
+	nodeName := "test-node"
+	taintKey := "test-key"
+	effect := v1.TaintEffectNoSchedule
+
+	testNode := &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: nodeName,
+		},
+		Spec: v1.NodeSpec{
+			Taints: []v1.Taint{},
+		},
+	}
+
+	// Add the node to the fake client
+	_, err := mockClient.CoreV1().Nodes().Create(context.Background(), testNode, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Failed to create test node: %s", err)
+	}
+
+	t.Run("add taint", func(t *testing.T) {
+		err := api.TaintNode(context.Background(), nodeName, taintKey, effect, false)
+		assert.NoError(t, err)
+
+		node, err := api.GetNode(context.Background(), nodeName)
+		assert.NoError(t, err)
+		assert.Len(t, node.Spec.Taints, 1)
+		assert.Equal(t, node.Spec.Taints[0].Key, taintKey)
+		assert.Equal(t, node.Spec.Taints[0].Effect, effect)
+	})
+
+	t.Run("taint already exists", func(t *testing.T) {
+		err := api.TaintNode(context.Background(), nodeName, taintKey, effect, false)
+		assert.NoError(t, err)
+
+		node, err := api.GetNode(context.Background(), nodeName)
+		assert.NoError(t, err)
+		assert.Len(t, node.Spec.Taints, 1)
+		assert.Equal(t, node.Spec.Taints[0].Key, taintKey)
+		assert.Equal(t, node.Spec.Taints[0].Effect, effect)
+	})
+
+	t.Run("remove taint", func(t *testing.T) {
+		err := api.TaintNode(context.Background(), nodeName, taintKey, effect, true)
+		assert.NoError(t, err)
+
+		node, err := api.GetNode(context.Background(), nodeName)
+		assert.NoError(t, err)
+		assert.Len(t, node.Spec.Taints, 0)
+	})
+
+	t.Run("remove non-existing taint", func(t *testing.T) {
+		err := api.TaintNode(context.Background(), nodeName, taintKey, effect, true)
+		assert.NoError(t, err)
+
+		node, err := api.GetNode(context.Background(), nodeName)
+		assert.NoError(t, err)
+		assert.Len(t, node.Spec.Taints, 0)
+	})
 }
 
 func TestUpdateTaint(t *testing.T) {
