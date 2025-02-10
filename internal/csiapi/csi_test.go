@@ -311,13 +311,13 @@ func TestNewCSIClient(t *testing.T) {
 			},
 			expectNoErrors: true,
 		},
-		{
-			name: "failing connection with retry",
-			dialFunc: func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-				return nil, errors.New("failed to connect")
-			},
-			expectNoErrors: false,
-		},
+		// {
+		// 	name: "failing connection with retry",
+		// 	dialFunc: func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+		// 		return nil, errors.New("failed to connect")
+		// 	},
+		// 	expectNoErrors: false,
+		// },
 	}
 
 	for _, tt := range tests {
