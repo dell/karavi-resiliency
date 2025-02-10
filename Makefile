@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2024 Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright (c) 2021-2025 Dell Inc., or its subsidiaries. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,12 +13,6 @@
 # limitations under the License.
 # Includes the following generated file to get semantic version information
 
-MAJOR=1
-MINOR=12
-PATCH=0
-VERSION?="v$(MAJOR).$(MINOR).$(PATCH)"
-REGISTRY?="${REGISTRY_HOST}:${REGISTRY_PORT}/podmon"
-
 all: clean podman push
 
 unit-test:
@@ -32,10 +26,11 @@ build:
 
 podman: download-csm-common
 	$(eval include csm-common.mk)
-	podman build --pull --no-cache -t "$(REGISTRY):$(VERSION)" --build-arg GOIMAGE=$(DEFAULT_GOIMAGE) --build-arg BASEIMAGE=$(CSM_BASEIMAGE) -f ./Dockerfile --label commit=$(shell git log --max-count 1 --format="%H") .
+	go run core/semver/semver.go -f mk >semver.mk
+	make -f docker.mk podman DEFAULT_GOIMAGE=$(DEFAULT_GOIMAGE) CSM_BASEIMAGE=$(CSM_BASEIMAGE)
 
 push:
-	podman push "$(REGISTRY):$(VERSION)"
+	make -f docker.mk push
 
 download-csm-common:
 	curl -O -L https://raw.githubusercontent.com/dell/csm/main/config/csm-common.mk
