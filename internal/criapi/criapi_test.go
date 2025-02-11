@@ -1,6 +1,3 @@
-//go:build k8s
-// +build k8s
-
 /*
 * Copyright (c) 2021-2022 Dell Inc., or its subsidiaries. All Rights Reserved.
 *
@@ -21,41 +18,187 @@ package criapi
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"reflect"
 	"testing"
 
+	"google.golang.org/grpc"
 	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
-func TestListContainers(t *testing.T) {
-	client, err := NewCRIClient("unix:/var/run/dockershim.sock")
-	if err != nil {
-		t.Errorf("NewCRIClient: %s", err)
+func TestNewCRIClient(t *testing.T) {
+	tests := []struct {
+		name    string
+		criSock string
+		wantErr bool
+	}{
+		{
+			name:    "Valid connection",
+			criSock: "unix:///var/run/dockershim.sock",
+			wantErr: false,
+		},
 	}
-	req := &v1.ListContainersRequest{}
-	rep, err := client.ListContainers(context.Background(), req)
-	if err != nil {
-		t.Errorf("ListContainers: %s", err)
-	} else {
-		for _, cont := range rep.Containers {
-			fmt.Printf("container Id %s Name %s State %s\n", cont.Id, cont.Metadata.Name, cont.State)
-		}
-	}
-	err = client.Close()
-	if err != nil {
-		t.Errorf("Close: %s", err)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NewCRIClient(tt.criSock)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NewCRIClient() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
 	}
 }
 
-func TestGetContainerInfo(t *testing.T) {
-	infoMap, err := CRIClient.GetContainerInfo(context.Background())
-	if err != nil {
-		t.Errorf("GetContainerInfo failed: %s", err)
+func TestClient_Connected(t *testing.T) {
+	tests := []struct {
+		name    string
+		criConn *grpc.ClientConn
+		want    bool
+	}{
+		{
+			name:    "CRIConn is nil",
+			criConn: nil,
+			want:    false,
+		},
+		{
+			name:    "CRIConn is not nil",
+			criConn: &grpc.ClientConn{},
+			want:    true,
+		},
 	}
-	for key, value := range infoMap {
-		if key != value.ID {
-			t.Error("key != value.ID")
-		}
-		fmt.Printf("ContainerInfo %+v\n", *value)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cri := &Client{
+				CRIConn: tt.criConn,
+			}
+			if got := cri.Connected(); got != tt.want {
+				t.Errorf("Connected() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestClient_Close(t *testing.T) {
+	tests := []struct {
+		name          string
+		criConn       *grpc.ClientConn
+		expectedError error
+	}{
+		{
+			name:          "CRIConn is nil",
+			criConn:       nil,
+			expectedError: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cri := &Client{
+				CRIConn: tt.criConn,
+			}
+			if got := cri.Close(); got != tt.expectedError {
+				t.Errorf("Close() = %v, want %v", got, tt.expectedError)
+			}
+		})
+	}
+}
+
+func TestClient_ListContainers(t *testing.T) {
+	tests := []struct {
+		name          string
+		criConn       *grpc.ClientConn
+		expectedError error
+		expectedRep   *v1.ListContainersResponse
+	}{
+		{
+			name:          "CRIConn is nil",
+			criConn:       nil,
+			expectedError: errors.New("CRIConn is nil"),
+			expectedRep:   nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cri := &Client{
+				CRIConn: tt.criConn,
+			}
+			ctx := context.Background()
+			req := &v1.ListContainersRequest{}
+			rep, err := cri.ListContainers(ctx, req)
+			if (err != nil) != (tt.expectedError != nil) {
+				t.Errorf("ListContainers() error = %v, expectedError %v", err, tt.expectedError)
+				return
+			}
+			if !reflect.DeepEqual(rep, tt.expectedRep) {
+				t.Errorf("ListContainers() = %v, want %v", rep, tt.expectedRep)
+			}
+		})
+	}
+}
+
+func TestClient_ChooseCRIPath(t *testing.T) {
+	tests := []struct {
+		name          string
+		criConn       *grpc.ClientConn
+		expectedPath  string
+		expectedError error
+	}{
+		{
+			name:          "CRIConn is nil",
+			criConn:       nil,
+			expectedPath:  "unix:////run/containerd/containerd.sock",
+			expectedError: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cri := &Client{
+				CRIConn: tt.criConn,
+			}
+			path, err := cri.ChooseCRIPath()
+			if (err != nil) != (tt.expectedError != nil) {
+				t.Errorf("ChooseCRIPath() error = %v, expectedError %v", err, tt.expectedError)
+				return
+			}
+			if path != tt.expectedPath {
+				t.Errorf("ChooseCRIPath() = %v, want %v", path, tt.expectedPath)
+			}
+		})
+	}
+}
+
+func TestClient_GetContainerInfo(t *testing.T) {
+	tests := []struct {
+		name          string
+		criConn       *grpc.ClientConn
+		expectedError error
+		expectedRep   map[string]*ContainerInfo
+	}{
+		{
+			name:          "CRIConn is not nil",
+			criConn:       &grpc.ClientConn{},
+			expectedError: nil,
+			expectedRep:   map[string]*ContainerInfo{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cri := &Client{
+				CRIConn: tt.criConn,
+			}
+			ctx := context.Background()
+			rep, err := cri.GetContainerInfo(ctx)
+			if (err != nil) != (tt.expectedError != nil) {
+				t.Errorf("GetContainerInfo() error = %v, expectedError %v", err, tt.expectedError)
+				return
+			}
+			if !reflect.DeepEqual(rep, tt.expectedRep) {
+				t.Errorf("GetContainerInfo() = %v, want %v", rep, tt.expectedRep)
+			}
+		})
 	}
 }
