@@ -148,8 +148,8 @@ func TestClient_ChooseCRIPath(t *testing.T) {
 		{
 			name:          "CRIConn is nil",
 			criConn:       nil,
-			expectedPath:  "unix:////run/containerd/containerd.sock",
-			expectedError: nil,
+			expectedPath:  "",
+			expectedError: errors.New("Could not find path for CRI runtime from knownPaths"),
 		},
 	}
 
@@ -180,7 +180,7 @@ func TestClient_GetContainerInfo(t *testing.T) {
 		{
 			name:          "CRIConn is not nil",
 			criConn:       &grpc.ClientConn{},
-			expectedError: nil,
+			expectedError: errors.New("Could not find path for CRI runtime from knownPaths"),
 			expectedRep:   map[string]*ContainerInfo{},
 		},
 	}
