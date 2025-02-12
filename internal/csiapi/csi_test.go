@@ -26,75 +26,6 @@ func bufDialer(context.Context, string) (net.Conn, error) {
 	return lis.Dial()
 }
 
-// type mockControllerServer struct {
-// 	csi.UnimplementedControllerServer
-// }
-
-// // func (m *mockControllerServer) CreateVolume(context.Context, *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
-// // 	return &csi.CreateVolumeResponse{}, nil
-// // }
-
-// type mockNodeServer struct {
-// 	csi.UnimplementedNodeServer
-// }
-
-// // func (m *mockNodeServer) NodePublishVolume(context.Context, *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
-// // 	return &csi.NodePublishVolumeResponse{}, nil
-// // }
-
-// func TestNewCSIClient(t *testing.T) {
-// 	clientOpts := []grpc.DialOption{
-// 		grpc.WithContextDialer(bufDialer),
-// 		grpc.WithTransportCredentials(insecure.NewCredentials()), // Use insecure credentials for testing
-// 	}
-
-// 	// Set up the mock server on bufconn
-// 	t.Run("successful connection", func(t *testing.T) {
-// 		// Create a mock server to handle the connection
-// 		s := grpc.NewServer()
-// 		csi.RegisterControllerServer(s, &mockControllerServer{})
-// 		csi.RegisterNodeServer(s, &mockNodeServer{})
-
-// 		// Start serving on the bufconn listener
-// 		go func() {
-// 			if err := s.Serve(lis); err != nil {
-// 				t.Fatalf("failed to serve: %v", err)
-// 			}
-// 		}()
-
-// 		// Attempt to connect to the bufnet (which will succeed)
-// 		_, err := NewCSIClient("bufnet", clientOpts...)
-// 		assert.NoError(t, err)
-// 		// assert.NotNil(t, csiClient.DriverConn) // Access DriverConn directly from the actual CSIClient struct
-// 	})
-
-// 	t.Run("failed connection", func(t *testing.T) {
-// 		// Modify the retry timeout for the test to allow quick failure
-// 		CSIClientDialRetry = 1 * time.Second
-
-// 		// Create a custom dialer that simulates failure for the "invalid" address
-// 		customDialer := func(ctx context.Context, address string) (net.Conn, error) {
-// 			if address == "invalid" {
-// 				return nil, fmt.Errorf("failed to connect to invalid address")
-// 			}
-// 			return bufDialer(ctx, address) // Fall back to the original dialer for other addresses
-// 		}
-
-// 		// Use the custom dialer for this test case
-// 		clientOptsWithCustomDialer := append(clientOpts, grpc.WithContextDialer(customDialer))
-
-// 		// Attempt to connect to the invalid target
-// 		_, err := NewCSIClient("invalid", clientOptsWithCustomDialer...)
-
-// 		// Check for expected error
-// 		assert.Error(t, err)
-// 		assert.Contains(t, err.Error(), "failed to connect to invalid address")
-
-// 		// // Ensure the DriverConn is nil if the connection failed
-// 		// assert.Nil(t, csiClient.DriverConn)
-// 	})
-// }
-
 func TestClient_Connected(t *testing.T) {
 	client := &Client{}
 	assert.False(t, client.Connected())
@@ -299,73 +230,91 @@ func (m *mockPodmonClient) ValidateVolumeHostConnectivity(ctx context.Context, r
 }
 
 func TestNewCSIClient(t *testing.T) {
+	// Backup and restore original CSIClientDialRetry after tests
+	originalCSIClientDialRetry := CSIClientDialRetry
+	defer func() { CSIClientDialRetry = originalCSIClientDialRetry }()
+
+	// For testing purposes, set a lower retry interval
+	CSIClientDialRetry = 100 * time.Millisecond
+
 	tests := []struct {
 		name           string
 		dialFunc       func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error)
 		expectNoErrors bool
+		timeout        time.Duration
 	}{
 		{
+			// Successful connection
 			name: "successful connection",
 			dialFunc: func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 				return &grpc.ClientConn{}, nil
 			},
 			expectNoErrors: true,
+			timeout:        1 * time.Second,
 		},
-		// {
-		// 	name: "failing connection with retry",
-		// 	dialFunc: func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-		// 		return nil, errors.New("failed to connect")
-		// 	},
-		// 	expectNoErrors: false,
-		// },
+		{
+			// Failing connection initially then success
+			name: "failing connection initially then success",
+			dialFunc: func() func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+				counter := 0
+				return func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+					counter++
+					if counter > 3 {
+						return &grpc.ClientConn{}, nil
+					}
+					return nil, errors.New("failed to connect")
+				}
+			}(),
+			expectNoErrors: true,
+			timeout:        2 * time.Second,
+		},
+		{
+			// Failing connection permanently
+			name: "failing connection permanently",
+			dialFunc: func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+				return nil, errors.New("failed to connect")
+			},
+			expectNoErrors: false,
+			timeout:        5 * CSIClientDialRetry, // Timeout after several retries
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			originalGrpcDialContext := grpcDialContext
-			defer func() { grpcDialContext = originalGrpcDialContext }()
-			grpcDialContext = tt.dialFunc
+			originalGrpcDialContext := getGrpcDialContext
+			defer func() { getGrpcDialContext = originalGrpcDialContext }()
+			getGrpcDialContext = tt.dialFunc
 
-			retryCount := 0
+			done := make(chan bool)
+			var client CSIApi
+			var err error
 
-			if !tt.expectNoErrors {
-				go func() {
-					retryCount = 5
-					time.Sleep(CSIClientDialRetry * time.Duration(retryCount+1))
-					grpcDialContext = func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-						return &grpc.ClientConn{}, nil
-					}
-				}()
-			}
+			go func() {
+				client, err = NewCSIClient("test.sock", grpc.WithInsecure())
+				done <- true
+			}()
 
-			client, err := NewCSIClient("test.sock", grpc.WithInsecure())
-
-			if tt.expectNoErrors {
-				assert.NoError(t, err)
-				assert.NotNil(t, client)
-				assert.NotNil(t, client.(*Client).DriverConn)
-				assert.NotNil(t, client.(*Client).PodmonClient)
-				assert.NotNil(t, client.(*Client).ControllerClient)
-				assert.NotNil(t, client.(*Client).NodeClient)
-			} else {
-				// Stop the retry after certain count to avoid infinite loop
-				if retryCount > 5 {
-					assert.Error(t, err)
-					assert.Nil(t, client)
-				} else {
+			select {
+			case <-done:
+				if tt.expectNoErrors {
 					assert.NoError(t, err)
 					assert.NotNil(t, client)
 					assert.NotNil(t, client.(*Client).DriverConn)
 					assert.NotNil(t, client.(*Client).PodmonClient)
 					assert.NotNil(t, client.(*Client).ControllerClient)
 					assert.NotNil(t, client.(*Client).NodeClient)
+				} else {
+					assert.Error(t, err)
+					assert.Nil(t, client)
+				}
+			case <-time.After(tt.timeout):
+				// If we expect no errors and hit the timeout, it's an issue
+				if tt.expectNoErrors {
+					t.Errorf("Test %s timed out unexpectedly", tt.name)
+				} else {
+					t.Logf("Test %s timed out as expected", tt.name)
 				}
 			}
 		})
 	}
 }
-
-// Include helper methods and mock implementation
-type grpcDialFuncType func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error)
-
-var grpcDialContext grpcDialFuncType = grpc.DialContext
