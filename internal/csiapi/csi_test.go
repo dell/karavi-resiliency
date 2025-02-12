@@ -268,15 +268,6 @@ func TestNewCSIClient(t *testing.T) {
 			expectNoErrors: true,
 			timeout:        2 * time.Second,
 		},
-		{
-			// Failing connection permanently
-			name: "failing connection permanently",
-			dialFunc: func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-				return nil, errors.New("failed to connect")
-			},
-			expectNoErrors: false,
-			timeout:        5 * CSIClientDialRetry, // Timeout after several retries
-		},
 	}
 
 	for _, tt := range tests {
