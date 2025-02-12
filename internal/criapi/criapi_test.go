@@ -21,12 +21,48 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	"google.golang.org/grpc"
 	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 func TestNewCRIClient(t *testing.T) {
+	tests := []struct {
+		name    string
+		criSock string
+		wantErr bool
+	}{
+		{
+			name:    "Valid connection",
+			criSock: "unix:///var/run/dockershim.sock",
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NewCRIClient(tt.criSock)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NewCRIClient() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestNewCRIClient_withMocking(t *testing.T) {
+	copyGetGrpcDialContext := getGrpcDialContext
+	copyCRIClientDialRetry := CRIClientDialRetry
+	getGrpcDialContext = func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+		return nil, nil
+	}
+	CRIClientDialRetry = 1 * time.Second
+
+	defer func() {
+		getGrpcDialContext = copyGetGrpcDialContext
+		CRIClientDialRetry = copyCRIClientDialRetry
+	}()
+
 	tests := []struct {
 		name    string
 		criSock string
