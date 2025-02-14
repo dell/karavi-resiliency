@@ -25,7 +25,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"k8s.io/cri-api/pkg/apis/runtime/v1"
+	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 // Client represents the client grpc connection to the ContainerRuntimerInterface
@@ -46,13 +46,19 @@ var CRIMaxConnectionRetry = 3
 // CRINewClientTimeout is the timeout for making a new client.
 var CRINewClientTimeout = 90 * time.Second
 
+var (
+	getGrpcDialContext = func(ctx context.Context, target string, opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
+		return grpc.DialContext(ctx, target, opts...)
+	}
+)
+
 // NewCRIClient returns a new client connection to the ContainerRuntimeInterface or an error
 func NewCRIClient(criSock string, _ ...grpc.DialOption) (*Client, error) {
 	var err error
 	ctx, cancel := context.WithTimeout(context.Background(), CRINewClientTimeout)
 	defer cancel()
 	for i := 0; i < CRIMaxConnectionRetry; i++ {
-		CRIClient.CRIConn, err = grpc.DialContext(ctx, criSock, grpc.WithInsecure())
+		CRIClient.CRIConn, err = getGrpcDialContext(ctx, criSock, grpc.WithInsecure())
 		if err != nil || CRIClient.CRIConn == nil {
 			var errMsg string
 			if err == nil {
