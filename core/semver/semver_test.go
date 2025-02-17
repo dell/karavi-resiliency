@@ -1,6 +1,5 @@
 /*
  Copyright © 2025 Dell Inc. or its subsidiaries. All Rights Reserved.
-
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
  You may obtain a copy of the License at
@@ -243,6 +242,10 @@ func TestErrorExit(t *testing.T) {
 		errorExit(message)
 		return
 	}
+	// Set GOCOVERDIR to a temporary directory
+	tmpDir := t.TempDir()
+	os.Setenv("GOCOVERDIR", tmpDir)
+
 	// call the test again with INVOKE_ERROR_EXIT=1 so the errorExit function is invoked and we can check the return code
 	cmd := exec.Command(os.Args[0], "-test.run=TestErrorExit") // #nosec G204
 	cmd.Env = append(os.Environ(), "INVOKE_ERROR_EXIT=1")
