@@ -86,12 +86,6 @@ func TestMockDeletePod(t *testing.T) {
 	}
 	mock.AddPod(pod)
 
-	// Test case 1: No induced error
-	// err := mock.DeletePod(context.Background(), namespace, name, "", false)
-	// assert.NoError(t, err)
-	// assert.NotContains(t, mock.KeyToPod, key)
-
-	// Test case 2: Induced error
 	mock.InducedErrors.DeletePod = true
 	err := mock.DeletePod(context.Background(), namespace, name, "", false)
 	assert.Error(t, err)
