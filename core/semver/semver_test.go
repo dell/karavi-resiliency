@@ -1,5 +1,6 @@
 /*
  Copyright © 2025 Dell Inc. or its subsidiaries. All Rights Reserved.
+
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
  You may obtain a copy of the License at
@@ -23,6 +24,27 @@ import (
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestGetStatusError(t *testing.T) {
+	exitError := &exec.ExitError{
+		ProcessState: &os.ProcessState{},
+	}
+	_, _ = GetStatusError(exitError)
+}
+
+func TestString(t *testing.T) {
+	s := semver{"", "", "", "", 1, 2, 3, 4, "", "", true, "", "", 64, "", "", "", ""}
+	assert.NotNil(t, s.String())
+
+	s = semver{"", "", "", "", 1, 2, 3, 4, "abc", "", true, "", "", 64, "", "", "", ""}
+	assert.NotNil(t, s.String())
+}
+
+func TestGetExitError(t *testing.T) {
+	err := errors.New("error")
+	_, ok := GetExitError(err)
+	assert.False(t, ok)
+}
 
 func TestMainFunction(t *testing.T) {
 	tests := []struct {
@@ -94,6 +116,11 @@ func TestMainFunction(t *testing.T) {
 			oldOSExit := OSExit
 			OSExit = func(_ int) {}
 
+			oldDoExec := doExec
+			doExec = func(_ string, _ ...string) ([]byte, error) {
+				return []byte("v2.13.0-77-g38b3a19-dirty"), nil
+			}
+
 			main()
 
 			// Open the file
@@ -120,6 +147,7 @@ func TestMainFunction(t *testing.T) {
 			os.Args = osArgs
 			ReadFile = oldReadFile
 			OSExit = oldOSExit
+			doExec = oldDoExec
 		})
 	}
 }
@@ -242,10 +270,6 @@ func TestErrorExit(t *testing.T) {
 		errorExit(message)
 		return
 	}
-	// Set GOCOVERDIR to a temporary directory
-	tmpDir := t.TempDir()
-	os.Setenv("GOCOVERDIR", tmpDir)
-
 	// call the test again with INVOKE_ERROR_EXIT=1 so the errorExit function is invoked and we can check the return code
 	cmd := exec.Command(os.Args[0], "-test.run=TestErrorExit") // #nosec G204
 	cmd.Env = append(os.Environ(), "INVOKE_ERROR_EXIT=1")
