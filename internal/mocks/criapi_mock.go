@@ -14,12 +14,12 @@
 * limitations under the License.
  */
 
-package criapi
+package mocks
 
 import (
 	"context"
 	"errors"
-
+	"podmon/internal/criapi"
 	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
@@ -28,12 +28,12 @@ type MockClient struct {
 	InducedErrors struct {
 		GetContainerInfo bool
 	}
-	MockContainerInfos map[string]*ContainerInfo
+	MockContainerInfos map[string]*criapi.ContainerInfo
 }
 
 // Initialize initializes the MockClient.
 func (mock *MockClient) Initialize() {
-	mock.MockContainerInfos = make(map[string]*ContainerInfo)
+	mock.MockContainerInfos = make(map[string]*criapi.ContainerInfo)
 }
 
 // Connected returns true if connected.
@@ -58,7 +58,7 @@ func (mock *MockClient) ChooseCRIPath() (string, error) {
 
 // GetContainerInfo gets current status of all the containers on this server using CRI interface.
 // The result is a map of ID to a structure containing the ID, Name, and State.
-func (mock *MockClient) GetContainerInfo(_ context.Context) (map[string]*ContainerInfo, error) {
+func (mock *MockClient) GetContainerInfo(_ context.Context) (map[string]*criapi.ContainerInfo, error) {
 	if mock.InducedErrors.GetContainerInfo {
 		return mock.MockContainerInfos, errors.New("GetContainerInfo induced error")
 	}
