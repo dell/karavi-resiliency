@@ -6,142 +6,214 @@ package utils
 
 import (
 	"bytes"
-	"fmt"
-	"io/ioutil"
-	"os"
+	"errors"
+	"io"
 	"os/exec"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-// Mock exec.Command for testing purposes
-var (
-	execCommandBackup = execCommand
-)
-
-func testHelperProcessSuccess(*testing.T) {
-	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
-		return
-	}
-	cmdArgs := strings.Join(os.Args[3:], " ")
-	switch {
-	case strings.Contains(cmdArgs, "/usr/sbin/losetup -a"):
-		fmt.Fprint(os.Stdout, "/dev/loop1: 0 /dev/sda")
-	case strings.Contains(cmdArgs, "grep"):
-		textBytes, _ := ioutil.ReadAll(os.Stdin)
-		if bytes.Contains(textBytes, []byte("mypv")) {
-			fmt.Fprint(os.Stdout, "/dev/loop1")
-		}
-	case strings.Contains(cmdArgs, "/usr/sbin/losetup -d"):
-		fmt.Fprint(os.Stdout, "deleted\n")
-	default:
-		fmt.Fprint(os.Stderr, "unexpected command")
-	}
-	os.Exit(0)
+// Implement the MockCommander to satisfy the Commander interface
+type MockCommander struct {
+	output    []byte
+	outputErr error
+	stdin     io.Reader
 }
 
-func testHelperProcessFailure(*testing.T) {
-	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
-		return
-	}
-	cmdArgs := strings.Join(os.Args[3:], " ")
-	switch {
-	case strings.Contains(cmdArgs, "/usr/sbin/losetup -a"):
-		fmt.Fprint(os.Stdout, "")
-	case strings.Contains(cmdArgs, "grep"):
-		textBytes, _ := ioutil.ReadAll(os.Stdin)
-		if bytes.Contains(textBytes, []byte("mypv")) {
-			fmt.Fprint(os.Stderr, "error identifying loopback device")
-			os.Exit(1)
-		}
-	case strings.Contains(cmdArgs, "/usr/sbin/losetup -d"):
-		fmt.Fprint(os.Stderr, "failed to delete loopback device")
-		os.Exit(1)
-	default:
-		fmt.Fprint(os.Stderr, "unexpected command")
-		os.Exit(1)
-	}
-	os.Exit(1)
+func (m *MockCommander) Output() ([]byte, error) {
+	return m.output, m.outputErr
 }
 
-func TestHelperProcessSuccess(*testing.T) {
-	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
-		return
-	}
-	testHelperProcessSuccess(nil)
+func (m *MockCommander) SetStdin(stdin io.Reader) {
+	m.stdin = stdin
 }
 
-func TestHelperProcessFailure(*testing.T) {
-	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
-		return
+func TestGetLoopBackDevice(t *testing.T) {
+	tests := []struct {
+		name          string
+		pvname        string
+		losetupOutput string
+		losetupErr    error
+		grepOutput    string
+		grepErr       error
+		want          string
+		expectErr     bool
+	}{
+		{
+			name:          "Valid loopback device",
+			pvname:        "test.img",
+			losetupOutput: "/dev/loop0: 0 2048 /var/lib/libvirt/images/test.img\n/dev/loop1: 0 2048 /var/lib/libvirt/images/alpine.iso",
+			losetupErr:    nil,
+			grepOutput:    "/dev/loop0: 0 2048 /var/lib/libvirt/images/test.img",
+			grepErr:       nil,
+			want:          "/dev/loop0",
+			expectErr:     false,
+		},
+		{
+			name:          "Invalid Case",
+			pvname:        "test.img",
+			losetupOutput: "",
+			losetupErr:    nil,
+			grepOutput:    "/dev/loop0: 0 2048 /var/lib/libvirt/images/test.img",
+			grepErr:       nil,
+			want:          "",
+			expectErr:     false,
+		},
+		{
+			name:          "Invalid loopback device",
+			pvname:        "nonexistent.img",
+			losetupOutput: "/dev/loop0: 0 2048 /var/lib/libvirt/images/test.img\n/dev/loop1: 0 2048 /var/lib/libvirt/images/alpine.iso",
+			losetupErr:    nil,
+			grepOutput:    "",
+			grepErr:       errors.New("not found"),
+			want:          "",
+			expectErr:     true,
+		},
 	}
-	testHelperProcessFailure(nil)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			execCommand = func(name string, arg ...string) Commander {
+				switch name {
+				case "/usr/sbin/losetup":
+					return &MockCommander{
+						output:    []byte(tt.losetupOutput),
+						outputErr: tt.losetupErr,
+					}
+				case "grep":
+					return &MockCommander{
+						output:    []byte(tt.grepOutput),
+						outputErr: tt.grepErr,
+					}
+				default:
+					return &MockCommander{}
+				}
+			}
+			got, err := GetLoopBackDevice(tt.pvname)
+			if tt.expectErr {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
+
+	// Reset execCommand to its original setting after tests
+	resetExecCommand()
 }
 
-func TestGetLoopBackDevice_Success(t *testing.T) {
-	execCommand = func(name string, arg ...string) *exec.Cmd {
-		cs := []string{"-test.run=TestHelperProcessSuccess", "--", name}
-		cs = append(cs, arg...)
-		cmd := exec.Command(os.Args[0], cs...)
-		cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
-		return cmd
+func TestDeleteLoopBackDevice(t *testing.T) {
+	tests := []struct {
+		name      string
+		loopDev   string
+		output    []byte
+		outputErr error
+		expectErr bool
+	}{
+		{
+			name:      "Successful deletion of loopback device",
+			loopDev:   "/dev/loop0",
+			output:    []byte(""),
+			outputErr: nil,
+			expectErr: false,
+		},
+		{
+			name:      "Error during deletion of loopback device",
+			loopDev:   "/dev/loop1",
+			output:    nil,
+			outputErr: errors.New("error deleting loopback device"),
+			expectErr: true,
+		},
 	}
-	defer func() { execCommand = execCommandBackup }()
 
-	_, err := GetLoopBackDevice("mypv")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			execCommand = func(name string, arg ...string) Commander {
+				if name == "/usr/sbin/losetup" && len(arg) > 0 && arg[0] == "-d" {
+					return &MockCommander{
+						output:    tt.output,
+						outputErr: tt.outputErr,
+					}
+				}
+				return &MockCommander{}
+			}
+
+			got, err := DeleteLoopBackDevice(tt.loopDev)
+			if tt.expectErr {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+				assert.Equal(t, tt.output, got)
+			}
+		})
+	}
+
+	// Reset execCommand to its original setting after tests
+	resetExecCommand()
+}
+
+func resetExecCommand() {
+	execCommand = func(name string, arg ...string) Commander {
+		return &RealCommander{cmd: exec.Command(name, arg...)}
+	}
+}
+
+func TestRealCommander_Output(t *testing.T) {
+	cmd := exec.Command("echo", "test output")
+	c := &RealCommander{cmd: cmd}
+
+	want := []byte("test output\n")
+
+	got, err := c.Output()
 	if err != nil {
-		t.Fatalf("GetLoopBackDevice() failed unexpectedly: %v", err)
+		t.Errorf("RealCommander.Output() error = %v, wantErr nil", err)
+		return
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("RealCommander.Output() = %v, want %v", got, want)
 	}
 }
 
-func TestGetLoopBackDevice_Failure(t *testing.T) {
-	execCommand = func(name string, arg ...string) *exec.Cmd {
-		cs := []string{"-test.run=TestHelperProcessFailure", "--", name}
-		cs = append(cs, arg...)
-		cmd := exec.Command(os.Args[0], cs...)
-		cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
-		return cmd
+func TestRealCommander_SetStdin(t *testing.T) {
+	type fields struct {
+		cmd *exec.Cmd
 	}
-	defer func() { execCommand = execCommandBackup }()
-
-	_, err := GetLoopBackDevice("mypv")
-	if err == nil {
-		t.Fatal("expected error, got nil")
+	type args struct {
+		stdin io.Reader
 	}
-}
-
-func TestDeleteLoopBackDevice_Success(t *testing.T) {
-	execCommand = func(name string, arg ...string) *exec.Cmd {
-		cs := []string{"-test.run=TestHelperProcessSuccess", "--", name}
-		cs = append(cs, arg...)
-		cmd := exec.Command(os.Args[0], cs...)
-		cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
-		return cmd
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		want   io.Reader
+	}{
+		{
+			name:   "set stdin to a byte buffer",
+			fields: fields{cmd: &exec.Cmd{}},
+			args:   args{stdin: bytes.NewBuffer([]byte("test stdin"))},
+			want:   bytes.NewBuffer([]byte("test stdin")),
+		},
+		{
+			name:   "set stdin to a string reader",
+			fields: fields{cmd: &exec.Cmd{}},
+			args:   args{stdin: strings.NewReader("test stdin")},
+			want:   strings.NewReader("test stdin"),
+		},
 	}
-	defer func() { execCommand = execCommandBackup }()
-
-	out, err := DeleteLoopBackDevice("/dev/loop1")
-	if err != nil {
-		t.Fatalf("DeleteLoopBackDevice() failed unexpectedly: %v", err)
-	}
-	expectedOutput := "deleted\n"
-	if string(out) != expectedOutput {
-		t.Fatalf("expected %s, got %s", expectedOutput, string(out))
-	}
-}
-
-func TestDeleteLoopBackDevice_Failure(t *testing.T) {
-	execCommand = func(name string, arg ...string) *exec.Cmd {
-		cs := []string{"-test.run=TestHelperProcessFailure", "--", name}
-		cs = append(cs, arg...)
-		cmd := exec.Command(os.Args[0], cs...)
-		cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
-		return cmd
-	}
-	defer func() { execCommand = execCommandBackup }()
-
-	_, err := DeleteLoopBackDevice("/dev/loop1")
-	if err == nil {
-		t.Fatal("expected error, got nil")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &RealCommander{
+				cmd: tt.fields.cmd,
+			}
+			c.SetStdin(tt.args.stdin)
+			got := c.cmd.Stdin
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("RealCommander.SetStdin() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
