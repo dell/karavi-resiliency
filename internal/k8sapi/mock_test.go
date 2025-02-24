@@ -2,6 +2,7 @@ package k8sapi
 
 import (
 	"context"
+	"podmon/internal/mocks"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,7 +13,7 @@ import (
 )
 
 func TestMockInitialize(t *testing.T) {
-	mock := &K8sMock{}
+	mock := &mocks.K8sMock{}
 
 	mock.Initialize()
 
@@ -21,7 +22,7 @@ func TestMockInitialize(t *testing.T) {
 }
 
 func TestMockAddPV(t *testing.T) {
-	mock := &K8sMock{}
+	mock := &mocks.K8sMock{}
 
 	pv := &v1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
@@ -35,7 +36,7 @@ func TestMockAddPV(t *testing.T) {
 }
 
 func TestMockAddVA(t *testing.T) {
-	mock := &K8sMock{}
+	mock := &mocks.K8sMock{}
 
 	va := &storagev1.VolumeAttachment{
 		ObjectMeta: metav1.ObjectMeta{
