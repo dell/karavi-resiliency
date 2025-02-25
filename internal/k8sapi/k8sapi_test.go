@@ -18,7 +18,10 @@ package k8sapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,7 +31,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
+	core "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/record"
 )
 
 func createClient() *fake.Clientset {
@@ -1134,6 +1142,405 @@ func TestTaintExists(t *testing.T) {
 			if result != tt.expected {
 				t.Errorf("expected %v, got %v", tt.expected, result)
 			}
+		})
+	}
+}
+
+func TestConnect(t *testing.T) {
+	originalBuildConfigFromFlagsFunc := buildConfigFromFlagsFunc
+	originalNewForConfigFunc := newForConfigFunc
+	originalInClusterConfigFunc := inClusterConfigFunc
+
+	defer func() {
+		buildConfigFromFlagsFunc = originalBuildConfigFromFlagsFunc
+		newForConfigFunc = originalNewForConfigFunc
+		inClusterConfigFunc = originalInClusterConfigFunc
+	}()
+
+	type testCase struct {
+		name          string
+		kubeconfig    *string
+		setupMocks    func()
+		expectedError string
+	}
+
+	testCases := []testCase{
+		{
+			name:       "Using valid kubeconfig",
+			kubeconfig: func() *string { s := "test_kubeconfig"; return &s }(),
+			setupMocks: func() {
+				buildConfigFromFlagsFunc = func(_, _ string) (*rest.Config, error) {
+					return &rest.Config{}, nil
+				}
+				newForConfigFunc = func(_ *rest.Config) (*kubernetes.Clientset, error) {
+					return &kubernetes.Clientset{}, nil
+				}
+			},
+			expectedError: "",
+		},
+		{
+			name:       "Using in-cluster config",
+			kubeconfig: nil,
+			setupMocks: func() {
+				inClusterConfigFunc = func() (*rest.Config, error) {
+					return &rest.Config{}, nil
+				}
+				newForConfigFunc = func(_ *rest.Config) (*kubernetes.Clientset, error) {
+					return &kubernetes.Clientset{}, nil
+				}
+			},
+			expectedError: "",
+		},
+		{
+			name:       "BuildConfigFromFlags error",
+			kubeconfig: func() *string { s := "test_kubeconfig"; return &s }(),
+			setupMocks: func() {
+				buildConfigFromFlagsFunc = func(_, _ string) (*rest.Config, error) {
+					return nil, errors.New("failed to build config from flags")
+				}
+			},
+			expectedError: "failed to build config from flags",
+		},
+		{
+			name:       "InClusterConfig error",
+			kubeconfig: nil,
+			setupMocks: func() {
+				inClusterConfigFunc = func() (*rest.Config, error) {
+					return nil, errors.New("failed to get in-cluster config")
+				}
+			},
+			expectedError: "failed to get in-cluster config",
+		},
+		{
+			name:       "NewForConfig error",
+			kubeconfig: func() *string { s := "test_kubeconfig"; return &s }(),
+			setupMocks: func() {
+				buildConfigFromFlagsFunc = func(_, _ string) (*rest.Config, error) {
+					return &rest.Config{}, nil
+				}
+				newForConfigFunc = func(_ *rest.Config) (*kubernetes.Clientset, error) {
+					return nil, errors.New("failed to create clientset")
+				}
+			},
+			expectedError: "failed to create clientset",
+		},
+		{
+			name:       "NewForConfig error with in-cluster config",
+			kubeconfig: nil,
+			setupMocks: func() {
+				inClusterConfigFunc = func() (*rest.Config, error) {
+					return &rest.Config{}, nil
+				}
+				newForConfigFunc = func(_ *rest.Config) (*kubernetes.Clientset, error) {
+					return nil, errors.New("failed to create clientset")
+				}
+			},
+			expectedError: "failed to create clientset",
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.setupMocks != nil {
+				tt.setupMocks()
+			}
+
+			client := &Client{}
+			err := client.Connect(tt.kubeconfig)
+
+			if tt.expectedError != "" {
+				assert.EqualError(t, err, tt.expectedError)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestGetContext(t *testing.T) {
+	client := &Client{}
+
+	t.Run("returns context and cancel function", func(t *testing.T) {
+		duration := 2 * time.Second
+		ctx, cancel := client.GetContext(duration)
+
+		assert.NotNil(t, ctx)
+		assert.NotNil(t, cancel)
+
+		deadline, ok := ctx.Deadline()
+		assert.True(t, ok)
+		expectedDeadline := time.Now().Add(duration)
+
+		// Allow a small window for the deadline as time.Now() and context deadline
+		// might differ by a few milliseconds due to duration of the code execution.
+		assert.WithinDuration(t, expectedDeadline, deadline, 50*time.Millisecond)
+
+		cancel()
+	})
+
+	t.Run("context times out after specified duration", func(t *testing.T) {
+		duration := 100 * time.Millisecond
+		ctx, cancel := client.GetContext(duration)
+		defer cancel()
+
+		select {
+		case <-ctx.Done():
+			assert.Equal(t, context.DeadlineExceeded, ctx.Err())
+		case <-time.After(150 * time.Millisecond):
+			t.Error("expected context to be done before 150ms")
+		}
+	})
+}
+
+func TestSetupPodWatch(t *testing.T) {
+	client := &Client{
+		Client: fake.NewSimpleClientset(),
+	}
+
+	type testCase struct {
+		name        string
+		namespace   string
+		listOptions metav1.ListOptions
+		setupMocks  func()
+		expectedErr string
+	}
+
+	testCases := []testCase{
+		{
+			name:        "Valid case",
+			namespace:   "default",
+			listOptions: metav1.ListOptions{},
+			setupMocks: func() {
+				client.Client.(*fake.Clientset).PrependWatchReactor("pods", func(action core.Action) (handled bool, ret watch.Interface, err error) {
+					return true, watch.NewFake(), nil
+				})
+			},
+			expectedErr: "",
+		},
+		{
+			name:        "Watch error case",
+			namespace:   "default",
+			listOptions: metav1.ListOptions{},
+			setupMocks: func() {
+				client.Client.(*fake.Clientset).PrependWatchReactor("pods", func(action core.Action) (handled bool, ret watch.Interface, err error) {
+					return true, nil, errors.New("watch error")
+				})
+			},
+			expectedErr: "watch error",
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMocks()
+
+			watcher, err := client.SetupPodWatch(context.Background(), tt.namespace, tt.listOptions)
+
+			if tt.expectedErr != "" {
+				assert.Nil(t, watcher)
+				assert.EqualError(t, err, tt.expectedErr)
+			} else {
+				assert.NotNil(t, watcher)
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestSetupNodeWatch(t *testing.T) {
+	client := &Client{
+		Client: fake.NewSimpleClientset(),
+	}
+
+	type testCase struct {
+		name        string
+		listOptions metav1.ListOptions
+		setupMocks  func()
+		expectedErr string
+	}
+
+	testCases := []testCase{
+		{
+			name:        "Valid case",
+			listOptions: metav1.ListOptions{},
+			setupMocks: func() {
+				client.Client.(*fake.Clientset).PrependWatchReactor("nodes", func(action core.Action) (handled bool, ret watch.Interface, err error) {
+					return true, watch.NewFake(), nil
+				})
+			},
+			expectedErr: "",
+		},
+		{
+			name:        "Watch error case",
+			listOptions: metav1.ListOptions{},
+			setupMocks: func() {
+				client.Client.(*fake.Clientset).PrependWatchReactor("nodes", func(action core.Action) (handled bool, ret watch.Interface, err error) {
+					return true, nil, errors.New("watch error")
+				})
+			},
+			expectedErr: "watch error",
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMocks()
+
+			watcher, err := client.SetupNodeWatch(context.Background(), tt.listOptions)
+
+			if tt.expectedErr != "" {
+				assert.Nil(t, watcher)
+				assert.EqualError(t, err, tt.expectedErr)
+			} else {
+				assert.NotNil(t, watcher)
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestClient_GetClient(t *testing.T) {
+	api := &Client{
+		Client: &kubernetes.Clientset{},
+	}
+
+	tests := []struct {
+		name string
+		api  *Client
+		want *kubernetes.Clientset
+	}{
+		{
+			name: "GetClient",
+			api:  api,
+			want: &kubernetes.Clientset{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.api.GetClient(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Client.GetClient() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestClient_GetVolumeHandleFromVA(t *testing.T) {
+	type fields struct {
+		Client                    kubernetes.Interface
+		Lock                      sync.Mutex
+		eventRecorder             record.EventRecorder
+		volumeAttachmentCache     map[string]*storagev1.VolumeAttachment
+		volumeAttachmentNameToKey map[string]string
+	}
+	type args struct {
+		ctx context.Context
+		va  *storagev1.VolumeAttachment
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "GetVolumeHandleFromVA returns volume handle from a valid VolumeAttachment",
+			fields: fields{
+				Client: createClient(),
+			},
+			args: args{
+				ctx: context.Background(),
+				va: &storagev1.VolumeAttachment{
+					Spec: storagev1.VolumeAttachmentSpec{
+						Source: storagev1.VolumeAttachmentSource{
+							PersistentVolumeName: &[]string{"pv-test"}[0],
+						},
+					},
+				},
+			},
+			want:    "test-volume-handle",
+			wantErr: false,
+		},
+		{
+			name: "GetVolumeHandleFromVA returns an error if the VolumeAttachment doesn't have a source",
+			fields: fields{
+				Client: createClient(),
+			},
+			args: args{
+				ctx: context.Background(),
+				va: &storagev1.VolumeAttachment{
+					Spec: storagev1.VolumeAttachmentSpec{
+						Source: storagev1.VolumeAttachmentSource{
+							PersistentVolumeName: nil,
+						},
+					},
+				},
+			},
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name: "GetVolumeHandleFromVA returns an error if the PersistentVolume doesn't have a CSI source",
+			fields: fields{
+				Client: createClient(),
+			},
+			args: args{
+				ctx: context.Background(),
+				va: &storagev1.VolumeAttachment{
+					Spec: storagev1.VolumeAttachmentSpec{
+						Source: storagev1.VolumeAttachmentSource{
+							PersistentVolumeName: &[]string{"pv-test-bad"}[0],
+						},
+					},
+				},
+			},
+			want:    "",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			api := &Client{
+				Client:                    tt.fields.Client,
+				Lock:                      tt.fields.Lock,
+				eventRecorder:             tt.fields.eventRecorder,
+				volumeAttachmentCache:     tt.fields.volumeAttachmentCache,
+				volumeAttachmentNameToKey: tt.fields.volumeAttachmentNameToKey,
+			}
+
+			// Set up the test data
+
+			// Create a test PersistentVolume
+			testPV := &v1.PersistentVolume{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "pv-test",
+				},
+				Spec: v1.PersistentVolumeSpec{
+					PersistentVolumeSource: v1.PersistentVolumeSource{
+						CSI: &v1.CSIPersistentVolumeSource{
+							VolumeHandle: "test-volume-handle",
+						},
+					},
+				},
+			}
+
+			// Create a test VolumeAttachment
+			testVA := tt.args.va
+
+			// Add the PV to the fake client
+			_, err := tt.fields.Client.CoreV1().PersistentVolumes().Create(tt.args.ctx, testPV, metav1.CreateOptions{})
+			if err != nil {
+				t.Fatalf("Failed to create test PV: %s", err)
+			}
+
+			// Call the function under test
+			got, err := api.GetVolumeHandleFromVA(tt.args.ctx, testVA)
+
+			// Validate the results
+			assert.Equal(t, tt.wantErr, err != nil)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
