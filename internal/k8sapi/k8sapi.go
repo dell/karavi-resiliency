@@ -304,6 +304,12 @@ func (api *Client) GetNodeWithTimeout(duration time.Duration, nodeName string) (
 	return api.GetNode(ctx, nodeName)
 }
 
+var (
+	buildConfigFromFlagsFunc = clientcmd.BuildConfigFromFlags
+	newForConfigFunc         = kubernetes.NewForConfig
+	inClusterConfigFunc      = rest.InClusterConfig
+)
+
 // Connect connect establishes a connection with the k8s API server.
 func (api *Client) Connect(kubeconfig *string) error {
 	var err error
@@ -312,21 +318,21 @@ func (api *Client) Connect(kubeconfig *string) error {
 	var config *rest.Config
 	if kubeconfig != nil && *kubeconfig != "" {
 		log.Infof("Using kubeconfig %s", *kubeconfig)
-		config, err = clientcmd.BuildConfigFromFlags("", *kubeconfig)
+		config, err = buildConfigFromFlagsFunc("", *kubeconfig)
 		if err != nil {
 			return err
 		}
 		// Change parameters to address k8s throttling issues
 		config.QPS = 100
 		config.Burst = 100
-		client, err = kubernetes.NewForConfig(config)
+		client, err = newForConfigFunc(config)
 	} else {
 		log.Infof("Using InClusterConfig()")
-		config, err = rest.InClusterConfig()
+		config, err = inClusterConfigFunc()
 		if err != nil {
 			return err
 		}
-		client, err = kubernetes.NewForConfig(config)
+		client, err = newForConfigFunc(config)
 	}
 	if err != nil {
 		log.Error("unable to connect to k8sapi: " + err.Error())
