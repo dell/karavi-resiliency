@@ -20,12 +20,13 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetStatusError(t *testing.T) {
+func TestGetStatusError(_ *testing.T) {
 	exitError := &exec.ExitError{
 		ProcessState: &os.ProcessState{},
 	}
@@ -295,6 +296,12 @@ func TestErrorExit(t *testing.T) {
 		t.Error(err)
 	}
 
+	// Trim the warning message from the actual output
+	actualMessage := string(buf[:n])
+	if idx := strings.Index(actualMessage, "warning: GOCOVERDIR not set"); idx != -1 {
+		actualMessage = actualMessage[:idx]
+	}
+
 	// check the output is the message we logged in errorExit
-	assert.Equal(t, message, string(buf[:n]))
+	assert.Equal(t, message, actualMessage)
 }
