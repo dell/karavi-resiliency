@@ -21,8 +21,10 @@ import (
 	"strings"
 	"time"
 
+	"encoding/base64"
 	"github.com/bramvdbogaerde/go-scp"
 	"golang.org/x/crypto/ssh"
+	"net"
 )
 
 // Client interface for the SSH command execution
@@ -102,12 +104,31 @@ func NewWrapper(accessInfo *AccessInfo) *Wrapper {
 		Auth: []ssh.AuthMethod{
 			ssh.Password(accessInfo.Password),
 		},
-		// InsecureIgnoreHostKey is flagged by golint as an insecure option,
-		// but since this is testing code, it is not a concern.
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec
+		HostKeyCallback: trustedHostKeyCallback(""),
 	}
 	wrapper := &Wrapper{SSHConfig: config}
 	return wrapper
+}
+
+// create human-readable SSH-key strings
+func keyString(k ssh.PublicKey) string {
+	return k.Type() + " " + base64.StdEncoding.EncodeToString(k.Marshal())
+}
+
+func trustedHostKeyCallback(trustedKey string) ssh.HostKeyCallback {
+	if trustedKey == "" {
+		// accept any key, since the tests are run in a trusted non-prod environment
+		return func(_ string, _ net.Addr, _ ssh.PublicKey) error {
+			return nil
+		}
+	}
+	return func(_ string, _ net.Addr, k ssh.PublicKey) error {
+		ks := keyString(k)
+		if trustedKey != ks {
+			return fmt.Errorf("SSH-key verification: expected %q, but got %q", trustedKey, ks)
+		}
+		return nil
+	}
 }
 
 // GetSession makes underlying call to crypto ssh library to create an SSH session
