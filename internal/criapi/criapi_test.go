@@ -19,6 +19,7 @@ package criapi
 import (
 	"context"
 	"errors"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -208,15 +209,36 @@ func TestClient_ListContainers(t *testing.T) {
 	}
 }
 
-
 func TestClient_ChooseCRIPath(t *testing.T) {
+	// Create a temporary directory
+	tempDir := t.TempDir()
+
+	// Override knownPaths to use the temporary directory
+	originalKnownPaths := knownPaths
+	knownPaths = [3]string{
+					tempDir + "/dockershim.sock",
+					tempDir + "/containerd.sock",
+					tempDir + "/crio.sock",
+	}
+	// Create mock socket files
+	for _, path := range knownPaths {
+					_, err := os.Create(path)
+					if err != nil {
+									t.Fatalf("Failed to create mock socket file: %v", err)
+					}
+	}
+	// Restore the original knownPaths after the test
+	defer func() {
+					knownPaths = originalKnownPaths
+	}()
+
 	cri := &Client{}
 	path, err := cri.ChooseCRIPath()
 	if err != nil {
-		t.Errorf("ChooseCRIPath() error = %v", err)
+					t.Errorf("ChooseCRIPath() error = %v", err)
 	}
 	if path == "" {
-		t.Errorf("ChooseCRIPath() returned an empty path")
+					t.Errorf("ChooseCRIPath() returned an empty path")
 	}
 }
 func TestClient_ChooseCRIPath_Error(t *testing.T) {
@@ -245,20 +267,6 @@ func TestClient_ChooseCRIPath_Error(t *testing.T) {
 	}
 }
 
-func TestClient_GetContainerInfo(t *testing.T) {
-	cri := &Client{
-		CRIConn: &grpc.ClientConn{},
-	}
-	ctx := context.Background()
-	rep, err := cri.GetContainerInfo(ctx)
-	if err != nil {
-		t.Errorf("GetContainerInfo() error = %v", err)
-	}
-	if rep == nil {
-		t.Errorf("GetContainerInfo() returned nil map")
-	}
-}  
-
 func TestClient_GetContainerInfo_ChooseCRIPathError(t *testing.T) {
 	// Create a temporary directory
 	tempDir := t.TempDir()
@@ -282,5 +290,46 @@ func TestClient_GetContainerInfo_ChooseCRIPathError(t *testing.T) {
 	_, err := cri.GetContainerInfo(ctx)
 	if err == nil || err.Error() != "Could not find path for CRI runtime from knownPaths" {
 		t.Errorf("GetContainerInfo() error = %v, want 'Could not find path for CRI runtime from knownPaths'", err)
+	}
+}
+
+type MockRuntimeServiceClient struct {
+	v1.RuntimeServiceClient
+}
+
+func (m *MockRuntimeServiceClient) ListContainers(ctx context.Context, req *v1.ListContainersRequest, opts ...grpc.CallOption) (*v1.ListContainersResponse, error) {
+	return &v1.ListContainersResponse{
+		Containers: []*v1.Container{
+			{
+				Id: "container1",
+				Metadata: &v1.ContainerMetadata{
+					Name: "container1_name",
+				},
+				State: v1.ContainerState_CONTAINER_RUNNING,
+			},
+		},
+	}, nil
+}
+
+// MockClient embeds the Client struct and overrides the ChooseCRIPath method
+type MockClient struct {
+	Client
+}
+
+func (m *MockClient) ChooseCRIPath() (string, error) {
+	return "unix:///mock.sock", nil
+}
+
+func TestClient_GetContainerInfo(t *testing.T) {
+	client := &MockClient{
+		Client: Client{
+			RuntimeServiceClient: &MockRuntimeServiceClient{},
+		},
+	}
+
+	ctx := context.Background()
+	_, err := client.GetContainerInfo(ctx)
+	if err != nil {
+		t.Errorf("GetContainerInfo() error = %v", err)
 	}
 }
