@@ -1,4 +1,4 @@
-//  Copyright © 2021-2024 Dell Inc. or its subsidiaries. All Rights Reserved.
+//  Copyright © 2021-2025 Dell Inc. or its subsidiaries. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,10 +16,7 @@ package ssh
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
-	"log"
-	"net"
 	"os"
 	"strings"
 	"time"
@@ -35,7 +32,7 @@ type Client interface {
 	GetErrors() []string                       // Returns the error messages (if any exists for it)
 	GetOutput() []string                       // Returns the output of the commands (if any exists for it)
 	SendRequest(command string) error          // Sends command to the remote host, but does not wait for a reply
-	Copy(srcFile, remoteFilepath string) error // Copy a local file to the remote file thru the SSH session
+	Copy(srcFile, remoteFilepath string) error // Copy a local file to the remote file through the SSH session
 }
 
 // AccessInfo has information needed to make an SSH connection to a host
@@ -105,36 +102,12 @@ func NewWrapper(accessInfo *AccessInfo) *Wrapper {
 		Auth: []ssh.AuthMethod{
 			ssh.Password(accessInfo.Password),
 		},
-		// Non-production only
-		// the original code is blocked by golint. this method currently set the key to empty for testing
-		// a warning message will be displayed with the currect key
-		HostKeyCallback: trustedHostKeyCallback(""),
+		// InsecureIgnoreHostKey is flagged by golint as an insecure option,
+		// but since this is testing code, it is not a concern.
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec
 	}
 	wrapper := &Wrapper{SSHConfig: config}
 	return wrapper
-}
-
-// create human-readable SSH-key strings
-func keyString(k ssh.PublicKey) string {
-	return k.Type() + " " + base64.StdEncoding.EncodeToString(k.Marshal())
-}
-
-func trustedHostKeyCallback(trustedKey string) ssh.HostKeyCallback {
-	if trustedKey == "" {
-		return func(_ string, _ net.Addr, k ssh.PublicKey) error {
-			log.Printf("WARNING: SSH-key verification is *NOT* in effect: to fix, add this trustedKey: %q", keyString(k))
-			return nil
-		}
-	}
-
-	return func(_ string, _ net.Addr, k ssh.PublicKey) error {
-		ks := keyString(k)
-		if trustedKey != ks {
-			return fmt.Errorf("SSH-key verification: expected %q but got %q", trustedKey, ks)
-		}
-
-		return nil
-	}
 }
 
 // GetSession makes underlying call to crypto ssh library to create an SSH session
@@ -295,7 +268,7 @@ func (cmd *CommandExecution) SendRequest(command string) error {
 	return err
 }
 
-// Private: execEach will run each command against the host an capture the output
+// Private: execEach will run each command against the host and capture the output
 func (cmd *CommandExecution) execEach(commands []string) CommandResult {
 	// Connect to host
 	hostAndPort := fmt.Sprintf("%s:%s", cmd.AccessInfo.Hostname, cmd.AccessInfo.Port)
@@ -331,7 +304,10 @@ func (cmd *CommandExecution) execEach(commands []string) CommandResult {
 
 // Private: cleanup will make underlying calls to clean up resources associated with SSH client and session
 func (cmd *CommandExecution) cleanup() {
-	cmd.SSHWrapper.Close()
+	err := cmd.SSHWrapper.Close()
+	if err != nil {
+		fmt.Printf("Error closing SSH connection: %v\n", err)
+	}
 }
 
 // Private: exec will run "command" on the host and wrap the []byte as a string
