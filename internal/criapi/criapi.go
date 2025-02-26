@@ -103,9 +103,10 @@ var knownPaths = [3]string{"/var/run/dockershim.sock", "/run/containerd/containe
 
 // ChooseCRIPath chooses an appropriate unix domain socket path to the CRI interface.
 // This is done according to the ordering described for the crictl command.
+var osStat = os.Stat
 func (cri *Client) ChooseCRIPath() (string, error) {
 	for _, path := range knownPaths {
-		_, err := os.Stat(path)
+		_, err := osStat(path)
 		if err == nil {
 			retval := fmt.Sprintf("unix:///%s", path)
 			return retval, nil

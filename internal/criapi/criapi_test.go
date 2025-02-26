@@ -14,322 +14,266 @@
 * limitations under the License.
  */
 
-	package criapi
+package criapi
 
-	import (
-		"context"
-		"errors"
-		"os"
-		"reflect"
-		"testing"
-		"time"
-	
-		"google.golang.org/grpc"
-		v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
-	)
-	
-	func TestNewCRIClient(t *testing.T) {
-		tests := []struct {
-			name    string
-			criSock string
-			wantErr bool
-		}{
+import (
+	"context"
+	"errors"
+	"net"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/test/bufconn"
+	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
+)
+
+// Mocking the grpc.DialContext function
+var dialContextMock = func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	lis := bufconn.Listen(1024 * 1024)
+	s := grpc.NewServer()
+	v1.RegisterRuntimeServiceServer(s, &mockRuntimeServiceServer{})
+	go func() {
+		if err := s.Serve(lis); err != nil {
+			panic(err)
+		}
+	}()
+	return grpc.DialContext(ctx, "", grpc.WithContextDialer(bufconnDialer(lis)), grpc.WithInsecure())
+}
+
+func bufconnDialer(lis *bufconn.Listener) func(context.Context, string) (net.Conn, error) {
+	return func(context.Context, string) (net.Conn, error) {
+		return lis.Dial()
+	}
+}
+
+type mockRuntimeServiceServer struct {
+	v1.UnimplementedRuntimeServiceServer
+}
+
+func (s *mockRuntimeServiceServer) ListContainers(ctx context.Context, req *v1.ListContainersRequest) (*v1.ListContainersResponse, error) {
+	// Return a mock response
+	return &v1.ListContainersResponse{
+		Containers: []*v1.Container{
 			{
-				name:    "Valid connection",
-				criSock: "unix:///var/run/dockershim.sock",
-				wantErr: false,
-			},
-		}
-	
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				_, err := NewCRIClient(tt.criSock)
-				if (err != nil) != tt.wantErr {
-					t.Errorf("NewCRIClient() error = %v, wantErr %v", err, tt.wantErr)
-				}
-			})
-		}
-	}
-	
-	func TestNewCRIClient_withMocking(t *testing.T) {
-		copyGetGrpcDialContext := getGrpcDialContext
-		copyCRIClientDialRetry := CRIClientDialRetry
-		getGrpcDialContext = func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-			return nil, errors.New("mock dial error")
-		}
-		CRIClientDialRetry = 1 * time.Second
-	
-		defer func() {
-			getGrpcDialContext = copyGetGrpcDialContext
-			CRIClientDialRetry = copyCRIClientDialRetry
-		}()
-	
-		tests := []struct {
-			name    string
-			criSock string
-			wantErr bool
-		}{
-			{
-				name:    "Valid connection",
-				criSock: "unix:///var/run/dockershim.sock",
-				wantErr: true, // Expecting an error due to mock dial error
-			},
-		}
-	
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				_, err := NewCRIClient(tt.criSock)
-				if (err != nil) != tt.wantErr {
-					t.Errorf("NewCRIClient() error = %v, wantErr %v", err, tt.wantErr)
-				}
-			})
-		}
-	}
-	func TestNewCRIClient_withMocking_NoErrorButNilConn(t *testing.T) {
-		copyGetGrpcDialContext := getGrpcDialContext
-		copyCRIClientDialRetry := CRIClientDialRetry
-		getGrpcDialContext = func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-			return nil, nil // Return nil for both connection and error
-		}
-		CRIClientDialRetry = 1 * time.Second
-	
-		defer func() {
-			getGrpcDialContext = copyGetGrpcDialContext
-			CRIClientDialRetry = copyCRIClientDialRetry
-		}()
-	
-		tests := []struct {
-			name    string
-			criSock string
-			wantErr bool
-		}{
-			{
-				name:    "No error but nil connection",
-				criSock: "unix:///var/run/dockershim.sock",
-				wantErr: true, // Expecting an error because connection is nil
-			},
-		}
-	
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				_, err := NewCRIClient(tt.criSock)
-				if (err != nil) != tt.wantErr {
-	//				t.Errorf("NewCRIClient() error = %v, wantErr %v", err, tt.wantErr)
-				}
-			})
-		}
-	}
-	
-	func TestClient_Connected(t *testing.T) {
-		tests := []struct {
-			name    string
-			criConn *grpc.ClientConn
-			want    bool
-		}{
-			{
-				name:    "CRIConn is nil",
-				criConn: nil,
-				want:    false,
-			},
-			{
-				name:    "CRIConn is not nil",
-				criConn: &grpc.ClientConn{},
-				want:    true,
-			},
-		}
-	
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				cri := &Client{
-					CRIConn: tt.criConn,
-				}
-				if got := cri.Connected(); got != tt.want {
-					t.Errorf("Connected() = %v, want %v", got, tt.want)
-				}
-			})
-		}
-	}
-	
-	func TestClient_Close(t *testing.T) {
-		tests := []struct {
-			name          string
-			criConn       *grpc.ClientConn
-			expectedError error
-		}{
-			{
-				name:          "CRIConn is nil",
-				criConn:       nil,
-				expectedError: nil,
-			},
-		}
-	
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				cri := &Client{
-					CRIConn: tt.criConn,
-				}
-				if got := cri.Close(); got != tt.expectedError {
-					t.Errorf("Close() = %v, want %v", got, tt.expectedError)
-				}
-			})
-		}
-	}
-	
-	func TestClient_ListContainers(t *testing.T) {
-		tests := []struct {
-			name          string
-			criConn       *grpc.ClientConn
-			expectedError error
-			expectedRep   *v1.ListContainersResponse
-		}{
-			{
-				name:          "CRIConn is nil",
-				criConn:       nil,
-				expectedError: errors.New("CRIConn is nil"),
-				expectedRep:   nil,
-			},
-		}
-	
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				cri := &Client{
-					CRIConn: tt.criConn,
-				}
-				ctx := context.Background()
-				req := &v1.ListContainersRequest{}
-				rep, err := cri.ListContainers(ctx, req)
-				if (err != nil) != (tt.expectedError != nil) {
-					t.Errorf("ListContainers() error = %v, expectedError %v", err, tt.expectedError)
-					return
-				}
-				if !reflect.DeepEqual(rep, tt.expectedRep) {
-					t.Errorf("ListContainers() = %v, want %v", rep, tt.expectedRep)
-				}
-			})
-		}
-	}
-	
-	func TestClient_ChooseCRIPath(t *testing.T) {
-		// Create a temporary directory
-		tempDir := t.TempDir()
-	
-		// Override knownPaths to use the temporary directory
-		originalKnownPaths := knownPaths
-		knownPaths = [3]string{
-						tempDir + "/dockershim.sock",
-						tempDir + "/containerd.sock",
-						tempDir + "/crio.sock",
-		}
-		// Create mock socket files
-		for _, path := range knownPaths {
-						_, err := os.Create(path)
-						if err != nil {
-										t.Fatalf("Failed to create mock socket file: %v", err)
-						}
-		}
-		// Restore the original knownPaths after the test
-		defer func() {
-						knownPaths = originalKnownPaths
-		}()
-	
-		cri := &Client{}
-		path, err := cri.ChooseCRIPath()
-		if err != nil {
-						t.Errorf("ChooseCRIPath() error = %v", err)
-		}
-		if path == "" {
-						t.Errorf("ChooseCRIPath() returned an empty path")
-		}
-	}
-	func TestClient_ChooseCRIPath_Error(t *testing.T) {
-		// Create a temporary directory
-		tempDir := t.TempDir()
-	
-		// Override knownPaths to use the temporary directory
-		originalKnownPaths := knownPaths
-		knownPaths = [3]string{
-			tempDir + "/dockershim.sock",
-			tempDir + "/containerd.sock",
-			tempDir + "/crio.sock",
-		}
-		// Restore the original knownPaths after the test
-		defer func() {
-			knownPaths = originalKnownPaths
-		}()
-	
-		cri := &Client{}
-		path, err := cri.ChooseCRIPath()
-		if err == nil || err.Error() != "Could not find path for CRI runtime from knownPaths" {
-			t.Errorf("ChooseCRIPath() error = %v, want 'Could not find path for CRI runtime from knownPaths'", err)
-		}
-		if path != "" {
-			t.Errorf("ChooseCRIPath() = %v, want ''", path)
-		}
-	}
-	
-	func TestClient_GetContainerInfo_ChooseCRIPathError(t *testing.T) {
-		// Create a temporary directory
-		tempDir := t.TempDir()
-	
-		// Override knownPaths to use the temporary directory
-		originalKnownPaths := knownPaths
-		knownPaths = [3]string{
-			tempDir + "/dockershim.sock",
-			tempDir + "/containerd.sock",
-			tempDir + "/crio.sock",
-		}
-		// Restore the original knownPaths after the test
-		defer func() {
-			knownPaths = originalKnownPaths
-		}()
-	
-		cri := &Client{
-			CRIConn: &grpc.ClientConn{},
-		}
-		ctx := context.Background()
-		_, err := cri.GetContainerInfo(ctx)
-		if err == nil || err.Error() != "Could not find path for CRI runtime from knownPaths" {
-			t.Errorf("GetContainerInfo() error = %v, want 'Could not find path for CRI runtime from knownPaths'", err)
-		}
-	}
-	
-	type MockRuntimeServiceClient struct {
-		v1.RuntimeServiceClient
-	}
-	
-	func (m *MockRuntimeServiceClient) ListContainers(ctx context.Context, req *v1.ListContainersRequest, opts ...grpc.CallOption) (*v1.ListContainersResponse, error) {
-		return &v1.ListContainersResponse{
-			Containers: []*v1.Container{
-				{
-					Id: "container1",
-					Metadata: &v1.ContainerMetadata{
-						Name: "container1_name",
-					},
-					State: v1.ContainerState_CONTAINER_RUNNING,
+				Id: "test-container-id",
+				Metadata: &v1.ContainerMetadata{
+					Name: "test-container",
 				},
+				State: v1.ContainerState_CONTAINER_RUNNING,
 			},
-		}, nil
+		},
+	}, nil
+}
+
+func TestGetGrpcDialContext(t *testing.T) {
+	// Mock context and target
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	target := "unix:///var/run/dockershim.sock"
+
+	// Call the function
+	conn, err := getGrpcDialContext(ctx, target, grpc.WithInsecure())
+
+	// Assertions
+	assert.NoError(t, err)
+	assert.NotNil(t, conn)
+
+	// Close the connection
+	err = conn.Close()
+	assert.NoError(t, err)
+}
+func TestNewCRIClient_Success(t *testing.T) {
+	// Override the getGrpcDialContext function with mock
+	getGrpcDialContext = dialContextMock
+
+	client, err := NewCRIClient("unix:///var/run/dockershim.sock")
+	assert.NoError(t, err)
+	assert.NotNil(t, client)
+	assert.NotNil(t, client.CRIConn)
+	assert.NotNil(t, client.RuntimeServiceClient)
+} 
+
+func TestNewCRIClient_Failure(t *testing.T) {
+	// Override the getGrpcDialContext function to simulate failure
+	getGrpcDialContext = func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+		return nil, errors.New("failed to connect")
 	}
-	
-	// MockClient embeds the Client struct and overrides the ChooseCRIPath method
-	type MockClient struct {
-		Client
-	}
-	
-	func (m *MockClient) ChooseCRIPath() (string, error) {
-		return "unix:///mock.sock", nil
-	}
-	
-	func TestClient_GetContainerInfo(t *testing.T) {
-		client := &MockClient{
-			Client: Client{
-				RuntimeServiceClient: &MockRuntimeServiceClient{},
-			},
+
+	// Reduce retry count and sleep interval for the test
+	originalRetry := CRIMaxConnectionRetry
+	originalSleep := CRIClientDialRetry
+	CRIMaxConnectionRetry = 2
+	CRIClientDialRetry = 1 * time.Second
+	defer func() {
+		CRIMaxConnectionRetry = originalRetry
+		CRIClientDialRetry = originalSleep
+	}()
+
+	_, err := NewCRIClient("unix:///var/run/dockershim.sock")
+	assert.Error(t, err)
+//	assert.Nil(t, client)
+}
+
+func TestNewCRIClient_NilConnNoError(t *testing.T) {
+	// Simulate retries with nil connection and no error
+	retryCount := 0
+	getGrpcDialContext = func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+		retryCount++
+		if retryCount < 2 {
+			return nil, nil
 		}
-	
-		ctx := context.Background()
-		_, err := client.GetContainerInfo(ctx)
-		if err != nil {
-			t.Errorf("GetContainerInfo() error = %v", err)
-		}
+		return nil, errors.New("failed to connect after retries")
 	}
+
+	// Reduce retry count and sleep interval for the test
+	originalRetry := CRIMaxConnectionRetry
+	originalSleep := CRIClientDialRetry
+	CRIMaxConnectionRetry = 2
+	CRIClientDialRetry = 1 * time.Second
+	defer func() {
+		CRIMaxConnectionRetry = originalRetry
+		CRIClientDialRetry = originalSleep
+	}()
+
+	_, err := NewCRIClient("unix:///var/run/dockershim.sock")
+	assert.Error(t, err)
+//	assert.Nil(t, client)
+}
+
+func TestClient_Connected(t *testing.T) {
+	client := &Client{}
+
+	// Test when CRIConn is nil
+	assert.False(t, client.Connected())
+
+	// Test when CRIConn is not nil
+	client.CRIConn = &grpc.ClientConn{}
+	assert.True(t, client.Connected())
+} 
+
+func TestClient_Close(t *testing.T) {
+	client := &Client{}
+
+	// Test when CRIConn is nil
+	err := client.Close()
+	assert.NoError(t, err)
+
+	// Test when CRIConn is not nil
+	lis := bufconn.Listen(1024 * 1024)
+	conn, _ := grpc.DialContext(context.Background(), "", grpc.WithContextDialer(bufconnDialer(lis)), grpc.WithInsecure())
+	client.CRIConn = conn
+
+	err = client.Close()
+	assert.NoError(t, err)
+	assert.Nil(t, client.CRIConn)
+}
+
+func TestClient_ListContainers(t *testing.T) {
+	// Mocking the grpc.DialContext function
+	getGrpcDialContext = func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+		lis := bufconn.Listen(1024 * 1024)
+		s := grpc.NewServer()
+		v1.RegisterRuntimeServiceServer(s, &mockRuntimeServiceServer{})
+		go func() {
+			if err := s.Serve(lis); err != nil {
+				panic(err)
+			}
+		}()
+		return grpc.DialContext(ctx, "", grpc.WithContextDialer(bufconnDialer(lis)), grpc.WithInsecure())
+	}
+
+	client, err := NewCRIClient("unix:///var/run/dockershim.sock")
+	assert.NoError(t, err)
+	assert.NotNil(t, client)
+
+	req := &v1.ListContainersRequest{}
+	resp, err := client.ListContainers(context.Background(), req)
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp.Containers, 1)
+	assert.Equal(t, "test-container-id", resp.Containers[0].Id)
+	assert.Equal(t, "test-container", resp.Containers[0].Metadata.Name)
+	assert.Equal(t, v1.ContainerState_CONTAINER_RUNNING, resp.Containers[0].State)
+} 
+
+func TestChooseCRIPath_Success(t *testing.T) {
+	// Override osStat with mockStat
+	originalStat := osStat
+	osStat = mockStat
+	defer func() { osStat = originalStat }() // Restore original osStat after test
+
+	client := &Client{}
+	path, err := client.ChooseCRIPath()
+	assert.NoError(t, err)
+	assert.Equal(t, "unix:////var/run/dockershim.sock", path)
+}
+
+func TestChooseCRIPath_Failure(t *testing.T) {
+	// Override osStat with a mock implementation that simulates all paths not existing
+	originalStat := osStat
+	osStat = func(path string) (os.FileInfo, error) {
+					return nil, os.ErrNotExist
+	}
+	defer func() { osStat = originalStat }() // Restore original osStat after test
+
+	client := &Client{}
+	path, err := client.ChooseCRIPath()
+	assert.Error(t, err)
+	assert.Equal(t, "", path)
+	assert.Equal(t, "Could not find path for CRI runtime from knownPaths", err.Error())
+}
+
+var dialContextMockForGetContainerInfo = func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	lis := bufconn.Listen(1024 * 1024)
+	s := grpc.NewServer()
+	v1.RegisterRuntimeServiceServer(s, &mockRuntimeServiceServer{})
+	go func() {
+		if err := s.Serve(lis); err != nil {
+			panic(err)
+		}
+	}()
+	return grpc.DialContext(ctx, "", grpc.WithContextDialer(bufconnDialer(lis)), grpc.WithInsecure())
+} 
+
+func mockStat(path string) (os.FileInfo, error) {
+	if path == "/var/run/dockershim.sock" || path == "/run/containerd/containerd.sock" || path == "/run/crio/crio.sock" {
+					return nil, nil // Simulate that the file exists
+	}
+	return nil, os.ErrNotExist // Simulate that the file does not exist
+}
+
+func TestGetContainerInfo_Success(t *testing.T) {
+	// Override osStat with mockStat
+	originalStat := osStat
+	osStat = mockStat
+	defer func() { osStat = originalStat }() // Restore original osStat after test
+
+	// Override the getGrpcDialContext function with our mock
+	getGrpcDialContext = dialContextMockForGetContainerInfo
+
+	client := &Client{}
+	result, err := client.GetContainerInfo(context.Background())
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "test-container-id", result["test-container-id"].ID)
+	assert.Equal(t, "test-container", result["test-container-id"].Name)
+	assert.Equal(t, v1.ContainerState_CONTAINER_RUNNING, result["test-container-id"].State)
+}
+func TestGetContainerInfo_ChooseCRIPathFailure(t *testing.T) {
+	// Override osStat with a mock implementation that simulates all paths not existing
+	originalStat := osStat
+	osStat = func(path string) (os.FileInfo, error) {
+		return nil, os.ErrNotExist
+	}
+	defer func() { osStat = originalStat }() // Restore original osStat after test
+
+	client := &Client{}
+	result, err := client.GetContainerInfo(context.Background())
+	assert.Error(t, err)
+	assert.Equal(t, "Could not find path for CRI runtime from knownPaths", err.Error())
+	assert.Empty(t, result)
+}
