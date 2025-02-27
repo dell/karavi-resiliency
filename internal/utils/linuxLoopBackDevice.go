@@ -29,49 +29,48 @@ import (
 )
 
 // Define the Commander interface
- type Commander interface {
-	 Output() ([]byte, error)
-	 SetStdin(io.Reader)
- }
- 
- type RealCommander struct {
-	 cmd *exec.Cmd
- }
- 
- func (c *RealCommander) Output() ([]byte, error) {
-	 return c.cmd.Output()
- }
- 
- func (c *RealCommander) SetStdin(stdin io.Reader) {
-	 c.cmd.Stdin = stdin
- }
- 
- // Create an execCommand function to return the wrapped exec.Cmd
- var execCommand = func(name string, arg ...string) Commander {
-	 return &RealCommander{cmd: exec.Command(name, arg...)}
- }
- 
- // GetLoopBackDevice get the loopbackdevice for given pv
- func GetLoopBackDevice(pvname string) (string, error) {
-	 textBytes, err := execCommand("/usr/sbin/losetup", "-a").Output()
-	 if err != nil || string(textBytes) == "" {
-		 return "", err
-	 }
- 
-	 cmd := execCommand("grep", pvname)
-	 cmd.SetStdin(bytes.NewBuffer(textBytes))
-	 textBytes, err = cmd.Output()
-	 if err != nil || string(textBytes) == "" {
-		 return "", err
-	 }
-	 log.Debugf("losetup output: %s", string(textBytes))
-	 loopDevices := strings.Split(string(textBytes), ":")
-	 return loopDevices[0], nil
- }
- 
- // DeleteLoopBackDevice deletes the loopbackdevice from the system
- func DeleteLoopBackDevice(loopDev string) ([]byte, error) {
-	 cmd := execCommand("/usr/sbin/losetup", "-d", loopDev)
-	 return cmd.Output()
- }
- 
+type Commander interface {
+	Output() ([]byte, error)
+	SetStdin(io.Reader)
+}
+
+type RealCommander struct {
+	cmd *exec.Cmd
+}
+
+func (c *RealCommander) Output() ([]byte, error) {
+	return c.cmd.Output()
+}
+
+func (c *RealCommander) SetStdin(stdin io.Reader) {
+	c.cmd.Stdin = stdin
+}
+
+// Create an execCommand function to return the wrapped exec.Cmd
+var execCommand = func(name string, arg ...string) Commander {
+	return &RealCommander{cmd: exec.Command(name, arg...)}
+}
+
+// GetLoopBackDevice get the loopbackdevice for given pv
+func GetLoopBackDevice(pvname string) (string, error) {
+	textBytes, err := execCommand("/usr/sbin/losetup", "-a").Output()
+	if err != nil || string(textBytes) == "" {
+		return "", err
+	}
+
+	cmd := execCommand("grep", pvname)
+	cmd.SetStdin(bytes.NewBuffer(textBytes))
+	textBytes, err = cmd.Output()
+	if err != nil || string(textBytes) == "" {
+		return "", err
+	}
+	log.Debugf("losetup output: %s", string(textBytes))
+	loopDevices := strings.Split(string(textBytes), ":")
+	return loopDevices[0], nil
+}
+
+// DeleteLoopBackDevice deletes the loopbackdevice from the system
+func DeleteLoopBackDevice(loopDev string) ([]byte, error) {
+	cmd := execCommand("/usr/sbin/losetup", "-d", loopDev)
+	return cmd.Output()
+}

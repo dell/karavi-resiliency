@@ -85,6 +85,7 @@ func TestGetGrpcDialContext(t *testing.T) {
 	err = conn.Close()
 	assert.NoError(t, err)
 }
+
 func TestNewCRIClient_Success(t *testing.T) {
 	// Override the getGrpcDialContext function with mock
 	getGrpcDialContext = dialContextMock
@@ -94,7 +95,7 @@ func TestNewCRIClient_Success(t *testing.T) {
 	assert.NotNil(t, client)
 	assert.NotNil(t, client.CRIConn)
 	assert.NotNil(t, client.RuntimeServiceClient)
-} 
+}
 
 func TestNewCRIClient_Failure(t *testing.T) {
 	// Override the getGrpcDialContext function to simulate failure
@@ -114,7 +115,7 @@ func TestNewCRIClient_Failure(t *testing.T) {
 
 	_, err := NewCRIClient("unix:///var/run/dockershim.sock")
 	assert.Error(t, err)
-//	assert.Nil(t, client)
+	//	assert.Nil(t, client)
 }
 
 func TestNewCRIClient_NilConnNoError(t *testing.T) {
@@ -140,7 +141,7 @@ func TestNewCRIClient_NilConnNoError(t *testing.T) {
 
 	_, err := NewCRIClient("unix:///var/run/dockershim.sock")
 	assert.Error(t, err)
-//	assert.Nil(t, client)
+	//	assert.Nil(t, client)
 }
 
 func TestClient_Connected(t *testing.T) {
@@ -152,7 +153,7 @@ func TestClient_Connected(t *testing.T) {
 	// Test when CRIConn is not nil
 	client.CRIConn = &grpc.ClientConn{}
 	assert.True(t, client.Connected())
-} 
+}
 
 func TestClient_Close(t *testing.T) {
 	client := &Client{}
@@ -197,7 +198,7 @@ func TestClient_ListContainers(t *testing.T) {
 	assert.Equal(t, "test-container-id", resp.Containers[0].Id)
 	assert.Equal(t, "test-container", resp.Containers[0].Metadata.Name)
 	assert.Equal(t, v1.ContainerState_CONTAINER_RUNNING, resp.Containers[0].State)
-} 
+}
 
 func TestChooseCRIPath_Success(t *testing.T) {
 	// Override osStat with mockStat
@@ -215,7 +216,7 @@ func TestChooseCRIPath_Failure(t *testing.T) {
 	// Override osStat with a mock implementation that simulates all paths not existing
 	originalStat := osStat
 	osStat = func(path string) (os.FileInfo, error) {
-					return nil, os.ErrNotExist
+		return nil, os.ErrNotExist
 	}
 	defer func() { osStat = originalStat }() // Restore original osStat after test
 
@@ -236,11 +237,11 @@ var dialContextMockForGetContainerInfo = func(ctx context.Context, target string
 		}
 	}()
 	return grpc.DialContext(ctx, "", grpc.WithContextDialer(bufconnDialer(lis)), grpc.WithInsecure())
-} 
+}
 
 func mockStat(path string) (os.FileInfo, error) {
 	if path == "/var/run/dockershim.sock" || path == "/run/containerd/containerd.sock" || path == "/run/crio/crio.sock" {
-					return nil, nil // Simulate that the file exists
+		return nil, nil // Simulate that the file exists
 	}
 	return nil, os.ErrNotExist // Simulate that the file does not exist
 }
@@ -263,6 +264,7 @@ func TestGetContainerInfo_Success(t *testing.T) {
 	assert.Equal(t, "test-container", result["test-container-id"].Name)
 	assert.Equal(t, v1.ContainerState_CONTAINER_RUNNING, result["test-container-id"].State)
 }
+
 func TestGetContainerInfo_ChooseCRIPathFailure(t *testing.T) {
 	// Override osStat with a mock implementation that simulates all paths not existing
 	originalStat := osStat

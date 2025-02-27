@@ -76,7 +76,7 @@ func TestGetLoopBackDevice(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			execCommand = func(name string, arg ...string) Commander {
+			execCommand = func(name string, _ ...string) Commander {
 				switch name {
 				case "/usr/sbin/losetup":
 					return &MockCommander{

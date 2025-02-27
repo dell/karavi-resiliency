@@ -40,11 +40,9 @@ var CSIClient Client
 // CSIClientDialRetry is timeout after failure to connect to the CSI Driver
 var CSIClientDialRetry = 30 * time.Second
 
-var (
-	getGrpcDialContext = func(ctx context.Context, target string, opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
-		return grpc.DialContext(ctx, target, opts...)
-	}
-)
+var getGrpcDialContext = func(ctx context.Context, target string, opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
+	return grpc.DialContext(ctx, target, opts...)
+}
 
 // NewCSIClient returns a new CSIApi interface
 func NewCSIClient(csiSock string, clientOpts ...grpc.DialOption) (CSIApi, error) {
