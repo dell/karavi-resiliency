@@ -31,7 +31,7 @@ import (
 )
 
 // Mocking the grpc.DialContext function
-var dialContextMock = func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+var dialContextMock = func(ctx context.Context, target string, _ ...grpc.DialOption) (*grpc.ClientConn, error) {
 	_ = target // Explicitly ignore the unused parameter
 	lis := bufconn.Listen(1024 * 1024)
 	s := grpc.NewServer()
@@ -54,7 +54,7 @@ type mockRuntimeServiceServer struct {
 	v1.UnimplementedRuntimeServiceServer
 }
 
-func (s *mockRuntimeServiceServer) ListContainers(_ context.Context, req *v1.ListContainersRequest) (*v1.ListContainersResponse, error) {
+func (s *mockRuntimeServiceServer) ListContainers(_ context.Context, _ *v1.ListContainersRequest) (*v1.ListContainersResponse, error) {
 	// Return a mock response
 	return &v1.ListContainersResponse{
 		Containers: []*v1.Container{
@@ -100,7 +100,7 @@ func TestNewCRIClient_Success(t *testing.T) {
 
 func TestNewCRIClient_Failure(t *testing.T) {
 	// Override the getGrpcDialContext function to simulate failure
-	getGrpcDialContext = func(_ context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	getGrpcDialContext = func(_ context.Context, _ string, _ ...grpc.DialOption) (*grpc.ClientConn, error) {
 		return nil, errors.New("failed to connect")
 	}
 
@@ -122,7 +122,7 @@ func TestNewCRIClient_Failure(t *testing.T) {
 func TestNewCRIClient_NilConnNoError(t *testing.T) {
 	// Simulate retries with nil connection and no error
 	retryCount := 0
-	getGrpcDialContext = func(_ context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	getGrpcDialContext = func(_ context.Context, _ string, _ ...grpc.DialOption) (*grpc.ClientConn, error) {
 		retryCount++
 		if retryCount < 2 {
 			return nil, nil
@@ -175,7 +175,7 @@ func TestClient_Close(t *testing.T) {
 
 func TestClient_ListContainers(t *testing.T) {
 	// Mocking the grpc.DialContext function
-	getGrpcDialContext = func(ctx context.Context, _ string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	getGrpcDialContext = func(ctx context.Context, _ string, _ ...grpc.DialOption) (*grpc.ClientConn, error) {
 		lis := bufconn.Listen(1024 * 1024)
 		s := grpc.NewServer()
 		v1.RegisterRuntimeServiceServer(s, &mockRuntimeServiceServer{})
@@ -228,7 +228,7 @@ func TestChooseCRIPath_Failure(t *testing.T) {
 	assert.Equal(t, "Could not find path for CRI runtime from knownPaths", err.Error())
 }
 
-var dialContextMockForGetContainerInfo = func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+var dialContextMockForGetContainerInfo = func(ctx context.Context, _ string, _ ...grpc.DialOption) (*grpc.ClientConn, error) {
 	lis := bufconn.Listen(1024 * 1024)
 	s := grpc.NewServer()
 	v1.RegisterRuntimeServiceServer(s, &mockRuntimeServiceServer{})
@@ -269,7 +269,7 @@ func TestGetContainerInfo_Success(t *testing.T) {
 func TestGetContainerInfo_ChooseCRIPathFailure(t *testing.T) {
 	// Override osStat with a mock implementation that simulates all paths not existing
 	originalStat := osStat
-	osStat = func(path string) (os.FileInfo, error) {
+	osStat = func(_ string) (os.FileInfo, error) {
 		return nil, os.ErrNotExist
 	}
 	defer func() { osStat = originalStat }() // Restore original osStat after test
