@@ -274,7 +274,6 @@ func TestGetCachedVolumeAttachment(t *testing.T) {
 }
 
 func TestGetPersistentVolumeClaimsInPod(t *testing.T) {
-
 	mockClient := createClient()
 	api := &Client{
 		Client: mockClient,
@@ -756,7 +755,6 @@ func TestGetPVNameFromVA(t *testing.T) {
 	assert.Error(t, err, "GetPVNameFromVA should have returned an error")
 	assert.EqualError(t, err, expectedError)
 	assert.Equal(t, "", result, "Expected PersistentVolumeName to be empty")
-
 }
 
 func TestGetNodeWithTimeout(t *testing.T) {
@@ -802,7 +800,7 @@ type MockEventRecorder struct {
 	events []v1.Event
 }
 
-func (m *MockEventRecorder) Eventf(object runtime.Object, eventtype, reason, messageFmt string, args ...interface{}) {
+func (m *MockEventRecorder) Eventf(object runtime.Object, eventtype, reason, messageFmt string, _ ...interface{}) {
 	metaObject, _ := object.(metav1.ObjectMetaAccessor)
 	message := messageFmt
 
@@ -819,7 +817,7 @@ func (m *MockEventRecorder) Eventf(object runtime.Object, eventtype, reason, mes
 	m.events = append(m.events, event)
 }
 
-func (m *MockEventRecorder) AnnotatedEventf(object runtime.Object, annotations map[string]string, eventtype, reason, messageFmt string, args ...interface{}) {
+func (m *MockEventRecorder) AnnotatedEventf(object runtime.Object, annotations map[string]string, eventtype, reason, messageFmt string, _ ...interface{}) {
 	metaObject, _ := object.(metav1.ObjectMetaAccessor)
 	message := messageFmt
 
@@ -1311,7 +1309,7 @@ func TestSetupPodWatch(t *testing.T) {
 			namespace:   "default",
 			listOptions: metav1.ListOptions{},
 			setupMocks: func() {
-				client.Client.(*fake.Clientset).PrependWatchReactor("pods", func(action core.Action) (handled bool, ret watch.Interface, err error) {
+				client.Client.(*fake.Clientset).PrependWatchReactor("pods", func(_ core.Action) (handled bool, ret watch.Interface, err error) {
 					return true, watch.NewFake(), nil
 				})
 			},
@@ -1322,7 +1320,7 @@ func TestSetupPodWatch(t *testing.T) {
 			namespace:   "default",
 			listOptions: metav1.ListOptions{},
 			setupMocks: func() {
-				client.Client.(*fake.Clientset).PrependWatchReactor("pods", func(action core.Action) (handled bool, ret watch.Interface, err error) {
+				client.Client.(*fake.Clientset).PrependWatchReactor("pods", func(_ core.Action) (handled bool, ret watch.Interface, err error) {
 					return true, nil, errors.New("watch error")
 				})
 			},
@@ -1364,7 +1362,7 @@ func TestSetupNodeWatch(t *testing.T) {
 			name:        "Valid case",
 			listOptions: metav1.ListOptions{},
 			setupMocks: func() {
-				client.Client.(*fake.Clientset).PrependWatchReactor("nodes", func(action core.Action) (handled bool, ret watch.Interface, err error) {
+				client.Client.(*fake.Clientset).PrependWatchReactor("nodes", func(_ core.Action) (handled bool, ret watch.Interface, err error) {
 					return true, watch.NewFake(), nil
 				})
 			},
@@ -1374,7 +1372,7 @@ func TestSetupNodeWatch(t *testing.T) {
 			name:        "Watch error case",
 			listOptions: metav1.ListOptions{},
 			setupMocks: func() {
-				client.Client.(*fake.Clientset).PrependWatchReactor("nodes", func(action core.Action) (handled bool, ret watch.Interface, err error) {
+				client.Client.(*fake.Clientset).PrependWatchReactor("nodes", func(_ core.Action) (handled bool, ret watch.Interface, err error) {
 					return true, nil, errors.New("watch error")
 				})
 			},
@@ -1428,7 +1426,7 @@ func TestClient_GetClient(t *testing.T) {
 func TestClient_GetVolumeHandleFromVA(t *testing.T) {
 	type fields struct {
 		Client                    kubernetes.Interface
-		Lock                      sync.Mutex
+		Lock                      *sync.Mutex
 		eventRecorder             record.EventRecorder
 		volumeAttachmentCache     map[string]*storagev1.VolumeAttachment
 		volumeAttachmentNameToKey map[string]string
@@ -1448,6 +1446,7 @@ func TestClient_GetVolumeHandleFromVA(t *testing.T) {
 			name: "GetVolumeHandleFromVA returns volume handle from a valid VolumeAttachment",
 			fields: fields{
 				Client: createClient(),
+				Lock:   &sync.Mutex{},
 			},
 			args: args{
 				ctx: context.Background(),
@@ -1466,6 +1465,7 @@ func TestClient_GetVolumeHandleFromVA(t *testing.T) {
 			name: "GetVolumeHandleFromVA returns an error if the VolumeAttachment doesn't have a source",
 			fields: fields{
 				Client: createClient(),
+				Lock:   &sync.Mutex{},
 			},
 			args: args{
 				ctx: context.Background(),
@@ -1484,6 +1484,7 @@ func TestClient_GetVolumeHandleFromVA(t *testing.T) {
 			name: "GetVolumeHandleFromVA returns an error if the PersistentVolume doesn't have a CSI source",
 			fields: fields{
 				Client: createClient(),
+				Lock:   &sync.Mutex{},
 			},
 			args: args{
 				ctx: context.Background(),

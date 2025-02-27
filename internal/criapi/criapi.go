@@ -46,11 +46,9 @@ var CRIMaxConnectionRetry = 3
 // CRINewClientTimeout is the timeout for making a new client.
 var CRINewClientTimeout = 90 * time.Second
 
-var (
-	getGrpcDialContext = func(ctx context.Context, target string, opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
-		return grpc.DialContext(ctx, target, opts...)
-	}
-)
+var getGrpcDialContext = func(ctx context.Context, target string, opts ...grpc.DialOption) (conn *grpc.ClientConn, err error) {
+	return grpc.DialContext(ctx, target, opts...)
+}
 
 // NewCRIClient returns a new client connection to the ContainerRuntimeInterface or an error
 func NewCRIClient(criSock string, _ ...grpc.DialOption) (*Client, error) {
@@ -104,6 +102,7 @@ var knownPaths = [3]string{"/var/run/dockershim.sock", "/run/containerd/containe
 // ChooseCRIPath chooses an appropriate unix domain socket path to the CRI interface.
 // This is done according to the ordering described for the crictl command.
 var osStat = os.Stat
+
 func (cri *Client) ChooseCRIPath() (string, error) {
 	for _, path := range knownPaths {
 		_, err := osStat(path)
