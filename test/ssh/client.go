@@ -325,10 +325,7 @@ func (cmd *CommandExecution) execEach(commands []string) CommandResult {
 
 // Private: cleanup will make underlying calls to clean up resources associated with SSH client and session
 func (cmd *CommandExecution) cleanup() {
-	err := cmd.SSHWrapper.Close()
-	if err != nil {
-		fmt.Printf("Error closing SSH connection: %v\n", err)
-	}
+	_ = cmd.SSHWrapper.Close()
 }
 
 // Private: exec will run "command" on the host and wrap the []byte as a string
