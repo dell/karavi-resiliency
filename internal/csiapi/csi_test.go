@@ -48,7 +48,7 @@ func TestControllerUnpublishVolume(t *testing.T) {
 
 	// Mock ControllerClient with a stubbed ControllerUnpublishVolume method
 	CSIClient.ControllerClient = &mockControllerClient{
-		ControllerUnpublishVolumeFunc: func(_ context.Context, req *csi.ControllerUnpublishVolumeRequest, opts ...grpc.CallOption) (*csi.ControllerUnpublishVolumeResponse, error) {
+		ControllerUnpublishVolumeFunc: func(_ context.Context, req *csi.ControllerUnpublishVolumeRequest, _ ...grpc.CallOption) (*csi.ControllerUnpublishVolumeResponse, error) {
 			if req.VolumeId == "fail" {
 				return nil, errors.New("failed to unpublish volume")
 			}
@@ -86,7 +86,7 @@ func TestNodeUnpublishVolume(t *testing.T) {
 
 	// Mock NodeClient with a stubbed NodeUnpublishVolume method
 	CSIClient.NodeClient = &mockNodeClient{
-		NodeUnpublishVolumeFunc: func(_ context.Context, req *csi.NodeUnpublishVolumeRequest, opts ...grpc.CallOption) (*csi.NodeUnpublishVolumeResponse, error) {
+		NodeUnpublishVolumeFunc: func(_ context.Context, req *csi.NodeUnpublishVolumeRequest, _ ...grpc.CallOption) (*csi.NodeUnpublishVolumeResponse, error) {
 			if req.VolumeId == "fail" {
 				return nil, errors.New("failed to unpublish node volume")
 			}
@@ -124,7 +124,7 @@ func TestNodeUnstageVolume(t *testing.T) {
 
 	// Mock NodeClient with a stubbed NodeUnstageVolume method
 	CSIClient.NodeClient = &mockNodeClient{
-		NodeUnstageVolumeFunc: func(_ context.Context, req *csi.NodeUnstageVolumeRequest, opts ...grpc.CallOption) (*csi.NodeUnstageVolumeResponse, error) {
+		NodeUnstageVolumeFunc: func(_ context.Context, req *csi.NodeUnstageVolumeRequest, _ ...grpc.CallOption) (*csi.NodeUnstageVolumeResponse, error) {
 			if req.VolumeId == "fail" {
 				return nil, errors.New("failed to unstage volume")
 			}
@@ -162,7 +162,7 @@ func TestValidateVolumeHostConnectivity(t *testing.T) {
 
 	// Mock PodmonClient with a stubbed ValidateVolumeHostConnectivity method
 	CSIClient.PodmonClient = &mockPodmonClient{
-		ValidateVolumeHostConnectivityFunc: func(_ context.Context, req *csiext.ValidateVolumeHostConnectivityRequest, opts ...grpc.CallOption) (*csiext.ValidateVolumeHostConnectivityResponse, error) {
+		ValidateVolumeHostConnectivityFunc: func(_ context.Context, req *csiext.ValidateVolumeHostConnectivityRequest, _ ...grpc.CallOption) (*csiext.ValidateVolumeHostConnectivityResponse, error) {
 			if req.NodeId == "fail" {
 				return nil, errors.New("failed to validate volume host connectivity")
 			}
@@ -246,7 +246,7 @@ func TestNewCSIClient(t *testing.T) {
 		{
 			// Successful connection
 			name: "successful connection",
-			dialFunc: func(_ context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+			dialFunc: func(_ context.Context, _ string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 				return &grpc.ClientConn{}, nil
 			},
 			expectNoErrors: true,
@@ -257,7 +257,7 @@ func TestNewCSIClient(t *testing.T) {
 			name: "failing connection initially then success",
 			dialFunc: func() func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 				counter := 0
-				return func(_ context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+				return func(_ context.Context, _ string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 					counter++
 					if counter > 3 {
 						return &grpc.ClientConn{}, nil
