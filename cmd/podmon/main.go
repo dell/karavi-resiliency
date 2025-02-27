@@ -16,9 +16,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"podmon/internal/csiapi"
-	"podmon/internal/k8sapi"
-	"podmon/internal/monitor"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,6 +27,10 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
+
+	"podmon/internal/csiapi"
+	"podmon/internal/k8sapi"
+	"podmon/internal/monitor"
 )
 
 type leaderElection interface {
