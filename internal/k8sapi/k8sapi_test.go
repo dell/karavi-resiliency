@@ -36,7 +36,6 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 	core "k8s.io/client-go/testing"
-	"k8s.io/client-go/tools/record"
 )
 
 func createClient() *fake.Clientset {
@@ -1424,29 +1423,22 @@ func TestClient_GetClient(t *testing.T) {
 }
 
 func TestClient_GetVolumeHandleFromVA(t *testing.T) {
-	type fields struct {
-		Client                    kubernetes.Interface
-		Lock                      *sync.Mutex
-		eventRecorder             record.EventRecorder
-		volumeAttachmentCache     map[string]*storagev1.VolumeAttachment
-		volumeAttachmentNameToKey map[string]string
-	}
 	type args struct {
 		ctx context.Context
 		va  *storagev1.VolumeAttachment
 	}
 	tests := []struct {
 		name    string
-		fields  fields
+		client  *Client
 		args    args
 		want    string
 		wantErr bool
 	}{
 		{
 			name: "GetVolumeHandleFromVA returns volume handle from a valid VolumeAttachment",
-			fields: fields{
+			client: &Client{
 				Client: createClient(),
-				Lock:   &sync.Mutex{},
+				Lock:   sync.Mutex{},
 			},
 			args: args{
 				ctx: context.Background(),
@@ -1463,9 +1455,9 @@ func TestClient_GetVolumeHandleFromVA(t *testing.T) {
 		},
 		{
 			name: "GetVolumeHandleFromVA returns an error if the VolumeAttachment doesn't have a source",
-			fields: fields{
+			client: &Client{
 				Client: createClient(),
-				Lock:   &sync.Mutex{},
+				Lock:   sync.Mutex{},
 			},
 			args: args{
 				ctx: context.Background(),
@@ -1482,9 +1474,9 @@ func TestClient_GetVolumeHandleFromVA(t *testing.T) {
 		},
 		{
 			name: "GetVolumeHandleFromVA returns an error if the PersistentVolume doesn't have a CSI source",
-			fields: fields{
+			client: &Client{
 				Client: createClient(),
-				Lock:   &sync.Mutex{},
+				Lock:   sync.Mutex{},
 			},
 			args: args{
 				ctx: context.Background(),
@@ -1503,13 +1495,7 @@ func TestClient_GetVolumeHandleFromVA(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			api := &Client{
-				Client:                    tt.fields.Client,
-				Lock:                      tt.fields.Lock,
-				eventRecorder:             tt.fields.eventRecorder,
-				volumeAttachmentCache:     tt.fields.volumeAttachmentCache,
-				volumeAttachmentNameToKey: tt.fields.volumeAttachmentNameToKey,
-			}
+			api := tt.client
 
 			// Set up the test data
 
@@ -1531,7 +1517,7 @@ func TestClient_GetVolumeHandleFromVA(t *testing.T) {
 			testVA := tt.args.va
 
 			// Add the PV to the fake client
-			_, err := tt.fields.Client.CoreV1().PersistentVolumes().Create(tt.args.ctx, testPV, metav1.CreateOptions{})
+			_, err := tt.client.Client.CoreV1().PersistentVolumes().Create(tt.args.ctx, testPV, metav1.CreateOptions{})
 			if err != nil {
 				t.Fatalf("Failed to create test PV: %s", err)
 			}
