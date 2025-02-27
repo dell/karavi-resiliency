@@ -46,7 +46,7 @@ import (
 // Client holds a reference to a Kubernetes client
 type Client struct {
 	Client                    kubernetes.Interface
-	Lock                      *sync.Mutex
+	Lock                      sync.Mutex
 	eventRecorder             record.EventRecorder
 	volumeAttachmentCache     map[string]*storagev1.VolumeAttachment
 	volumeAttachmentNameToKey map[string]string
