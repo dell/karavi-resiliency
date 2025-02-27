@@ -246,7 +246,7 @@ func TestNewCSIClient(t *testing.T) {
 		{
 			// Successful connection
 			name: "successful connection",
-			dialFunc: func(_ context.Context, _ string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+			dialFunc: func(_ context.Context, _ string, _ ...grpc.DialOption) (*grpc.ClientConn, error) {
 				return &grpc.ClientConn{}, nil
 			},
 			expectNoErrors: true,
@@ -257,7 +257,7 @@ func TestNewCSIClient(t *testing.T) {
 			name: "failing connection initially then success",
 			dialFunc: func() func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 				counter := 0
-				return func(_ context.Context, _ string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+				return func(_ context.Context, _ string, _ ...grpc.DialOption) (*grpc.ClientConn, error) {
 					counter++
 					if counter > 3 {
 						return &grpc.ClientConn{}, nil
