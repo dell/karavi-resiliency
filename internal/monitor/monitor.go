@@ -17,12 +17,11 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"podmon/internal/csiapi"
+	"podmon/internal/k8sapi"
 	"strings"
 	"sync"
 	"time"
-
-	"podmon/internal/csiapi"
-	"podmon/internal/k8sapi"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
