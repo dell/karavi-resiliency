@@ -19,6 +19,7 @@ import (
 	"os"
 	"podmon/internal/csiapi"
 	"podmon/internal/k8sapi"
+	"podmon/internal/mocks"
 	"podmon/internal/monitor"
 	"strings"
 	"sync"
@@ -35,8 +36,8 @@ import (
 type mainFeature struct {
 	// Logrus test hook
 	loghook             *logtest.Hook
-	k8sapiMock          *k8sapi.K8sMock
-	csiapiMock          *csiapi.CSIMock
+	k8sapiMock          *mocks.K8sMock
+	csiapiMock          *mocks.CSIMock
 	leaderElect         *mockLeaderElect
 	failStartAPIMonitor bool
 }
@@ -53,8 +54,8 @@ func (m *mainFeature) aPodmonInstance() error {
 		fmt.Printf("loghook last-entry %+v\n", m.loghook.LastEntry())
 	}
 	monitor.PodMonitor.CSIExtensionsPresent = false
-	m.csiapiMock = new(csiapi.CSIMock)
-	m.k8sapiMock = new(k8sapi.K8sMock)
+	m.csiapiMock = new(mocks.CSIMock)
+	m.k8sapiMock = new(mocks.K8sMock)
 	GetCSIClient = m.mockGetCSIClient
 	K8sAPI = m.k8sapiMock
 	m.leaderElect = &mockLeaderElect{}
