@@ -21,13 +21,35 @@ package utils
 
 import (
 	"bytes"
+	"io"
 	"os/exec"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
 
-var execCommand = exec.Command
+// Define the Commander interface
+type Commander interface {
+	Output() ([]byte, error)
+	SetStdin(io.Reader)
+}
+
+type RealCommander struct {
+	cmd *exec.Cmd
+}
+
+func (c *RealCommander) Output() ([]byte, error) {
+	return c.cmd.Output()
+}
+
+func (c *RealCommander) SetStdin(stdin io.Reader) {
+	c.cmd.Stdin = stdin
+}
+
+// Create an execCommand function to return the wrapped exec.Cmd
+var execCommand = func(name string, arg ...string) Commander {
+	return &RealCommander{cmd: exec.Command(name, arg...)}
+}
 
 // GetLoopBackDevice get the loopbackdevice for given pv
 func GetLoopBackDevice(pvname string) (string, error) {
@@ -37,7 +59,7 @@ func GetLoopBackDevice(pvname string) (string, error) {
 	}
 
 	cmd := execCommand("grep", pvname)
-	cmd.Stdin = bytes.NewBuffer(textBytes)
+	cmd.SetStdin(bytes.NewBuffer(textBytes))
 	textBytes, err = cmd.Output()
 	if err != nil || string(textBytes) == "" {
 		return "", err
