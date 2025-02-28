@@ -22,8 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"podmon/internal/criapi"
-	"podmon/internal/csiapi"
-	"podmon/internal/k8sapi"
+	"podmon/internal/mocks"
 	"podmon/internal/utils"
 	"strconv"
 	"strings"
@@ -61,11 +60,11 @@ type feature struct {
 	// PodmonMonitorType
 	podmonMonitor *PodMonitorType
 	// CSIMock
-	csiapiMock *csiapi.CSIMock
+	csiapiMock *mocks.CSIMock
 	// K8SMock
-	k8sapiMock *k8sapi.K8sMock
+	k8sapiMock *mocks.K8sMock
 	// CRI mock
-	criMock                  *criapi.MockClient
+	criMock                  *mocks.MockClient
 	err                      error
 	success                  bool
 	podList                  []*v1.Pod   // For multi-pod tests
@@ -79,7 +78,7 @@ type feature struct {
 	//'none', it will validate if it indeed was a successful message.
 	validateLastMessage    bool
 	badWatchObject         bool
-	utilMock               *utils.Mock
+	utilMock               *mocks.Mock
 	validateWatcherMessage bool
 }
 
@@ -123,12 +122,12 @@ func (f *feature) aControllerMonitor(driver string) error {
 	default:
 		Driver = new(VxflexDriver)
 	}
-	f.k8sapiMock = new(k8sapi.K8sMock)
+	f.k8sapiMock = new(mocks.K8sMock)
 	f.k8sapiMock.Initialize()
 	K8sAPI = f.k8sapiMock
-	f.csiapiMock = new(csiapi.CSIMock)
+	f.csiapiMock = new(mocks.CSIMock)
 	CSIApi = f.csiapiMock
-	f.criMock = new(criapi.MockClient)
+	f.criMock = new(mocks.MockClient)
 	f.criMock.Initialize()
 	getContainers = f.criMock.GetContainerInfo
 	f.podmonMonitor = &PodMonitorType{}
@@ -138,7 +137,7 @@ func (f *feature) aControllerMonitor(driver string) error {
 	RemoveDir = f.mockRemoveDir
 	f.badWatchObject = false
 	f.pod2 = nil
-	f.utilMock = new(utils.Mock)
+	f.utilMock = new(mocks.Mock)
 	getLoopBackDevice = f.utilMock.GetLoopBackDevice
 	deleteLoopBackDevice = f.utilMock.DeleteLoopBackDevice
 	unMountPath = f.utilMock.Unmount
@@ -1075,12 +1074,12 @@ func (f *feature) aControllerPodWithPodaffinitylabels() error {
 	// testing only for VxflexosDriver
 	Driver = new(VxflexDriver)
 
-	f.k8sapiMock = new(k8sapi.K8sMock)
+	f.k8sapiMock = new(mocks.K8sMock)
 	f.k8sapiMock.Initialize()
 	K8sAPI = f.k8sapiMock
-	f.csiapiMock = new(csiapi.CSIMock)
+	f.csiapiMock = new(mocks.CSIMock)
 	CSIApi = f.csiapiMock
-	f.criMock = new(criapi.MockClient)
+	f.criMock = new(mocks.MockClient)
 	f.criMock.Initialize()
 	getContainers = f.criMock.GetContainerInfo
 	f.podmonMonitor = &PodMonitorType{}
