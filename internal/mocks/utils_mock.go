@@ -14,7 +14,7 @@
 * limitations under the License.
  */
 
-package utils
+package mocks
 
 import (
 	"errors"
