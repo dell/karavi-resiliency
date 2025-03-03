@@ -16,15 +16,15 @@ package ssh
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"time"
 
-	"encoding/base64"
 	"github.com/bramvdbogaerde/go-scp"
 	"golang.org/x/crypto/ssh"
-	"net"
 )
 
 // Client interface for the SSH command execution
