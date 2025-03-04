@@ -15,7 +15,7 @@
 
 CWD=$(pwd)
 NVOLUMES=2
-STORAGECLASS=vxflexos
+STORAGECLASS=${STORAGECLASS:-vxflexos}
 MAXPODS=4
 
 # checks that all labeled pods are running, exits if not
