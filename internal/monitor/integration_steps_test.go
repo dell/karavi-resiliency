@@ -301,7 +301,7 @@ func (i *integration) internalFailWorkerAndPrimaryNodes(numNodes, numPrimary, fa
 		return err
 	}
 
-	// Allow a little extra for node failure to be detected than just the node down time.
+	// Allow a little extra for node failure to be detected than just the node downtime.
 	// This proved necessary for the really short failure times (45 sec.) to be reliable.
 	wait = wait + wait
 	log.Infof("Requested nodes to fail. Waiting up to %d seconds to see if they show up as failed.", wait)
@@ -311,7 +311,8 @@ func (i *integration) internalFailWorkerAndPrimaryNodes(numNodes, numPrimary, fa
 	done := make(chan bool)
 	start := time.Now()
 
-	log.Infof("Wait done, checking for failed nodes...")
+	log.Infof("Waiting for failed nodes...")
+
 	requestedWorkersAndFailed := func(node corev1.Node) bool {
 		found := false
 		for _, worker := range failedWorkers {
@@ -320,7 +321,6 @@ func (i *integration) internalFailWorkerAndPrimaryNodes(numNodes, numPrimary, fa
 				break
 			}
 		}
-
 		return found
 	}
 
@@ -339,19 +339,20 @@ func (i *integration) internalFailWorkerAndPrimaryNodes(numNodes, numPrimary, fa
 	foundFailedPrimary, err := i.searchForNodes(requestedPrimaryAndFailed)
 
 	go func() {
+		defer close(done)
 		for {
 			select {
 			case <-timeout.C:
 				log.Info("Timed out, but doing last check if requested nodes show up as failed")
 				foundFailedWorkers, err = i.searchForNodes(requestedWorkersAndFailed)
 				foundFailedPrimary, err = i.searchForNodes(requestedPrimaryAndFailed)
-				done <- true
+				return
 			case <-ticker.C:
 				log.Infof("Checking if requested nodes show up as failed (time left %v)", timeoutDuration-time.Since(start))
 				foundFailedWorkers, err = i.searchForNodes(requestedWorkersAndFailed)
 				foundFailedPrimary, err = i.searchForNodes(requestedPrimaryAndFailed)
 				if len(foundFailedPrimary) == len(failedPrimary) && len(foundFailedWorkers) == len(failedWorkers) {
-					done <- true
+					return
 				}
 			}
 		}

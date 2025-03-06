@@ -67,6 +67,6 @@ END {
 	}
 }
 ' | sort
-	if [ "$once" == "--once" ]; then exit 0; fi
+	if [ "$once" = "--once" ]; then exit 0; fi
 	sleep 5
 done
