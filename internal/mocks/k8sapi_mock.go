@@ -14,7 +14,7 @@
 * limitations under the License.
  */
 
-package k8sapi
+package mocks
 
 import (
 	"context"
