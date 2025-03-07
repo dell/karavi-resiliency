@@ -19,7 +19,11 @@ ndevices=${ndevices:-0}
 nvolumes=${nvolumes:-4}
 zone=${zone:-""}
 storageClassName=${storageClassName:-isilon}
-image="$REGISTRY_HOST:$REGISTRY_PORT/podmontest:v0.0.58"
+PODMONTEST_REGISTRY="$REGISTRY_HOST"
+if [ -n "$REGISTRY_PORT" ]; then
+   PODMONTEST_REGISTRY="$PODMONTEST_REGISTRY:$REGISTRY_PORT"
+fi
+image="$PODMONTEST_REGISTRY/podmontest:v0.0.58"
 prefix="pmti"
 replicas=1
 deploymentType="statefulset"
