@@ -316,26 +316,6 @@ Feature: Integration Test
       # Slightly more pods, increasing number of vols and devs
       #| ""         | "3-5"       | "1-1" | "0-0" | "powerstore"    | "powerstore-nvmetcp"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
 
-  @powerstore-short-integration
-  Scenario Outline: Basic node failover testing using test StatefulSet pods (node kubelet down)
-    Given a kubernetes <kubeConfig>
-    And cluster is clean of test pods
-    And wait <nodeCleanSecs> to see there are no taints
-    And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
-    Then validate that all pods are running within <deploySecs> seconds
-    When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
-    Then validate that all pods are running within <runSecs> seconds
-    And labeled pods are on a different node
-    And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
-    Then finally cleanup everything
-
-    Examples:
-      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure       | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      # Uncomment the storageclass to use. The default is set to nvme which is supported by nightly qualification.
-      #| ""         | "1-1"       | "1-1" | "0-0" | "powerstore"    | "powerstore-nfs"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
-      #| ""         | "1-1"       | "1-1" | "0-0" | "powerstore"    | "powerstore-iscsi"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
-      | ""         | "1-1"       | "1-1" | "0-0" | "powerstore"    | "powerstore-nvmetcp"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
-
   @powermax-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node kubelet down)
     Given a kubernetes <kubeConfig>
