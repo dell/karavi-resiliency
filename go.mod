@@ -8,7 +8,7 @@ require (
 	github.com/bramvdbogaerde/go-scp v1.5.0
 	github.com/container-storage-interface/spec v1.6.0
 	github.com/cucumber/godog v0.15.0
-	github.com/dell/dell-csi-extensions/podmon v1.7.1-0.20250226203203-5dcd46c607b9
+	github.com/dell/dell-csi-extensions/podmon v1.7.1-0.20250306062548-1cc178c422f1
 	github.com/dell/gofsutil v1.18.0
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/golang/mock v1.6.0
