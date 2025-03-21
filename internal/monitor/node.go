@@ -326,10 +326,9 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 			// We retrieve a pod for the namespace/name... see if same one
 			currentUID := string(currentPod.ObjectMeta.UID)
 			if currentUID == podInfo.PodUID {
-				// same pod UID still exists, so we cannot clean it up
-				// it may not have been successfully processed on controller podmon
-				podKeysSkipped = append(podKeysSkipped, podKey)
-				return true
+				// same pod UID still exists, so we should not clean it up
+				// it is running on the expected node
+				return false
 			}
 		} else {
 			log.Infof("Could not retrieve pod %s: %s", podKey, err.Error())
