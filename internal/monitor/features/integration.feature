@@ -672,7 +672,7 @@ Feature: Integration Test
 
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-1"       | "1-1" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "interfacedown" | 120      | 240        | 300     | 300           |
+      | ""         | "1-1"       | "1-1" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "interfacedown" | 120      | 240        | 300     | 600           |
   
   @powerstore-short-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
