@@ -19,10 +19,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"podmon/internal/k8sapi"
 	"strings"
 	"sync"
 	"time"
+
+	"podmon/internal/k8sapi"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	csiext "github.com/dell/dell-csi-extensions/podmon"
@@ -222,8 +223,16 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 
 	// Get the volume handles from the PVs
 	volIDs := make([]string, 0)
-	for _, pv := range pvlist {
-		pvsrc := pv.Spec.PersistentVolumeSource
+	for i := 0; i < len(pvlist); i++ {
+		pvsrc := pvlist[i].Spec.PersistentVolumeSource
+
+		// ignore host-based nfs volumes and allow the driver to migrate volumes as needed
+		if strings.HasPrefix(pvsrc.CSI.VolumeHandle, "nfs-") {
+			log.WithFields(fields).Infof("Ignoring HBNFS volume %d %s", i, pvsrc.CSI.VolumeHandle)
+			pvlist = append(pvlist[0:i], pvlist[i+1:]...)
+			i--
+			continue
+		}
 		if pvsrc.CSI != nil {
 			volIDs = append(volIDs, pvsrc.CSI.VolumeHandle)
 		}
