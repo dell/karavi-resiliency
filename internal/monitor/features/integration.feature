@@ -710,7 +710,7 @@ Feature: Integration Test
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
       #| ""         | "1-1"       | "1-1" | "0-0" | "powermax" | "powermax-nfs"   | "one-third" | "zero"  | "interfacedown" | 120      | 240        | 300     | 300           |
-      | ""         | "1-1"       | "1-1" | "0-0" | "powermax" | "powermax-iscsi"   | "one-third" | "zero"  | "interfacedown" | 120      | 240        | 300     | 300           |
+      | ""         | "1-1"       | "1-1" | "0-0" | "powermax" | "powermax-iscsi"   | "one-third" | "zero"  | "interfacedown" | 300      | 240        | 300     | 300           |
       #| ""         | "1-1"       | "1-1" | "0-0" | "powermax" | "powermax-nvmetcp"   | "one-third" | "zero"  | "interfacedown" | 120      | 240        | 300     | 300           |
 
   @powerflex-short-integration
@@ -959,7 +959,7 @@ Feature: Integration Test
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass     | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
       #| ""         | "1-1"       | "1-1" | "0-0" | "powermax" | "powermax-nfs"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600           |
-      | ""         | "1-1"       | "1-1" | "0-0" | "powermax" | "powermax-iscsi" | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600           |
+      | ""         | "1-1"       | "1-1" | "0-0" | "powermax" | "powermax-iscsi" | "one-third" | "zero"  | "reboot" | 480      | 600        | 600     | 600           |
       #| ""         | "1-1"       | "1-1" | "0-0" | "powermax" | "powermax-nvmetcp"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600          |
 
   @powerflex-integration
@@ -1106,5 +1106,5 @@ Feature: Integration Test
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType    | storageClass          | workers     | primary | failure     |  taints                               | failSecs | deploySecs | runSecs | nodeCleanSecs |
       #| ""         | "1-1"       | "1-1" | "0-0" | "powermax"    | "powermax-nfs"        | "one-third" | "zero"  | "driverpod" | "offline.powermax.storage.dell.com"   | 120      | 300        | 300     | 600           |
-      | ""         | "1-1"       | "1-1" | "0-0" | "powermax"    | "powermax-iscsi"      | "one-third" | "zero"  | "driverpod" | "offline.powermax.storage.dell.com"   | 120      | 300        | 300     | 600           |
+      | ""         | "1-1"       | "1-1" | "0-0" | "powermax"    | "powermax-iscsi"      | "one-third" | "zero"  | "driverpod" | "offline.powermax.storage.dell.com"   | 300      | 300        | 300     | 600           |
       #| ""         | "1-1"       | "1-1" | "0-0" | "powermax"  | "powermax-nvmetcp"  | "one-third" | "zero"  | "driverpod" | "offline.powermax.storage.dell.com" | 120      | 300        | 300     | 600           |
