@@ -179,6 +179,33 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 	return nil
 }
 
+// isRWXVolume checks if any of the Persistent Volumes (PVs) in the list
+// has "RWX" access mode. RWX means that a volume can be mounted as read-write-many.
+// Returns true if at least one PV in the list has RWX access mode.
+//
+// Args:
+//
+//	pvlist: A slice of PersistentVolume pointers.
+//
+// Returns:
+//
+//	A bool value. True if at least one PV in the list has RWX access mode.
+func isRWXVolume(pvlist []*v1.PersistentVolume) bool {
+	// Iterate over the PVs in the list
+	for _, pv := range pvlist {
+		// Check if the access mode is "RWX"
+		modes := pv.Spec.AccessModes
+		log.Infof("Checking the PV %v access modes %v", pv, modes)
+		for _, mode := range modes {
+			if mode == "RWX" || mode == "ReadWriteMany" {
+				return true
+			}
+		}
+	}
+	// Return false if no PV in the list has "RWX" access mode
+	return false
+}
+
 // Attempts to cleanup a Pod that is in trouble. Returns true if made it all the way to deleting the pod.
 func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reason string, taintnoexec, taintpodmon bool) bool {
 	fields := make(map[string]interface{})
@@ -249,8 +276,15 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 
 	// Call the driver to validate the volumes are not in use
 	if cm.CSIExtensionsPresent && CSIApi.Connected() {
-		log.WithFields(fields).Infof("Validating host connectivity for node %s volumes %v", node.ObjectMeta.Name, volIDs)
+		log.WithFields(fields).Infof("Checking host connectivity for node %s volumes %v", node.ObjectMeta.Name, volIDs)
 		connected, iosInProgress, err := cm.callValidateVolumeHostConnectivity(node, volIDs, true)
+		log.WithFields(fields).Infof("Validating host connectivity for node %s volumes %v connected %t  iosInProgress %t", node.ObjectMeta.Name, volIDs, connected, iosInProgress)
+		// If the volume's access mode is RWX, ignore iosInProgress, as other applications may perform I/O operations on the volume.
+		status := isRWXVolume(pvlist)
+		if status {
+			log.WithFields(fields).Info("Skipping iosInProgress check as the volume is in RWX modeX")
+			iosInProgress = false
+		}
 		// Don't consider connected status if taintpodmon is set, because the node may just have come back online.
 		if (connected && !taintpodmon) || iosInProgress || err != nil {
 			fields["connected"] = connected
@@ -358,7 +392,7 @@ func (cm *PodMonitorType) callValidateVolumeHostConnectivity(node *v1.Node, volu
 		if len(volumeIDs) > 0 {
 			req.VolumeIds = volumeIDs
 		}
-		log.Debugf("calling ValidateVolumeHostConnectivity with %v", req)
+		log.Infof("calling ValidateVolumeHostConnectivity with %v", req)
 		// Get the connected status of the Node to the StorageSystem
 		ctx, cancel := context.WithTimeout(context.Background(), ShortTimeout)
 		defer cancel()
@@ -377,7 +411,7 @@ func (cm *PodMonitorType) callValidateVolumeHostConnectivity(node *v1.Node, volu
 				log.Info(message)
 			}
 		}
-		log.Infof("ValidateVolumeHostConnectivity Node %s NodeId %s Connected %t", node.ObjectMeta.Name, req.NodeId, resp.GetConnected())
+		log.Infof("ValidateVolumeHostConnectivity Node %s NodeId %s Connected %t IosInProgress %t", node.ObjectMeta.Name, req.NodeId, resp.GetConnected(), resp.GetIosInProgress())
 		return resp.GetConnected(), resp.GetIosInProgress(), nil
 	}
 	return false, false, fmt.Errorf("callValidateVolumeHostConnectivity: Could not determine CSI NodeID for node: %s", node.ObjectMeta.Name)
