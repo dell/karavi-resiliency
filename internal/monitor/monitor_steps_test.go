@@ -1165,6 +1165,91 @@ func (f *feature) iTaintTheNodeWith(node, boolean string) error {
 	}
 	return nil
 }
+func (f *feature) aPodForNodeWithRWXVolumesCondition(node string, nvolumes int) error {
+	pod := f.createPodWithRWX(node, nvolumes)
+	f.pod = pod
+	f.k8sapiMock.AddPod(pod)
+
+	node1, _ := f.k8sapiMock.GetNode(context.Background(), node)
+	f.node = node1
+	f.k8sapiMock.AddNode(node1)
+	return nil
+}
+func (f *feature) createPodWithRWX(node string, nvolumes int) *v1.Pod {
+	pod := f.createPod(node, 0, "", "false") // Create base pod with 0 vols
+	pod.Spec.Volumes = []v1.Volume{}         // Reset volumes just in case
+
+	podIndex := f.podCount - 1
+
+	for i := 0; i < nvolumes; i++ {
+		// Create RWX PersistentVolume
+		pv := &v1.PersistentVolume{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: fmt.Sprintf("pv-rwx-%s-%d", f.podUID[podIndex], i),
+			},
+			Spec: v1.PersistentVolumeSpec{
+				AccessModes: []v1.PersistentVolumeAccessMode{
+					v1.ReadWriteMany,
+				},
+				ClaimRef: &v1.ObjectReference{
+					Kind:      "PersistentVolumeClaim",
+					Namespace: podns,
+					Name:      fmt.Sprintf("pvc-rwx-%s-%d", f.podUID[podIndex], i),
+				},
+				PersistentVolumeSource: v1.PersistentVolumeSource{
+					CSI: &v1.CSIPersistentVolumeSource{
+						Driver:       "csi-vxflexos.dellemc.com",
+						VolumeHandle: fmt.Sprintf("rwx-vhandle-%d", i),
+					},
+				},
+			}}
+
+		// Create PVC
+		pvc := &v1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: podns,
+				Name:      fmt.Sprintf("pvc-rwx-%s-%d", f.podUID[podIndex], i),
+			},
+			Spec: v1.PersistentVolumeClaimSpec{
+				VolumeName: pv.ObjectMeta.Name,
+			},
+			Status: v1.PersistentVolumeClaimStatus{
+				Phase: "Bound",
+			},
+		}
+
+		// VolumeAttachment
+		va := &storagev1.VolumeAttachment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: fmt.Sprintf("va-rwx-%d", i),
+			},
+			Spec: storagev1.VolumeAttachmentSpec{
+				NodeName: node,
+				Source: storagev1.VolumeAttachmentSource{
+					PersistentVolumeName: &pv.ObjectMeta.Name,
+				},
+			},
+		}
+
+		// Add mock objects
+		f.k8sapiMock.AddPV(pv)
+		f.k8sapiMock.AddPVC(pvc)
+		f.k8sapiMock.AddVA(va)
+
+		// Attach to pod
+		vol := v1.Volume{
+			Name: fmt.Sprintf("pv-rwx-%s-%d", f.podUID[podIndex], i),
+			VolumeSource: v1.VolumeSource{
+				PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+					ClaimName: pvc.ObjectMeta.Name,
+				},
+			},
+		}
+		pod.Spec.Volumes = append(pod.Spec.Volumes, vol)
+	}
+
+	return pod
+}
 
 func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	f := &feature{}
@@ -1176,6 +1261,7 @@ func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^a controller monitor powermax$`, f.aControllerMonitorPmax)
 	context.Step(`^a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)"$`, f.aPodForNodeWithVolumesCondition)
 	context.Step(`^a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)" affinity "([^"]*)"$`, f.aPodForNodeWithVolumesConditionAffinity)
+	context.Step(`^a pod for node "([^"]*)" with (\d+) with RWX volumes condition$`, f.aPodForNodeWithRWXVolumesCondition)
 	context.Step(`^I call controllerCleanupPod for node "([^"]*)"$`, f.iCallControllerCleanupPodForNode)
 	context.Step(`^I induce error "([^"]*)"$`, f.iInduceError)
 	context.Step(`^the last log message contains "([^"]*)"$`, f.theLastLogMessageContains)
