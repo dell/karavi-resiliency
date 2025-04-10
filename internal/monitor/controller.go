@@ -195,7 +195,7 @@ func isRWXVolume(pvlist []*v1.PersistentVolume) bool {
 	for _, pv := range pvlist {
 		// Check if the access mode is "RWX"
 		modes := pv.Spec.AccessModes
-		log.Infof("Checking the PV %v access modes %v", pv, modes)
+		log.Debugf("Checking the PV %v access modes %v", pv, modes)
 		for _, mode := range modes {
 			if mode == "RWX" || mode == "ReadWriteMany" {
 				return true
@@ -276,13 +276,13 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 
 	// Call the driver to validate the volumes are not in use
 	if cm.CSIExtensionsPresent && CSIApi.Connected() {
-		log.WithFields(fields).Infof("Checking host connectivity for node %s volumes %v", node.ObjectMeta.Name, volIDs)
+		log.WithFields(fields).Infof("Checking host connectivity for node %s and iosInprogress for volumes %v", node.ObjectMeta.Name, volIDs)
 		connected, iosInProgress, err := cm.callValidateVolumeHostConnectivity(node, volIDs, true)
 		log.WithFields(fields).Infof("Validating host connectivity for node %s volumes %v connected %t  iosInProgress %t", node.ObjectMeta.Name, volIDs, connected, iosInProgress)
 		// If the volume's access mode is RWX, ignore iosInProgress, as other applications may perform I/O operations on the volume.
 		status := isRWXVolume(pvlist)
 		if status {
-			log.WithFields(fields).Info("Skipping iosInProgress check as the volume is in RWX modeX")
+			log.WithFields(fields).Info("Skipping iosInProgress check as the volume accessmode is RWX or ReadWriteMany")
 			iosInProgress = false
 		}
 		// Don't consider connected status if taintpodmon is set, because the node may just have come back online.
@@ -392,7 +392,7 @@ func (cm *PodMonitorType) callValidateVolumeHostConnectivity(node *v1.Node, volu
 		if len(volumeIDs) > 0 {
 			req.VolumeIds = volumeIDs
 		}
-		log.Infof("calling ValidateVolumeHostConnectivity with %v", req)
+		log.Debugf("calling ValidateVolumeHostConnectivity with %v", req)
 		// Get the connected status of the Node to the StorageSystem
 		ctx, cancel := context.WithTimeout(context.Background(), ShortTimeout)
 		defer cancel()

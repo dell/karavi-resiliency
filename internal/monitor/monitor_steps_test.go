@@ -1165,6 +1165,7 @@ func (f *feature) iTaintTheNodeWith(node, boolean string) error {
 	}
 	return nil
 }
+
 func (f *feature) aPodForNodeWithRWXVolumesCondition(node string, nvolumes int) error {
 	pod := f.createPodWithRWX(node, nvolumes)
 	f.pod = pod
@@ -1175,6 +1176,7 @@ func (f *feature) aPodForNodeWithRWXVolumesCondition(node string, nvolumes int) 
 	f.k8sapiMock.AddNode(node1)
 	return nil
 }
+
 func (f *feature) createPodWithRWX(node string, nvolumes int) *v1.Pod {
 	pod := f.createPod(node, 0, "", "false") // Create base pod with 0 vols
 	pod.Spec.Volumes = []v1.Volume{}         // Reset volumes just in case
