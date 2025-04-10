@@ -21,13 +21,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"podmon/internal/criapi"
-	"podmon/internal/mocks"
-	"podmon/internal/utils"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"podmon/internal/criapi"
+	"podmon/internal/mocks"
+	"podmon/internal/utils"
 
 	"github.com/cucumber/godog"
 	"github.com/dell/gofsutil"
@@ -1204,7 +1205,8 @@ func (f *feature) createPodWithRWX(node string, nvolumes int) *v1.Pod {
 						VolumeHandle: fmt.Sprintf("rwx-vhandle-%d", i),
 					},
 				},
-			}}
+			},
+		}
 
 		// Create PVC
 		pvc := &v1.PersistentVolumeClaim{
