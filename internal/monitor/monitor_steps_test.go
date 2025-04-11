@@ -20,12 +20,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"path/filepath"
 	"github.com/cucumber/godog"
 	"github.com/dell/gofsutil"
 	log "github.com/sirupsen/logrus"
