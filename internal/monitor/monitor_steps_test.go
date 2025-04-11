@@ -25,7 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"path/filepath"
 	"github.com/cucumber/godog"
 	"github.com/dell/gofsutil"
 	log "github.com/sirupsen/logrus"
@@ -39,6 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes/fake"
 	cri "k8s.io/cri-api/pkg/apis/runtime/v1"
+	"path/filepath"
 
 	"podmon/internal/criapi"
 	"podmon/internal/mocks"
