@@ -195,14 +195,16 @@ func isRWXVolume(pvlist []*v1.PersistentVolume) bool {
 	for _, pv := range pvlist {
 		// Check if the access mode is "RWX"
 		modes := pv.Spec.AccessModes
-		log.Debugf("Checking the PV %v access modes %v", pv, modes)
+		log.Debugf("Checking PV %v for RWX or ReadWriteMany access mode. AccessModes: %v", pv, modes)
 		for _, mode := range modes {
 			if mode == "RWX" || mode == "ReadWriteMany" {
+				log.Debugf("Found %s access mode in PV", mode)
 				return true
 			}
 		}
 	}
 	// Return false if no PV in the list has "RWX" access mode
+	log.Debugf("No PV with RWX or ReadWriteMany access mode found in the provided list.")
 	return false
 }
 
@@ -276,12 +278,12 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 
 	// Call the driver to validate the volumes are not in use
 	if cm.CSIExtensionsPresent && CSIApi.Connected() {
-		log.WithFields(fields).Infof("Checking host connectivity for node %s and iosInprogress for volumes %v", node.ObjectMeta.Name, volIDs)
+		log.WithFields(fields).Infof("Checking host connectivity for node %s and iosInProgress for volumes %v", node.ObjectMeta.Name, volIDs)
 		connected, iosInProgress, err := cm.callValidateVolumeHostConnectivity(node, volIDs, true)
 		log.WithFields(fields).Infof("Validating host connectivity for node: %s, volumes: %v, connected: %t, iosInProgress: %t", node.ObjectMeta.Name, volIDs, connected, iosInProgress)
 		// If the volume's access mode is RWX, ignore iosInProgress, as other applications may perform I/O operations on the volume.
 		if isRWXVolume(pvlist) {
-			log.WithFields(fields).Info("Skipping iosInProgress check as the volume accessmode is RWX or ReadWriteMany")
+			log.WithFields(fields).Info("Skipping iosInProgress check as the volume accessMode is RWX or ReadWriteMany")
 			iosInProgress = false
 		}
 		// Don't consider connected status if taintpodmon is set, because the node may just have come back online.
