@@ -280,8 +280,7 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 		connected, iosInProgress, err := cm.callValidateVolumeHostConnectivity(node, volIDs, true)
 		log.WithFields(fields).Infof("Validating host connectivity for node %s volumes %v connected %t iosInProgress %t", node.ObjectMeta.Name, volIDs, connected, iosInProgress)
 		// If the volume's access mode is RWX, ignore iosInProgress, as other applications may perform I/O operations on the volume.
-		status := isRWXVolume(pvlist)
-		if status {
+		if isRWXVolume(pvlist) {
 			log.WithFields(fields).Info("Skipping iosInProgress check as the volume accessmode is RWX or ReadWriteMany")
 			iosInProgress = false
 		}
