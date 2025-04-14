@@ -134,7 +134,7 @@ Feature: Controller Monitor
     Examples:
       | podnode | nvol | condition | affin   | error              | cleaned | errormsg                      |
       | "node1" | 2    | "Ready"   | "true"  | "NodeNotConnected" | "true"  | "none"                        |
-      | "node1" | 2    | "Ready"   | "false" | "NodeConnected"    | "false" | "Connected true"              |
+      | "node1" | 2    | "Ready"   | "false" | "NodeConnected"    | "false" | "Connected: true"              |
       | "node1" | 2    | "Ready"   | "false" | "NodeNotConnected" | "true"  | "Successfully cleaned up pod" |
       | "node1" | 2    | "Ready"   | "false" | "CreateEvent"      | "true"  | "Successfully cleaned up pod" |
 
