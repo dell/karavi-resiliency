@@ -410,7 +410,7 @@ func (cm *PodMonitorType) callValidateVolumeHostConnectivity(node *v1.Node, volu
 				log.Info(message)
 			}
 		}
-		log.Infof("ValidateVolumeHostConnectivity Node %s NodeId %s Connected %t IosInProgress %t", node.ObjectMeta.Name, req.NodeId, resp.GetConnected(), resp.GetIosInProgress())
+		log.Infof("ValidateVolumeHostConnectivity Node: %s, NodeId: %s, Connected: %t, IosInProgress: %t", node.ObjectMeta.Name, req.NodeId, resp.GetConnected(), resp.GetIosInProgress())
 		return resp.GetConnected(), resp.GetIosInProgress(), nil
 	}
 	return false, false, fmt.Errorf("callValidateVolumeHostConnectivity: Could not determine CSI NodeID for node: %s", node.ObjectMeta.Name)
