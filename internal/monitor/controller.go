@@ -195,7 +195,7 @@ func isRWXVolume(pvlist []*v1.PersistentVolume) bool {
 	for _, pv := range pvlist {
 		// Check if the access mode is "RWX"
 		modes := pv.Spec.AccessModes
-		log.Infof("Checking PV %v for RWX or ReadWriteMany access mode. AccessModes: %v", pv, modes)
+		log.Debugf("Checking PV %v for RWX or ReadWriteMany access mode. AccessModes: %v", pv, modes)
 		for _, mode := range modes {
 			if mode == "RWX" || mode == "ReadWriteMany" {
 				log.Debugf("Found %s access mode in PV", mode)
@@ -204,7 +204,7 @@ func isRWXVolume(pvlist []*v1.PersistentVolume) bool {
 		}
 	}
 	// Return false if no PV in the list has "RWX" access mode
-	log.Infof("No PV with RWX or ReadWriteMany access mode found in the provided list.")
+	log.Debugf("No PV with RWX or ReadWriteMany access mode found in the provided list.")
 	return false
 }
 

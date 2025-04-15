@@ -1254,8 +1254,10 @@ func (f *feature) createPodWithRWX(node string, nvolumes int) *v1.Pod {
 	return pod
 }
 
-var pvList []*v1.PersistentVolume
-var rwxResult bool
+var (
+	pvList    []*v1.PersistentVolume
+	rwxResult bool
+)
 
 func (f *feature) aListOfPersistentVolumesWithOneRWXMode() error {
 	pvList = []*v1.PersistentVolume{
