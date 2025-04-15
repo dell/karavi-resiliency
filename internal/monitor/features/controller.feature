@@ -26,7 +26,7 @@ Feature: Controller Monitor
       | "node1" | 2    | "CreateEvent"                    | "node1" | "true"    | "Successfully cleaned up pod"                        |
 
 
-   @controller-mode
+  @controller-mode
   Scenario Outline: Test controllerCleanupPodWithRWX
     Given a controller monitor <driver>
     And a pod for node <podnode> with <nvol> with RWX volumes condition
@@ -42,6 +42,18 @@ Feature: Controller Monitor
       | "node1" |  1   | "none"                           | "node1" | "true"    | "Successfully cleaned up pod"                        | powermax   |
       | "node1" |  1   | "none"                           | "node1" | "true"    | "Successfully cleaned up pod"                        | isilon     |
       | "node1" |  1   | "none"                           | "node1" | "true"    | "Successfully cleaned up pod"                        | unity      |
+
+  @controller-mode
+  Scenario: A list of PVs contains one with RWX access mode
+    Given a list of persistent volumes with one RWX mode
+    When I check if any volume has RWX access
+    Then the result should be true
+
+  @controller-mode
+  Scenario: A list of PVs contains no RWX volumes
+    Given a list of persistent volumes with only RWO modes
+    When I check if any volume has RWX access
+    Then the result should be false
 
   @controller-mode
   Scenario Outline: test controllerModePodHandler

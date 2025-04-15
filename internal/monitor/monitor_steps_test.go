@@ -1254,6 +1254,49 @@ func (f *feature) createPodWithRWX(node string, nvolumes int) *v1.Pod {
 	return pod
 }
 
+var pvList []*v1.PersistentVolume
+var rwxResult bool
+
+func (f *feature) aListOfPersistentVolumesWithOneRWXMode() error {
+	pvList = []*v1.PersistentVolume{
+		{
+			Spec: v1.PersistentVolumeSpec{
+				AccessModes: []v1.PersistentVolumeAccessMode{
+					v1.ReadWriteOnce,
+					v1.ReadWriteMany,
+				},
+			},
+		},
+	}
+	return nil
+}
+
+func (f *feature) aListOfPersistentVolumesWithOnlyRWOModes() error {
+	pvList = []*v1.PersistentVolume{
+		{
+			Spec: v1.PersistentVolumeSpec{
+				AccessModes: []v1.PersistentVolumeAccessMode{
+					v1.ReadWriteOnce,
+				},
+			},
+		},
+	}
+	return nil
+}
+
+func (f *feature) iCheckIfAnyVolumeHasRWXAccess() error {
+	rwxResult = isRWXVolume(pvList)
+	return nil
+}
+
+func (f *feature) theResultShouldBe(expected string) error {
+	expect := expected == "true"
+	if rwxResult != expect {
+		return fmt.Errorf("expected result %v, got %v", expect, rwxResult)
+	}
+	return nil
+}
+
 func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	f := &feature{}
 	context.Step(`^a controller monitor "([^"]*)"$`, f.aControllerMonitor)
@@ -1300,4 +1343,8 @@ func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^I call controllerModeDriverPodHandler with event "([^"]*)"$`, f.iCallControllerModeDriverPodHandlerWithEvent)
 	context.Step(`^the node "([^"]*)" is tainted "([^"]*)"$`, f.theNodeIsTainted)
 	context.Step(`^I taint the node "([^"]*)" with "([^"]*)"$`, f.iTaintTheNodeWith)
+	context.Step(`^a list of persistent volumes with one RWX mode$`, f.aListOfPersistentVolumesWithOneRWXMode)
+	context.Step(`^a list of persistent volumes with only RWO modes$`, f.aListOfPersistentVolumesWithOnlyRWOModes)
+	context.Step(`^I check if any volume has RWX access$`, f.iCheckIfAnyVolumeHasRWXAccess)
+	context.Step(`^the result should be "([^"]*)"$`, f.theResultShouldBe)
 }
