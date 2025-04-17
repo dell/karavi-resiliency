@@ -25,6 +25,36 @@ Feature: Controller Monitor
       | "node1" | 2    | "ValidateVolumeHostConnectivity" | "node1" | "false"   | "Aborting pod cleanup due to error"                  |
       | "node1" | 2    | "CreateEvent"                    | "node1" | "true"    | "Successfully cleaned up pod"                        |
 
+
+  @controller-mode
+  Scenario Outline: Test controllerCleanupPodWithRWX
+    Given a controller monitor <driver>
+    And a pod for node <podnode> with <nvol> with RWX volumes condition
+    And I induce error <error>
+    When I call controllerCleanupPod for node <node>
+    Then the return status is <retstatus>
+    And the last log message contains <errormsg>
+
+    Examples:
+      | podnode | nvol | error                            | node    | retstatus | errormsg                                             | driver     |
+      | "node1" |  1   | "none"                           | "node1" | "true"    | "Successfully cleaned up pod"                        | vxflex     |  
+      | "node1" |  1   | "none"                           | "node1" | "true"    | "Successfully cleaned up pod"                        | powerstore |
+      | "node1" |  1   | "none"                           | "node1" | "true"    | "Successfully cleaned up pod"                        | powermax   |
+      | "node1" |  1   | "none"                           | "node1" | "true"    | "Successfully cleaned up pod"                        | isilon     |
+      | "node1" |  1   | "none"                           | "node1" | "true"    | "Successfully cleaned up pod"                        | unity      |
+
+  @controller-mode
+  Scenario: A list of PVs contains one with RWX access mode
+    Given a list of persistent volumes with one RWX mode
+    When I check if any volume has RWX access
+    Then the result should be true
+
+  @controller-mode
+  Scenario: A list of PVs contains no RWX volumes
+    Given a list of persistent volumes with only RWO modes
+    When I check if any volume has RWX access
+    Then the result should be false
+
   @controller-mode
   Scenario Outline: test controllerModePodHandler
     Given a controller monitor "vxflex"
@@ -120,7 +150,7 @@ Feature: Controller Monitor
     Examples:
       | podnode | nvol | condition | affin   | error              | cleaned | errormsg                      |
       | "node1" | 2    | "Ready"   | "true"  | "NodeNotConnected" | "true"  | "none"                        |
-      | "node1" | 2    | "Ready"   | "false" | "NodeConnected"    | "false" | "Connected true"              |
+      | "node1" | 2    | "Ready"   | "false" | "NodeConnected"    | "false" | "Connected: true"              |
       | "node1" | 2    | "Ready"   | "false" | "NodeNotConnected" | "true"  | "Successfully cleaned up pod" |
       | "node1" | 2    | "Ready"   | "false" | "CreateEvent"      | "true"  | "Successfully cleaned up pod" |
 
