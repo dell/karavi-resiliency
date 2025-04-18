@@ -257,7 +257,7 @@ func StartPodMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, l
 			// requested stop
 			return
 		}
-		log.Errorf("PodWatcher stopped... attempting restart: %s", err)
+		log.Warnf("PodWatcher stopped... attempting restart: %s", err)
 		time.Sleep(restartDelay)
 	}
 }
