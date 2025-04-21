@@ -1,0 +1,21 @@
+#Use rocky Linux as the base image
+FROM rockylinux/rockylinux:8.4
+
+# Copy the files from the host to the container
+COPY "podmon/podmon" .
+
+RUN yum install -y \
+    e2fsprogs \
+    which \
+    telnet \
+    && \
+    yum clean all \
+    && \
+    rm -rf /var/cache/run
+
+# validate some cli utilities are found
+RUN which mkfs.ext4
+
+# Set the command to run when the container starts
+ENTRYPOINT ["/podmon"]
+

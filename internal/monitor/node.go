@@ -48,6 +48,9 @@ var APIMonitorWait = internalAPIMonitorWait
 // giving the node time to stabalize (e.g. kubelet reconcile with API server) before initiating cleanup.
 var TaintCountDelay = 4
 
+// NodeIP is used to determine that pods needing cleanup are already executing on the correct node
+var NodeIP string
+
 // StartAPIMonitor checks API connectivity by pinging the indicated (self) node
 func StartAPIMonitor(api k8sapi.K8sAPI, firstTimeout, retryTimeout, interval time.Duration, waitFor func(interval time.Duration) bool) error {
 	nodeName := os.Getenv("KUBE_NODE_NAME")
@@ -90,6 +93,12 @@ func (pm *PodMonitorType) apiMonitorLoop(api k8sapi.K8sAPI, nodeName string, fir
 				taintCount = 0
 			}
 		} else {
+			for _, addr := range node.Status.Addresses {
+				if addr.Type == v1.NodeInternalIP {
+					NodeIP = addr.Address
+				}
+			}
+
 			// No Error - we are connected to APIService
 			if !pm.APIConnected {
 				f := map[string]interface{}{
@@ -305,6 +314,34 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 			log.Infof("IgnoreVolumelessPods %t mount %d device %d", IgnoreVolumelessPods, len(podInfo.Mounts), len(podInfo.Devices))
 			return true
 		}
+
+		// Ignore pods that should be running on this node according to K8S API
+		podNamespace, podName := splitPodKey((podKey))
+		currentPod, err := K8sAPI.GetPod(ctx, podNamespace, podName)
+		if err != nil {
+			log.Errorf("Could not retrieve pod %s: %s", podKey, err.Error())
+		} else {
+			podHostIP := currentPod.Status.HostIP
+			log.Debugf("checking podHostIP %s == NodeIP %s podPhase %v", podHostIP, NodeIP, currentPod.Status.Phase)
+			if podHostIP == NodeIP {
+				switch currentPod.Status.Phase {
+				case v1.PodPending:
+					if os.Getenv("stillRunningFix") != "disable" {
+						log.Infof("Ignoring cleanup of pending pod that should be running on this node: %s %s", podKey, NodeIP)
+						return true
+					}
+				case v1.PodRunning:
+					if os.Getenv("stillRunningFix") != "disable" {
+						log.Infof("Ignoring cleanup of running pod that should be running on this node: %s %s", podKey, NodeIP)
+						return true
+					}
+				default:
+					log.Infof("Pod %s phase %s will attempt cleanup", podKey, currentPod.Status.Phase)
+				}
+			}
+		}
+
+		// Pods that should no longer be running but are still executing will block removal of the taint
 		for _, containerStatus := range pod.Status.ContainerStatuses {
 			containerID := containerStatus.ContainerID
 			cid := strings.Split(containerID, "//")
@@ -312,7 +349,7 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 				log.Debugf("cid %v", cid[1])
 				containerInfo := containerInfos[cid[1]]
 				if containerInfo.State == cri.ContainerState_CONTAINER_RUNNING || containerInfo.State == cri.ContainerState_CONTAINER_CREATED {
-					log.Infof("Skipping pod %s because container %v still executing", podKey, containerInfo)
+					log.Infof("Skipping pod %s cleanup because container %v still executing", podKey, containerInfo)
 					podKeysSkipped = append(podKeysSkipped, podKey)
 					return true
 				}
@@ -321,7 +358,7 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 
 		// Check to make sure the pod has been deleted, or still exists
 		namespace, name := splitPodKey(podKey)
-		currentPod, err := K8sAPI.GetPod(ctx, namespace, name)
+		currentPod, err = K8sAPI.GetPod(ctx, namespace, name)
 		if err == nil {
 			// We retrieve a pod for the namespace/name... see if same one
 			currentUID := string(currentPod.ObjectMeta.UID)
