@@ -15,3 +15,8 @@ This tool expects `cert.pem` and `key.pem` to be in the working directory. You m
 go build -o proxy main.go
 ./proxy -addr https://10.0.0.1
 ```
+
+The proxy will be running on port 8080 on the machine.
+
+# Driver Configuration
+The endpoint in the driver secret (e.g., vxflexos-config) must be the address of the machine running the reverse proxy on port 8080. If you are running the proxy on `10.2.2.2`, the endpoint in the driver secret should be `https://10.2.2.2:8080`.
