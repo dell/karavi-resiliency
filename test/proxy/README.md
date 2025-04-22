@@ -13,7 +13,7 @@ This tool expects `cert.pem` and `key.pem` to be in the working directory. You m
 ## Build and Run
 ```
 go build -o proxy main.go
-./proxy -addr https://10.0.0.1
+./proxy --addr https://10.0.0.1
 ```
 
 The proxy will be running on port 8080 on the machine.
