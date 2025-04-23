@@ -30,7 +30,7 @@ deploymentType="statefulset"
 driverLabel="csi-powerstore"
 podAffinity="false"
 unreachableTolerationSeconds=300
-workloadType=${workloadType:-"vm"}
+workloadType=${workloadType:-"pod"}
 
 if [ "$DEBUG"x != "x" ]; then
   DEBUG="--dry-run --debug"
