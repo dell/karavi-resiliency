@@ -1,5 +1,6 @@
 # yamllint disable-file
 # This file is not valid YAML because it is a Helm template
+{{- if eq (include "workloadType" .) "pod" -}}
 {{- $root := . -}}
 {{- range $i, $e := untilStep 0 (int .Values.podmonTest.ndevices) 1 }}
 kind: PersistentVolumeClaim
@@ -17,3 +18,4 @@ spec:
   storageClassName: "{{ required "Must set storage class name" $root.Values.podmonTest.storageClassName }}"
 ---
 {{end}}
+{{- end -}}

@@ -30,6 +30,7 @@ deploymentType="statefulset"
 driverLabel="csi-powerstore"
 podAffinity="false"
 unreachableTolerationSeconds=300
+workloadType=${workloadType:-"vm"}
 
 if [ "$DEBUG"x != "x" ]; then
   DEBUG="--dry-run --debug"
@@ -37,65 +38,71 @@ fi
 
 for param in $*
 do
-    case $param in
-       "--instances")
-          shift
-          instances=$1
-          shift
-          ;;
-       "--ndevices")
-          shift
-          ndevices=$1
-          shift
-          ;;
-       "--nvolumes")
-          shift
-          nvolumes=$1
-          shift
-          ;;
-       "--prefix")
-          shift
-          prefix=$1
-          shift
-          ;;
-       "--storage-class")
-          shift
-          storageClassName=$1
-          shift
-          ;;
-       "--replicas")
-          shift
-          replicas=$1
-          shift
-          ;;
-       "--podAffinity")
-          podAffinity="true"
-          shift
-          ;;
-       "--deployment")
-          deploymentType="deployment"
-          shift
-          ;;
-       "--unreachableTolerationSeconds")
-          shift
-          unreachableTolerationSeconds=$1
-          shift
-          ;;
-       "--label")
-          shift
-          driverLabel=$1
-          shift
-          ;;
-    esac
+ case $param in
+   "--instances")
+     shift
+     instances=$1
+     shift
+     ;;
+   "--ndevices")
+     shift
+     ndevices=$1
+     shift
+     ;;
+   "--nvolumes")
+     shift
+     nvolumes=$1
+     shift
+     ;;
+   "--prefix")
+     shift
+     prefix=$1
+     shift
+     ;;
+   "--storage-class")
+     shift
+     storageClassName=$1
+     shift
+     ;;
+   "--replicas")
+      shift
+      replicas=$1
+      shift
+      ;;
+    "--podAffinity")
+      podAffinity="true"
+      shift
+      ;;
+   "--deployment")
+      deploymentType="deployment"
+      shift
+      ;;
+   "--unreachableTolerationSeconds")
+      shift
+      unreachableTolerationSeconds=$1
+      shift
+      ;;
+   "--label")
+     shift
+     driverLabel=$1
+     shift
+     ;;
+   "--workload-type")
+     shift
+     workloadType=$1
+     shift
+     ;;
+ esac
 done
 
 cd "$SCRIPTDIR"
 
 i=1
 while [ $i -le $instances ]; do
-        echo $i
-        kubectl create namespace ${prefix}$i
-  helm install -n "${prefix}$i" "${prefix}$i" "${SCRIPTDIR}"/deploy \
+ echo $i
+ kubectl create namespace ${prefix}$i
+ if [ "$workloadType" == "pod" ]; then
+   helm install -n "${prefix}${i}" "${prefix}${i}" "${SCRIPTDIR}"/deploy \
               ${DEBUG} \
               --values deploy/values-powerstore-nfs.yaml \
               --set podmonTest.namespace="${prefix}$i"  \
@@ -109,5 +116,20 @@ while [ $i -le $instances ]; do
               --set podmonTest.image="$image" \
               --set podmonTest.zone="$zone" \
               --set podmonTest.driverLabel="$driverLabel"
-  i=$((i + 1))
+ else
+   helm install -n "${prefix}${i}" "${prefix}${i}" "${SCRIPTDIR}"/deploy \
+     ${DEBUG} \
+     --values deploy/values-vm.yaml \
+     --set vmConfig.namespace="${prefix}${i}" \
+     --set vmConfig.storageClassName="$storageClassName" \
+     --set vmConfig.ndevices=$ndevices \
+     --set vmConfig.nvolumes=$nvolumes \
+     --set vmConfig.instances=$instances \
+     --set vmConfig.podAffinity=$podAffinity \
+     --set vmConfig.unreachableTolerationSeconds=$unreachableTolerationSeconds \
+     --set vmConfig.zone="$zone" \
+     --set vmConfig.driverLabel="$driverLabel"
+ fi
+ i=$((i + 1))
 done
+
