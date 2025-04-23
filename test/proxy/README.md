@@ -1,7 +1,7 @@
 General-purpose https reverse proxy.
 
 # Certificates
-This tool expects `cert.pem` and `key.pem` to be in the working directory. You may use the example files provided here or put your own files in the working directory.
+This tool generates `cert.pem` and `key.pem` in the working directory. Do not commit these files to source control.
 
 # Flags
 `--addr` - backend server (e.g., https://10.0.0.1)
