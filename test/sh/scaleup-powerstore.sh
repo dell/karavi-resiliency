@@ -18,6 +18,22 @@ STORAGECLASS=powerstore-nfs
 MAXINSTANCES=${MAXINSTANCES:-100} # Define the maximum number of instances (pods or VMs), Default to 100
 ISVIRTUALIZATION=${ISVIRTUALIZATION:-false} # Default to false
 
+for param in $*
+do
+    case $param in
+       "--maxinstances")
+          shift
+          MAXINSTANCES=$1
+          shift
+          ;;
+       "--isvirtualization")
+          shift
+          ISVIRTUALIZATION=$1
+          shift
+          ;;
+    esac
+done
+
 # checks that all labeled pods are running, exits if not
 wait_on_running() {
 	non_running_pods=$(kubectl get pods -l podmon.dellemc.com/driver -A -o wide | grep -v NAMESPACE | grep -v Running | wc -l)
@@ -36,169 +52,157 @@ wait_on_running_vms() {
         sleep 30
         non_running_vms=$(kubectl get vms -l podmon.dellemc.com/driver -A -o wide | grep -v NAMESPACE | grep -v Running | wc -l)
     done
-}
 
-# checks that all VMI instances are running, exits if not
-wait_on_running_vmis() {
-    non_running_vmis=$(kubectl get vmis -A -o wide | grep -v NAMESPACE | grep -v Running | wc -l)
-    while [ $non_running_vmis -gt 0 ]; do
-        echo "Waiting on " $non_running_vmis " VMI to reach Running state"
+    non_connected_vms=$(kubectl get vmis -A -o jsonpath='{.items[?(@.status.conditions[?(@.type=="AgentConnected")].status!="True")].metadata.name}' | wc -l)
+    while [ $non_connected_vms -gt 0 ]; do
+        echo "Waiting on " $non_connected_vms " VM to have AgentConnected condition"
         sleep 30
-        non_running_vmis=$(kubectl get vmis -A -o wide | grep -v NAMESPACE | grep -v Running | wc -l)
+        non_connected_vms=$(kubectl get vmis -A -o jsonpath='{.items[?(@.status.conditions[?(@.type=="AgentConnected")].status!="True")].metadata.name}' | wc -l)
     done
 }
 
 date
 
-BOUNCEIPTIME=240
-instances="4"
-
-if [ $instances -le $MAXINSTANCES ]; then
-    if [ "$ISVIRTUALIZATION" = true ]; then
-        # VM installation
-		cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
-        wait_on_running_vmis
-        wait_on_running_vms  # Check VMI status along with VM status
-		sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
-    else
-        # Pod installation
-        cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
-		wait_on_running
-		sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
+if [ "$ISVIRTUALIZATION" = true ]; then
+	echo "virtualization enabled: " $ISVIRTUALIZATION
+    BOUNCEIPTIME=240
+    instances="4"
+    if [ $instances -le $MAXINSTANCES ]; then
+    cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
+    wait_on_running
+    sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
     fi
-fi
 
-instances="18"
-if [ $instances -le $MAXINSTANCES ]; then
-    if [ "$ISVIRTUALIZATION" = true ]; then
-        # VM installation
-		cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
-        wait_on_running_vms
-        wait_on_running_vmis  # Check VMI status along with VM status
-		sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
-    else
-        # Pod installation
-        cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
-		wait_on_running
-		sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
+    instances="18"
+    if [ $instances -le $MAXINSTANCES ]; then
+    cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
+    wait_on_running
+    sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
     fi
-fi
 
-instances="36"
-if [ $instances -le $MAXINSTANCES ]; then
-    if [ "$ISVIRTUALIZATION" = true ]; then
-        # VM installation
-		cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
-        wait_on_running_vms
-        wait_on_running_vmis  # Check VMI status along with VM status
-		sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
-    else
-        # Pod installation
-        cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
-		wait_on_running
-		sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
+    instances="36"
+    if [ $instances -le $MAXINSTANCES ]; then
+    cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
+    wait_on_running
+    sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
     fi
-fi
 
-BOUNCEIPTIME=480
-instances="54"
-if [ $instances -le $MAXINSTANCES ]; then
-    if [ "$ISVIRTUALIZATION" = true ]; then
-        # VM installation
-		cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
-        wait_on_running_vms
-        wait_on_running_vmis  # Check VMI status along with VM status
-		sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 900
-    else
-        # Pod installation
-        cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
-		wait_on_running
-		sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 900
+    BOUNCEIPTIME=480
+    instances="54"
+    if [ $instances -le $MAXINSTANCES ]; then
+    cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
+    wait_on_running
+    sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 900
     fi
-fi
 
-BOUNCEIPTIME=720
-instances="72"
-if [ $instances -le $MAXINSTANCES ]; then
-    if [ "$ISVIRTUALIZATION" = true ]; then
-        # VM installation
-		cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
-        wait_on_running_vms
-        wait_on_running_vmis  # Check VMI status along with VM status
-		sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
-    else
-        # Pod installation
-        cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
-		wait_on_running
-		sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
+    BOUNCEIPTIME=720
+    instances="72"
+    if [ $instances -le $MAXINSTANCES ]; then
+    cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
+    wait_on_running
+    sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
     fi
-fi
 
-BOUNCEIPTIME=850
-instances="81"
-if [ $instances -le $MAXINSTANCES ]; then
-    if [ "$ISVIRTUALIZATION" = true ]; then
-        # VM installation
-		cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
-        wait_on_running_vms
-        wait_on_running_vmis  # Check VMI status along with VM status
-		sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
-    else
-        # Pod installation
-        cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
-		wait_on_running
-		sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
+    BOUNCEIPTIME=850
+    instances="81"
+    if [ $instances -le $MAXINSTANCES ]; then
+    cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
+    wait_on_running
+    sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
     fi
-fi
 
-BOUNCEIPTIME=1000
-instances="90"
-if [ $instances -le $MAXINSTANCES ]; then
-    if [ "$ISVIRTUALIZATION" = true ]; then
-        # VM installation
-		cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
-        wait_on_running_vms
-        wait_on_running_vmis  # Check VMI status along with VM status
-		sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
-    else
-        # Pod installation
-        cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
-		wait_on_running
-		sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
+    BOUNCEIPTIME=1000
+    instances="90"
+    if [ $instances -le $MAXINSTANCES ]; then
+    cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
+    wait_on_running
+    sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
     fi
-fi
 
-BOUNCEIPTIME=1200
-instances="99"
-if [ $instances -le $MAXINSTANCES ]; then
-    if [ "$ISVIRTUALIZATION" = true ]; then
-        # VM installation
-		cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
-        wait_on_running_vms
-        wait_on_running_vmis  # Check VMI status along with VM status
-		sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1500
-    else
-        # Pod installation
-        cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
-		wait_on_running
-		sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1500
+    BOUNCEIPTIME=1200
+    instances="99"
+    if [ $instances -le $MAXINSTANCES ]; then
+    cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
+    wait_on_running
+    sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500
     fi
-fi
 
-BOUNCEIPTIME=1200
-instances="108"
-if [ $instances -le $MAXINSTANCES ]; then
-    if [ "$ISVIRTUALIZATION" = true ]; then
-        # VM installation
-		cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
-        wait_on_running_vms
-        wait_on_running_vmis  # Check VMI status along with VM status
-		sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1500
-    else
-        # Pod installation
-        cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
-		wait_on_running
-		sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1500
+    BOUNCEIPTIME=1200
+    instances="108"
+    if [ $instances -le $MAXINSTANCES ]; then
+    cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
+    wait_on_running
+    sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500
+    fi
+else
+    BOUNCEIPTIME=240
+    instances="4"
+    if [ $instances -le $MAXINSTANCES ]; then
+    cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
+    wait_on_running
+    sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
+    fi
+
+    instances="18"
+    if [ $instances -le $MAXINSTANCES ]; then
+    cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
+    wait_on_running
+    sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
+    fi
+
+    instances="36"
+    if [ $instances -le $MAXINSTANCES ]; then
+    cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
+    wait_on_running
+    sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
+    fi
+
+    BOUNCEIPTIME=480
+    instances="54"
+    if [ $instances -le $MAXINSTANCES ]; then
+    cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
+    wait_on_running
+    sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 900
+    fi
+
+    BOUNCEIPTIME=720
+    instances="72"
+    if [ $instances -le $MAXINSTANCES ]; then
+    cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
+    wait_on_running
+    sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
+    fi
+
+    BOUNCEIPTIME=850
+    instances="81"
+    if [ $instances -le $MAXINSTANCES ]; then
+    cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
+    wait_on_running
+    sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
+    fi
+
+    BOUNCEIPTIME=1000
+    instances="90"
+    if [ $instances -le $MAXINSTANCES ]; then
+    cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
+    wait_on_running
+    sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
+    fi
+
+    BOUNCEIPTIME=1200
+    instances="99"
+    if [ $instances -le $MAXINSTANCES ]; then
+    cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
+    wait_on_running
+    sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500
+    fi
+
+    BOUNCEIPTIME=1200
+    instances="108"
+    if [ $instances -le $MAXINSTANCES ]; then
+    cd ../podmontest; sh insps.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
+    wait_on_running
+    sh ../sh/nway.sh --ns powerstore --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500
     fi
 fi
 
