@@ -40,6 +40,7 @@ type integration struct {
 	k8s                 k8sapi.K8sAPI
 	driverType          string
 	podCount            int
+	vmCount             int
 	devCount            int
 	volCount            int
 	testNamespacePrefix map[string]bool
@@ -100,6 +101,7 @@ const (
 	PowerScaleNS        = "pmti"
 	PowerStoreNS        = "pmtps"
 	PowerMaxNS          = "pmtpm"
+	VM                  = "vm"
 )
 
 // Used for stopping the test from continuing
@@ -530,9 +532,162 @@ func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, 
 
 	return nil
 }
+func (i *integration) deployVMs(protected bool, vmsPerNode, numVols, numDevs, driverType, storageClass string, wait int) error {
+	vmCount, err := i.selectFromRange(vmsPerNode)
+	if err != nil {
+		return err
+	}
+
+	volCount, err := i.selectFromRange(numVols)
+	if err != nil {
+		return err
+	}
+
+	devCount, err := i.selectFromRange(numDevs)
+	if err != nil {
+		return err
+	}
+
+	// Select the deployment script to use based on the driver type.
+	var deployScript string
+	cleanUpWait := 1 * time.Second
+	switch driverType {
+	case "vxflexos":
+		deployScript = "insv.sh"
+	case "isilon":
+		deployScript = "insi.sh"
+		cleanUpWait = 60 * time.Second
+	case "powerstore":
+		deployScript = "insps.sh"
+		cleanUpWait = 60 * time.Second
+	case "powermax":
+		deployScript = "inspm.sh"
+		cleanUpWait = 60 * time.Second
+	}
+
+	// Set test namespace prefix is based on the driver type.
+	// If doing an unprotected vm, use a special prefix.
+	var prefix string
+	if protected {
+		switch driverType {
+		case "vxflexos":
+			i.testNamespacePrefix[PowerflexNS] = true
+			prefix = PowerflexNS
+		case "unity":
+			i.testNamespacePrefix[UnityNS] = true
+			prefix = UnityNS
+		case "isilon":
+			i.testNamespacePrefix[PowerScaleNS] = true
+			prefix = PowerScaleNS
+		case "powerstore":
+			i.testNamespacePrefix[PowerStoreNS] = true
+			prefix = PowerStoreNS
+		case "powermax":
+			i.testNamespacePrefix[PowerMaxNS] = true
+			prefix = PowerMaxNS
+		}
+	} else {
+		i.testNamespacePrefix[UnprotectedPodsNS] = true
+		prefix = UnprotectedPodsNS
+	}
+
+	deployScriptPath := filepath.Join("..", "..", "test", "podmontest", deployScript)
+	script := "bash"
+
+	args := []string{
+		deployScriptPath,
+		"--instances", strconv.Itoa(vmCount),
+		"--nvolumes", strconv.Itoa(volCount),
+		"--ndevices", strconv.Itoa(devCount),
+		"--prefix", prefix,
+		"--storage-class", storageClass,
+		"--workload-type", VM,
+	}
+
+	if !protected {
+		args = append(args, "--label", "none")
+	}
+
+	command := exec.Command(script, args...)
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+
+	// For consecutive run provide Unity array some cleanup times
+	time.Sleep(cleanUpWait)
+	log.Infof("Attempting to deploy with command: %v", command)
+	err = command.Start()
+	if err != nil {
+		return err
+	}
+
+	err = command.Wait()
+	if err != nil {
+		return err
+	}
+
+	i.setDriverType(driverType)
+	i.vmCount = vmCount
+	i.devCount = devCount
+	i.volCount = volCount
+
+	log.Infof("Waiting up to %d seconds for pods to deploy", wait)
+	runningCount := 0
+	timeoutDuration := time.Duration(wait) * time.Second
+	timeout := time.NewTimer(timeoutDuration)
+	ticker := time.NewTicker(checkTickerInterval * time.Second)
+	done := make(chan bool)
+	start := time.Now()
+
+	go func() {
+		for {
+			select {
+			case <-timeout.C:
+				log.Info("Timed out, but doing last check if test pods are running")
+				runningCount = i.getNumberOfRunningTestPods()
+				done <- true
+			case <-ticker.C:
+				log.Infof("Check if test pods are running (time left %v)", timeoutDuration-time.Since(start))
+				runningCount = i.getNumberOfRunningTestPods()
+				if runningCount == i.podCount {
+					done <- true
+				}
+			}
+		}
+	}()
+
+	<-done
+	timeout.Stop()
+	ticker.Stop()
+
+	log.Infof("Test pods running check finished after %v", time.Since(start))
+	err = AssertExpectedAndActual(assert.Equal, i.podCount, runningCount,
+		fmt.Sprintf("Expected %d test pods to be running after %d seconds", i.podCount, wait))
+	if err != nil {
+		return err
+	}
+
+	// For the test vms number of namespaces = vmsCount
+	for n := 1; n <= vmCount; n++ {
+		ns := fmt.Sprintf("%s%d", prefix, n)
+		nsErr := i.thereIsThisNamespaceInTheCluster(ns)
+		if nsErr != nil {
+			return nsErr
+		}
+	}
+
+	if err = i.populateLabeledPodsToNodes(); err != nil {
+		return err
+	}
+
+	return nil
+}
 
 func (i *integration) deployProtectedPods(podsPerNode, numVols, numDevs, driverType, storageClass string, wait int) error {
 	return i.deployPods(true, podsPerNode, numVols, numDevs, driverType, storageClass, wait)
+}
+
+func (i *integration) deployProtectedVMs(vmsPerNode, numVols, numDevs, driverType, storageClass string, wait int) error {
+	return i.deployVMs(true, vmsPerNode, numVols, numDevs, driverType, storageClass, wait)
 }
 
 func (i *integration) deployUnprotectedPods(podsPerNode, numVols, numDevs, driverType, storageClass string, wait int) error {
@@ -1675,6 +1830,7 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^I fail "([^"]*)" worker nodes and "([^"]*)" primary nodes with "([^"]*)" failure for (\d+) seconds$`, i.failWorkerAndPrimaryNodes)
 	context.Step(`^I fail "([^"]*)" worker nodes and "([^"]*)" primary nodes with "([^"]*)" failure for (\d+) and I expect these taints "([^"]*)"$`, i.failAndExpectingTaints)
 	context.Step(`^"([^"]*)" pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployProtectedPods)
+	context.Step(`^"([^"]*)" vms per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployProtectedVMs)
 	context.Step(`^"([^"]*)" unprotected pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployUnprotectedPods)
 	context.Step(`^the taints for the failed nodes are removed within (\d+) seconds$`, i.theTaintsForTheFailedNodesAreRemovedWithinSeconds)
 	context.Step(`^these CSI driver "([^"]*)" are configured on the system$`, i.theseCSIDriverAreConfiguredOnTheSystem)
@@ -1682,6 +1838,7 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^there are driver pods in "([^"]*)" with this "([^"]*)" prefix$`, i.thereAreDriverPodsWithThisPrefix)
 	context.Step(`^finally cleanup everything$`, i.finallyCleanupEverything)
 	context.Step(`^cluster is clean of test pods$`, i.finallyCleanupEverything)
+	context.Step(`^cluster is clean of test vms$`, i.finallyCleanupEverything)
 	context.Step(`^test environmental variables are set$`, i.expectedEnvVariablesAreSet)
 	context.Step(`^can logon to nodes and drop test scripts$`, i.canLogonToNodesAndDropTestScripts)
 	context.Step(`^these storageClasses "([^"]*)" exist in the cluster$`, i.theseStorageClassesExistInTheCluster)
