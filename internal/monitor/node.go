@@ -326,15 +326,11 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 			if podHostIP == NodeIP {
 				switch currentPod.Status.Phase {
 				case v1.PodPending:
-					if os.Getenv("stillRunningFix") != "disable" {
-						log.Infof("Ignoring cleanup of pending pod that should be running on this node: %s %s", podKey, NodeIP)
-						return true
-					}
+					log.Infof("Ignoring cleanup of pending pod that should be running on this node: %s %s", podKey, NodeIP)
+					return true
 				case v1.PodRunning:
-					if os.Getenv("stillRunningFix") != "disable" {
-						log.Infof("Ignoring cleanup of running pod that should be running on this node: %s %s", podKey, NodeIP)
-						return true
-					}
+					log.Infof("Ignoring cleanup of running pod that should be running on this node: %s %s", podKey, NodeIP)
+					return true
 				default:
 					log.Infof("Pod %s phase %s will attempt cleanup", podKey, currentPod.Status.Phase)
 				}
