@@ -19,11 +19,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"podmon/internal/k8sapi"
 	"strings"
 	"sync"
 	"time"
-
-	"podmon/internal/k8sapi"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	csiext "github.com/dell/dell-csi-extensions/podmon"
