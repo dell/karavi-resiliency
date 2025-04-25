@@ -25,6 +25,9 @@ build:
 	rm -f podmontest
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -tags podmontest -ldflags '-w' -o podmontest *.go
 
+docker:  build
+	 docker build -t podmontest  -f Dockerfile  --network host .
+
 podman:
 	podman build -t "$(REGISTRY):$(VERSION)" --label commit=$(shell git log --max-count 1 --format="%H") .
 
