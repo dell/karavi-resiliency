@@ -44,7 +44,7 @@ func main() {
 		Addr:    ":8080",
 		Handler: rp,
 		TLSConfig: &tls.Config{
-			InsecureSkipVerify: true, // // #nosec G402
+			InsecureSkipVerify: true, // #nosec G402
 		},
 		ReadHeaderTimeout: 5 * time.Second,
 	}
@@ -69,7 +69,7 @@ func generateX509Certificate() error {
 		Bytes: x509.MarshalPKCS1PrivateKey(key),
 	})
 
-	err = os.WriteFile("key.pem", keyPem, 0600)
+	err = os.WriteFile("key.pem", keyPem, 0o600)
 	if err != nil {
 		return fmt.Errorf("writing key.pem: %w", err)
 	}
@@ -98,7 +98,7 @@ func generateX509Certificate() error {
 		Bytes: cert,
 	})
 
-	err = os.WriteFile("cert.pem", certPem, 0600)
+	err = os.WriteFile("cert.pem", certPem, 0o600)
 	if err != nil {
 		return fmt.Errorf("writing cert.pem: %w", err)
 	}
