@@ -14,6 +14,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"time"
 )
 
 func main() {
@@ -35,7 +36,7 @@ func main() {
 	rp := httputil.NewSingleHostReverseProxy(u)
 	rp.Transport = &http.Transport{
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: true, // #nosec G402
 		},
 	}
 
@@ -43,8 +44,9 @@ func main() {
 		Addr:    ":8080",
 		Handler: rp,
 		TLSConfig: &tls.Config{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: true, // // #nosec G402
 		},
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	err = svr.ListenAndServeTLS("cert.pem", "key.pem")
@@ -67,7 +69,7 @@ func generateX509Certificate() error {
 		Bytes: x509.MarshalPKCS1PrivateKey(key),
 	})
 
-	err = os.WriteFile("key.pem", keyPem, 0644)
+	err = os.WriteFile("key.pem", keyPem, 0600)
 	if err != nil {
 		return fmt.Errorf("writing key.pem: %w", err)
 	}
@@ -96,7 +98,7 @@ func generateX509Certificate() error {
 		Bytes: cert,
 	})
 
-	err = os.WriteFile("cert.pem", certPem, 0644)
+	err = os.WriteFile("cert.pem", certPem, 0600)
 	if err != nil {
 		return fmt.Errorf("writing cert.pem: %w", err)
 	}
