@@ -17,13 +17,14 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
+	"sync"
+	"time"
+
 	"podmon/internal/csiapi"
 	"podmon/internal/k8sapi"
 	"podmon/internal/mocks"
 	"podmon/internal/monitor"
-	"strings"
-	"sync"
-	"time"
 
 	"github.com/cucumber/godog"
 	"github.com/dell/gofsutil"

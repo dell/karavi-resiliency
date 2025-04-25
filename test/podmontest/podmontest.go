@@ -75,7 +75,7 @@ func readExistingEntries(rootDir string) bool {
 	}
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), "data") {
-			f, err := os.OpenFile(filepath.Clean(rootDir+"/"+entry.Name()+"/log"), os.O_RDONLY, 0600)
+			f, err := os.OpenFile(filepath.Clean(rootDir+"/"+entry.Name()+"/log"), os.O_RDONLY, 0o600)
 			if err != nil {
 				fmt.Printf("Couldn't open %s %s\n", entry.Name(), err.Error())
 				continue
@@ -150,7 +150,7 @@ func makeEntry(podTag, rootDir string, index int, initialPod bool) {
 	doExit := false
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), "data") {
-			f, err := os.OpenFile(filepath.Clean(rootDir+"/"+entry.Name()+"/log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+			f, err := os.OpenFile(filepath.Clean(rootDir+"/"+entry.Name()+"/log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 			if err != nil {
 				fmt.Printf("Couldn't open %s %s\n", entry.Name(), err.Error())
 				doExit = true
@@ -193,7 +193,7 @@ func makeEntry(podTag, rootDir string, index int, initialPod bool) {
 		if strings.HasPrefix(entry.Name(), "blockdata") {
 			var f *os.File
 			if index == 0 {
-				f, err = os.OpenFile(filepath.Clean(rootDir+"/"+entry.Name()), os.O_WRONLY, 0600)
+				f, err = os.OpenFile(filepath.Clean(rootDir+"/"+entry.Name()), os.O_WRONLY, 0o600)
 				if err != nil {
 					fmt.Printf("Couldn't open %s %s\n", entry.Name(), err.Error())
 				}
