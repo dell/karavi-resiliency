@@ -47,19 +47,13 @@ wait_on_running() {
 
 # checks that all VM instances are running, exits if not
 wait_on_running_vms() {
-    non_running_vms=$(kubectl get vms -l podmon.dellemc.com/driver -A -o wide | grep -v NAMESPACE | grep -v Running | wc -l)
+    non_running_vms=$(kubectl get vms -A -o json | jq '[.items[] | select(.spec.template.metadata.labels["podmon.dellemc.com/driver"] and .status.printableStatus != "Running")] | length')
     while [ $non_running_vms -gt 0 ]; do
         echo "Waiting on " $non_running_vms " VM to reach Running state"
         sleep 30
-        non_running_vms=$(kubectl get vms -l podmon.dellemc.com/driver -A -o wide | grep -v NAMESPACE | grep -v Running | wc -l)
+        non_running_vms=$(kubectl get vms -A -o json | jq '[.items[] | select(.spec.template.metadata.labels["podmon.dellemc.com/driver"] and .status.printableStatus != "Running")] | length')
     done
-
-    non_connected_vms=$(kubectl get vmis -A -o jsonpath='{.items[?(@.status.conditions[?(@.type=="AgentConnected")].status!="True")].metadata.name}' | wc -l)
-    while [ $non_connected_vms -gt 0 ]; do
-        echo "Waiting on " $non_connected_vms " VM to have AgentConnected condition"
-        sleep 30
-        non_connected_vms=$(kubectl get vmis -A -o jsonpath='{.items[?(@.status.conditions[?(@.type=="AgentConnected")].status!="True")].metadata.name}' | wc -l)
-    done
+    echo "VMs reached Running state"
 }
 
 date
@@ -71,14 +65,14 @@ if [ "$ISVIRTUALIZATION" = true ]; then
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600 --workload-type vm
 	fi
 
 	instances="18"
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600 --workload-type vm
 	fi
 
 	BOUNCEIPTIME=360
@@ -86,14 +80,14 @@ if [ "$ISVIRTUALIZATION" = true ]; then
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600 --workload-type vm
 	fi
 
 	instances="36"
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600 --workload-type vm
 	fi
 
 	BOUNCEIPTIME=480
@@ -101,14 +95,14 @@ if [ "$ISVIRTUALIZATION" = true ]; then
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 900
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 900 --workload-type vm
 	fi
 
 	instances="72"
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300 --workload-type vm
 	fi
 
 	BOUNCEIPTIME=720
@@ -116,21 +110,21 @@ if [ "$ISVIRTUALIZATION" = true ]; then
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300 --workload-type vm
 	fi
 
 	instances="90"
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300 --workload-type vm
 	fi
 
 	instances="99"
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500 --workload-type vm
 	fi
 else
 	BOUNCEIPTIME=240
