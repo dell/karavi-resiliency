@@ -8,13 +8,12 @@ metadata:
   namespace: "{{ required "Must set namespace" $root.Values.vmConfig.namespace }}"
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   volumeMode: Filesystem
   resources:
     requests:
-      storage: 35Gi
+      storage: 2Gi
   storageClassName: "{{ required "Must set storage class name" $root.Values.vmConfig.storageClassName }}"
 ---
 {{end}}
 {{- end -}}
-

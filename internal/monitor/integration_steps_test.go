@@ -932,7 +932,11 @@ func (i *integration) labeledPodsChangedNodes() error {
 	pods, getPodsErr := i.listPodsByLabel(fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", i.driverType))
 	if getPodsErr == nil {
 		for _, pod := range pods.Items {
-			nsPodName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+			podName := pod.Name
+			if strings.HasPrefix(podName, "virt-launcher") && len(podName) > 6 {
+				podName = podName[:len(podName)-6] // Trim suffix
+			}
+			nsPodName := fmt.Sprintf("%s/%s", pod.Namespace, podName)
 			currentPodToNodeMap[nsPodName] = pod.Spec.NodeName
 		}
 	} else {
@@ -940,15 +944,16 @@ func (i *integration) labeledPodsChangedNodes() error {
 	}
 
 	// Search through the labeled pod map and verify node change
-	for podName, initialNode := range i.labeledPodsToNodes {
-		currentNode, ok := currentPodToNodeMap[podName]
+	for iPodName, initialNode := range i.labeledPodsToNodes {
+		currentNode, ok := currentPodToNodeMap[iPodName]
 		if !ok {
-			return fmt.Errorf("expected %s pod to be assigned to a node, but no association was found", podName)
+			return fmt.Errorf("expected %s pod to be assigned to a node, but no association was found", iPodName)
 		}
+		fmt.Printf("I labeled pods to nodes :", iPodName, initialNode, currentNode) // added for debugging will remove it in the final review.
 		if currentNode == initialNode {
 			return AssertExpectedAndActual(assert.Equal, true, currentNode == initialNode,
 				fmt.Sprintf("Expected %s pod to be migrated to a healthy node. Currently '%s', initially '%s'",
-					podName, currentNode, initialNode))
+					iPodName, currentNode, initialNode))
 		}
 	}
 
@@ -1542,7 +1547,12 @@ func (i *integration) populateLabeledPodsToNodes() error {
 	}
 
 	for _, pod := range pods.Items {
-		nsPodName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+		podName := pod.Name
+		if strings.HasPrefix(podName, "virt-launcher") && len(podName) > 6 {
+			podName = podName[:len(podName)-6] // Trim last 6 characters
+		}
+		nsPodName := fmt.Sprintf("%s/%s", pod.Namespace, podName)
+
 		i.labeledPodsToNodes[nsPodName] = pod.Spec.NodeName
 	}
 	return nil

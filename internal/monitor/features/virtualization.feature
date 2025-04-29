@@ -74,17 +74,17 @@ Feature: Integration Test
     Examples:
       | kubeConfig | vmsPerNode  | nVol  | nDev  | driverType | storageClass         | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
       # Uncomment the storageclass to use. The default is set to nvme which is supported by nightly qualification.
-      | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-nfs"   | "one-third" | "zero"  | "interfacedown" | 120      | 240        | 300     | 300           |
+      | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-nfs"   | "one-third" | "zero"  | "interfacedown" | 200      | 240        | 300     | 300           |
       #| ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-iscsi"   | "one-third" | "zero"  | "interfacedown" | 120      | 240        | 300     | 300           |
       #| ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-nvmetcp"   | "one-third" | "zero"  | "interfacedown" | 240      | 480        | 300     | 300           |
 
 
-#   @powerstore-short-integration
+#   @powerstore-vm-integration
 #   Scenario Outline: Basic node failover testing using test StatefulSet pods (node kubelet down)
 #     Given a kubernetes <kubeConfig>
-#     And cluster is clean of test pods
+#     And cluster is clean of test vms
 #     And wait <nodeCleanSecs> to see there are no taints
-#     And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
+#     And <vmsPerNode> vms per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
 #     Then validate that all pods are running within <deploySecs> seconds
 #     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
 #     Then validate that all pods are running within <runSecs> seconds
