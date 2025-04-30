@@ -34,8 +34,11 @@ BOUNCEIPSECONDS=240             # Bounce IP time in seconds for interface down
 BOUNCEKUBELETSECONDS=0          # Bounce the kubelet instead if BOUNCEIPSECONDS > 0
 TIMEOUT=600			# Maximum time in seconds to wait for a failure cycle (needs to be higher than EVACUATE_TIMEOUT)
 MAXITERATIONS=9999		# Maximum number of failover iterations
-DRIVERNS="vxflexos"		# Driver namespace
+DRIVERNS="powerstore"		# Driver namespace
 REBALANCE=0			# Do rebalance if needed for pods with affinity
+WORKLOADTYPE=${WORKLOADTYPE:-"pod"}
+NODE_USER=${NODE_USER:-"root"}
+PASSWORD=${PASSWORD:-""}
 
 rm -f stop			# Remove the stop file
 
@@ -70,6 +73,21 @@ for param in $*; do
     REBALANCE=1
     shift
     ;;
+  "--workload-type")
+    shift
+    WORKLOADTYPE=$1
+    shift
+    ;;
+  "--node-user")
+    shift
+    NODE_USER=$1
+    shift
+    ;;
+  "--password")
+    shift
+    PASSWORD=$1
+    shift
+    ;;
   "--help")
     shift
     echo "parameters: --ns driver-namespace [--bounceipseconds value] [--bouncekubeletseconds value] [--maxiterations value] [--timeoutseconds value]"
@@ -90,7 +108,7 @@ check_timeout() {
 			rebalance
 		else
 			echo "******************* timed out: " $1 "seconds ********************"
-			collect_logs.sh --ns $DRIVERNS
+			../../tools/collect_logs.sh --ns $DRIVERNS
 			exit 2
 		fi
 	fi
@@ -270,6 +288,74 @@ get_pods_on_nodes() {
 	echo $totalcount
 }
 
+copyOverTestScriptsToNode() {
+    local address="$1"
+    local scriptsDir="../../test/sh"
+    local remoteScriptDir
+
+    if [ "$NODE_USER" == "root" ]; then
+        remoteScriptDir="/root/karavi-resiliency-tests"
+    elif [ "$NODE_USER" == "core" ]; then
+        remoteScriptDir="/usr/tmp/karavi-resiliency-tests"
+    else
+        echo "Unsupported NODE_USER: $NODE_USER"
+        return 1
+    fi
+
+    echo "Attempting to scp scripts from $scriptsDir to $address:$remoteScriptDir"
+
+    if [ "$NODE_USER" == "core" ]; then
+        # Create remote directory without password
+        ssh -o StrictHostKeyChecking=no "$NODE_USER@$address" "date; rm -rf $remoteScriptDir; mkdir $remoteScriptDir"
+        if [ $? -ne 0 ]; then
+            echo "Failed to create remote directory"
+            return 1
+        fi
+
+        # Copy specific files to remote directory without password
+        for file in "bounce.ip" "reboot.node" "bounce.kubelet"; do
+            scp -o StrictHostKeyChecking=no "$scriptsDir/$file" "$NODE_USER@$address:$remoteScriptDir/"
+            if [ $? -ne 0 ]; then
+                echo "Failed to copy $file"
+                return 1
+            fi
+        done
+
+        # Set execute permissions and list directory without password
+        ssh -o StrictHostKeyChecking=no "$NODE_USER@$address" "chmod +x $remoteScriptDir/* ; ls -ltr $remoteScriptDir"
+        if [ $? -ne 0 ]; then
+            echo "Failed to set permissions or list directory"
+            return 1
+        fi
+    else
+        # Create remote directory with password
+        sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no "$NODE_USER@$address" "date; rm -rf $remoteScriptDir; mkdir $remoteScriptDir"
+        if [ $? -ne 0 ]; then
+            echo "Failed to create remote directory"
+            return 1
+        fi
+
+        # Copy specific files to remote directory with password
+        for file in "bounce.ip" "reboot.node" "bounce.kubelet"; do
+            sshpass -p "$PASSWORD" scp -o StrictHostKeyChecking=no "$scriptsDir/$file" "$NODE_USER@$address:$remoteScriptDir/"
+            if [ $? -ne 0 ]; then
+                echo "Failed to copy $file"
+                return 1
+            fi
+        done
+
+        # Set execute permissions and list directory with password
+        sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no "$NODE_USER@$address" "chmod +x $remoteScriptDir/* ; ls -ltr $remoteScriptDir"
+        if [ $? -ne 0 ]; then
+            echo "Failed to set permissions or list directory"
+            return 1
+        fi
+    fi
+
+    echo "Scripts successfully copied to $address:$remoteScriptDir"
+    return 0
+}
+
 failovercount=0
 # Fails a node give a list of nodes
 failnodes() {
@@ -277,13 +363,29 @@ failnodes() {
 	# Fail all the nodes
 	for node in $nodelist
 	do
-		# kill node
+		copyOverTestScriptsToNode "$node"
+
+		# Kill node
 		if [ $BOUNCEKUBELETSECONDS -gt 0 ]; then
 			echo bouncing kubelet $node $COUNT
-			ssh $node nohup sh /root/bounce.kubelet --seconds $BOUNCEKUBELETSECONDS &
+			if [ "$NODE_USER" == "core" ]; then
+				ssh -o StrictHostKeyChecking=no "$NODE_USER@$node" "nohup sudo sh /usr/tmp/karavi-resiliency-tests/bounce.kubelet --seconds $BOUNCEKUBELETSECONDS &"
+			elif [ "$NODE_USER" == "root" ]; then
+				sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no "$NODE_USER@$node" "nohup sudo sh /root/karavi-resiliency-tests/bounce.kubelet --seconds $BOUNCEKUBELETSECONDS &"
+			else
+				echo "Unsupported NODE_USER: $NODE_USER"
+				return 1
+			fi
 		else
 			echo bouncing ip $node $COUNT
-			ssh $node nohup sh /root/bounce.ip --seconds $BOUNCEIPSECONDS &
+			if [ "$NODE_USER" == "core" ]; then
+				ssh -o StrictHostKeyChecking=no "$NODE_USER@$node" "nohup sudo sh /usr/tmp/karavi-resiliency-tests/bounce.ip --seconds $BOUNCEIPSECONDS &"
+			elif [ "$NODE_USER" == "root" ]; then
+				sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no "$NODE_USER@$node" "nohup sudo sh /root/karavi-resiliency-tests/bounce.ip --seconds $BOUNCEIPSECONDS &"
+			else
+				echo "Unsupported NODE_USER: $NODE_USER"
+				return 1
+			fi
 		fi
 	done
 	failovercount=$(expr $failovercount + 1)
@@ -294,7 +396,14 @@ failnodes() {
 	for node in $nodelist
 	do
 		echo rebooting node $node
-		ssh $node nohup sh reboot.node
+		if [ "$NODE_USER" == "core" ]; then
+			ssh -o StrictHostKeyChecking=no "$NODE_USER@$node" "nohup sudo sh /usr/tmp/karavi-resiliency-tests/reboot.node &"
+		elif [ "$NODE_USER" == "root" ]; then
+			sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no "$NODE_USER@$node" "nohup sudo sh /root/karavi-resiliency-tests/reboot.node &"
+		else
+			echo "Unsupported NODE_USER: $NODE_USER"
+			return 1
+		fi
 	done
 }
 
@@ -344,7 +453,7 @@ process_nodes() {
 		done
 		if [ $podsToMove -gt 0 ]; then
 			echo "Evacuation phase timeout... collecting logs"
-			collect_logs.sh --ns $DRIVERNS
+			../../tools/collect_logs.sh --ns $DRIVERNS
 		fi
 		echo $(date) $timesec $failovercount "podsToMove:" $podsToMove
 		movedPods=$(expr $initialPodsToMove - $podsToMove)
@@ -379,18 +488,21 @@ process_nodes() {
 		echo "nodes cleanup time:" $(expr $timesec - $BOUNCEIPSECONDS)
 		sleep 60
 		check_running
-		getinitialpods >initial_pods.now
-		echo "diffing initial_pods.now and initial_pods.orig"
-		diff -b initial_pods.now initial_pods.orig
-		rc=$?
+		if [ "$workloadType" == "pod" ]; then
+			getinitialpods >initial_pods.now
+			echo "diffing initial_pods.now and initial_pods.orig"
+			diff -b initial_pods.now initial_pods.orig
+			rc=$?
+		fi
 		if [ $failovercount -ge $MAXITERATIONS ]; then
 			echo $(date) "exiting due to failover count: " $failovercount
 			exit 0
 		fi
 	fi
 }
-
-getinitialpods >initial_pods.orig
+if [ "$workloadType" == "pod" ]; then
+	getinitialpods >initial_pods.orig
+fi
 echo "falling into main loop..."
 while true
 do

@@ -32,6 +32,16 @@ do
           ISVIRTUALIZATION=$1
           shift
           ;;
+       "--node-user")
+          shift
+          NODE_USER=$1
+          shift
+          ;;
+       "--password")
+          shift
+          PASSWORD=$1
+          shift
+          ;;
     esac
 done
 
@@ -65,14 +75,14 @@ if [ "$ISVIRTUALIZATION" = true ]; then
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600 --workload-type vm
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600 --workload-type vm --node-user core
 	fi
 
 	instances="18"
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600 --workload-type vm
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600 --workload-type vm --node-user core
 	fi
 
 	BOUNCEIPTIME=360
@@ -80,14 +90,14 @@ if [ "$ISVIRTUALIZATION" = true ]; then
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600 --workload-type vm
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600 --workload-type vm --node-user core
 	fi
 
 	instances="36"
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600 --workload-type vm
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600 --workload-type vm --node-user core
 	fi
 
 	BOUNCEIPTIME=480
@@ -95,14 +105,14 @@ if [ "$ISVIRTUALIZATION" = true ]; then
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 900 --workload-type vm
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 900 --workload-type vm --node-user core
 	fi
 
 	instances="72"
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300 --workload-type vm
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300 --workload-type vm --node-user core
 	fi
 
 	BOUNCEIPTIME=720
@@ -110,21 +120,21 @@ if [ "$ISVIRTUALIZATION" = true ]; then
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300 --workload-type vm
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300 --workload-type vm --node-user core
 	fi
 
 	instances="90"
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300 --workload-type vm
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300 --workload-type vm --node-user core
 	fi
 
 	instances="99"
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500 --workload-type vm
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500 --workload-type vm --node-user core
 	fi
 else
 	BOUNCEIPTIME=240
@@ -132,14 +142,14 @@ else
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
 	wait_on_running
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600 --node-user $NODE_USER --password $PASSWORD
 	fi
 
 	instances="18"
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
 	wait_on_running
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600 --node-user $NODE_USER --password $PASSWORD
 	fi
 
 	BOUNCEIPTIME=360
@@ -147,14 +157,14 @@ else
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
 	wait_on_running
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600 --node-user $NODE_USER --password $PASSWORD
 	fi
 
 	instances="36"
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
 	wait_on_running
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600 --node-user $NODE_USER --password $PASSWORD
 	fi
 
 	BOUNCEIPTIME=480
@@ -162,14 +172,14 @@ else
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
 	wait_on_running
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 900
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 900 --node-user $NODE_USER --password $PASSWORD
 	fi
 
 	instances="72"
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
 	wait_on_running
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300 --node-user $NODE_USER --password $PASSWORD
 	fi
 
 	BOUNCEIPTIME=720
@@ -177,21 +187,21 @@ else
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
 	wait_on_running
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300 --node-user $NODE_USER --password $PASSWORD
 	fi
 
 	instances="90"
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
 	wait_on_running
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300 --node-user $NODE_USER --password $PASSWORD
 	fi
 
 	instances="99"
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insu.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS; cd $CWD
 	wait_on_running
-	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500
+	sh ../sh/nway.sh --ns unity --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500 --node-user $NODE_USER --password $PASSWORD
 	fi
 fi
 
