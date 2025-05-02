@@ -24,70 +24,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// func TestOcpVirtPowerFlexCheck(t *testing.T) {
-// 	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
-// 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
-// 		log.Printf("Skipping short integration test. To enable short integration test: export %s=true", enableShortIntTestVar)
-// 		return
-// 	}
-
-// 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
-// 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
-// 		stopOnFailure = false
-// 	}
-// 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
-
-// 	godogOptions := godog.Options{
-// 		Format:        "pretty,junit:powerflex-short-check-junit-report.xml",
-// 		Paths:         []string{"features"},
-// 		Tags:          "powerflex-int-setup-check",
-// 		StopOnFailure: stopOnFailure,
-// 	}
-// 	status := godog.TestSuite{
-// 		Name:                "integration",
-// 		ScenarioInitializer: IntegrationTestScenarioInit,
-// 		Options:             &godogOptions,
-// 	}.Run()
-// 	if status != 0 {
-// 		t.Skip("Integration setup check failed")
-// 	} else {
-// 		setupIsGood = true
-// 	}
-// 	log.Printf("Integration setup check finished")
-// }
-
-// func TestOcpVirtPowerScaleCheck(t *testing.T) {
-// 	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
-// 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
-// 		log.Printf("Skipping short integration test. To enable short integration test: export %s=true", enableShortIntTestVar)
-// 		return
-// 	}
-
-// 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
-// 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
-// 		stopOnFailure = false
-// 	}
-// 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
-
-// 	godogOptions := godog.Options{
-// 		Format:        "pretty,junit:powerscale-short-check-junit-report.xml,cucumber:powerscale-short-check-cucumber-report.json",
-// 		Paths:         []string{"features"},
-// 		Tags:          "powerscale-int-setup-check",
-// 		StopOnFailure: stopOnFailure,
-// 	}
-// 	status := godog.TestSuite{
-// 		Name:                "integration",
-// 		ScenarioInitializer: IntegrationTestScenarioInit,
-// 		Options:             &godogOptions,
-// 	}.Run()
-// 	if status != 0 {
-// 		t.Skip("Integration setup check failed")
-// 	} else {
-// 		setupIsGood = true
-// 	}
-// 	log.Printf("Integration setup check finished")
-// }
-
 func TestOcpVirtPowerStoreCheck(t *testing.T) {
 
 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
@@ -97,7 +33,7 @@ func TestOcpVirtPowerStoreCheck(t *testing.T) {
 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
 
 	godogOptions := godog.Options{
-		Format:        "pretty,junit:powerstore-short-check-junit-report.xml,cucumber:powersctore-short-check-cucumber-report.json",
+		Format:        "pretty,junit:powerstore-vm-integration-check-junit-report.xml,cucumber:powersctore-short-check-cucumber-report.json",
 		Paths:         []string{"features"},
 		Tags:          "powerstore-vm-int-setup-check",
 		StopOnFailure: stopOnFailure,
@@ -115,13 +51,87 @@ func TestOcpVirtPowerStoreCheck(t *testing.T) {
 	log.Printf("Integration setup check finished")
 }
 
-func TestOcpVirtPowerStoreIntegration(t *testing.T) {
-	// intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
-	// if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
-	// 	log.Printf("Skipping integration test. To enable integration test: export %s=true", enableShortIntTestVar)
-	// 	return
-	// }
+// func TestOcpVirtPowerFlexCheck(t *testing.T) {
 
+// 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+// 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+// 		stopOnFailure = false
+// 	}
+// 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
+// 	godogOptions := godog.Options{
+// 		Format:        "pretty,junit:powerflex-vm-integration-check-junit-report.xml",
+// 		Paths:         []string{"features"},
+// 		Tags:          "powerflex-vm-int-setup-check",
+// 		StopOnFailure: stopOnFailure,
+// 	}
+// 	status := godog.TestSuite{
+// 		Name:                "integration",
+// 		ScenarioInitializer: IntegrationTestScenarioInit,
+// 		Options:             &godogOptions,
+// 	}.Run()
+// 	if status != 0 {
+// 		t.Skip("Integration setup check failed")
+// 	} else {
+// 		setupIsGood = true
+// 	}
+// 	log.Printf("Integration setup check finished")
+// }
+
+// func TestOcpVirtPowerScaleCheck(t *testing.T) {
+
+// 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+// 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+// 		stopOnFailure = false
+// 	}
+// 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
+// 	godogOptions := godog.Options{
+// 		Format:        "pretty,junit:powerscale-vm-integration-check-junit-report.xml,cucumber:powerscale-vm-integration-check-cucumber-report.json",
+// 		Paths:         []string{"features"},
+// 		Tags:          "powerscale-vm-int-setup-check",
+// 		StopOnFailure: stopOnFailure,
+// 	}
+// 	status := godog.TestSuite{
+// 		Name:                "integration",
+// 		ScenarioInitializer: IntegrationTestScenarioInit,
+// 		Options:             &godogOptions,
+// 	}.Run()
+// 	if status != 0 {
+// 		t.Skip("Integration setup check failed")
+// 	} else {
+// 		setupIsGood = true
+// 	}
+// 	log.Printf("Integration setup check finished")
+// }
+
+// func TestOcpVirtPowerMaxCheck(t *testing.T) {
+// 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+// 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+// 		stopOnFailure = false
+// 	}
+// 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
+// 	godogOptions := godog.Options{
+// 		Format:        "pretty,junit:powermax-vm-integration-check-junit-report.xml,cucumber:powermax-vm-integration-check-cucumber-report.json",
+// 		Paths:         []string{"features"},
+// 		Tags:          "powermax-vm-int-setup-check",
+// 		StopOnFailure: stopOnFailure,
+// 	}
+// 	status := godog.TestSuite{
+// 		Name:                "integration",
+// 		ScenarioInitializer: IntegrationTestScenarioInit,
+// 		Options:             &godogOptions,
+// 	}.Run()
+// 	if status != 0 {
+// 		t.Skip("Integration setup check failed")
+// 	} else {
+// 		setupIsGood = true
+// 	}
+// 	log.Printf("Integration setup check finished")
+// }
+
+func TestOcpVirtPowerStoreIntegration(t *testing.T) {
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
 		log.Print(message)
@@ -153,45 +163,7 @@ func TestOcpVirtPowerStoreIntegration(t *testing.T) {
 	log.Printf("Integration test finished")
 }
 
-// func TestOcpVirtPowerMaxCheck(t *testing.T) {
-// 	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
-// 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
-// 		log.Printf("Skipping short integration test. To enable short integration test: export %s=true", enableShortIntTestVar)
-// 		return
-// 	}
-
-// 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
-// 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
-// 		stopOnFailure = false
-// 	}
-// 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
-
-// 	godogOptions := godog.Options{
-// 		Format:        "pretty,junit:powermax-short-check-junit-report.xml,cucumber:powermax-short-check-cucumber-report.json",
-// 		Paths:         []string{"features"},
-// 		Tags:          "powermax-int-setup-check",
-// 		StopOnFailure: stopOnFailure,
-// 	}
-// 	status := godog.TestSuite{
-// 		Name:                "integration",
-// 		ScenarioInitializer: IntegrationTestScenarioInit,
-// 		Options:             &godogOptions,
-// 	}.Run()
-// 	if status != 0 {
-// 		t.Skip("Integration setup check failed")
-// 	} else {
-// 		setupIsGood = true
-// 	}
-// 	log.Printf("Integration setup check finished")
-// }
-
 // func TestOcpVirtPowerFlexIntegration(t *testing.T) {
-// 	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
-// 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
-// 		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableShortIntTestVar)
-// 		return
-// 	}
-
 // 	if !setupIsGood {
 // 		message := "The setup check failed. Tests skipped"
 // 		log.Print(message)
@@ -207,9 +179,9 @@ func TestOcpVirtPowerStoreIntegration(t *testing.T) {
 
 // 	log.Printf("Starting integration test")
 // 	godogOptions := godog.Options{
-// 		Format:        "pretty,junit:powerflex-short-integration-junit-report.xml",
+// 		Format:        "pretty,junit:powerflex-vm-integration-integration-junit-report.xml",
 // 		Paths:         []string{"features"},
-// 		Tags:          "powerflex-short-integration",
+// 		Tags:          "powerflex-vm-integration",
 // 		StopOnFailure: stopOnFailure,
 // 	}
 // 	status := godog.TestSuite{
@@ -224,12 +196,6 @@ func TestOcpVirtPowerStoreIntegration(t *testing.T) {
 // }
 
 // func TestOcpVirtPowerScaleIntegration(t *testing.T) {
-// 	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
-// 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
-// 		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableShortIntTestVar)
-// 		return
-// 	}
-
 // 	if !setupIsGood {
 // 		message := "The setup check failed. Tests skipped"
 // 		log.Print(message)
@@ -245,47 +211,9 @@ func TestOcpVirtPowerStoreIntegration(t *testing.T) {
 
 // 	log.Printf("Starting integration test")
 // 	godogOptions := godog.Options{
-// 		Format:        "pretty,junit:powerscale-short-integration-junit-report.xml,cucumber:powerscale-short-integration-cucumber-report.json",
+// 		Format:        "pretty,junit:powerscale-vm-integration-junit-report.xml,cucumber:powerscale-vm-integration-cucumber-report.json",
 // 		Paths:         []string{"features"},
-// 		Tags:          "powerscale-short-integration",
-// 		StopOnFailure: stopOnFailure,
-// 	}
-// 	status := godog.TestSuite{
-// 		Name:                "integration",
-// 		ScenarioInitializer: IntegrationTestScenarioInit,
-// 		Options:             &godogOptions,
-// 	}.Run()
-// 	if status != 0 {
-// 		t.Error("There were failed integration tests")
-// 	}
-// 	log.Printf("Integration test finished")
-// }
-
-// func TestOcpVirtPowerStoreIntegration(t *testing.T) {
-// 	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
-// 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
-// 		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableShortIntTestVar)
-// 		return
-// 	}
-
-// 	if !setupIsGood {
-// 		message := "The setup check failed. Tests skipped"
-// 		log.Print(message)
-// 		t.Error(message)
-// 		return
-// 	}
-
-// 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
-// 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
-// 		stopOnFailure = false
-// 	}
-// 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
-
-// 	log.Printf("Starting integration test")
-// 	godogOptions := godog.Options{
-// 		Format:        "pretty,junit:powerstore-short-integration-junit-report.xml,cucumber:powerstore-short-integration-cucumber-report.json",
-// 		Paths:         []string{"features"},
-// 		Tags:          "powerstore-short-integration",
+// 		Tags:          "powerscale-vm-integration",
 // 		StopOnFailure: stopOnFailure,
 // 	}
 // 	status := godog.TestSuite{
@@ -300,12 +228,6 @@ func TestOcpVirtPowerStoreIntegration(t *testing.T) {
 // }
 
 // func TestOcpVirtPowerMaxIntegration(t *testing.T) {
-// 	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
-// 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
-// 		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableShortIntTestVar)
-// 		return
-// 	}
-
 // 	if !setupIsGood {
 // 		message := "The setup check failed. Tests skipped"
 // 		log.Print(message)
@@ -321,9 +243,9 @@ func TestOcpVirtPowerStoreIntegration(t *testing.T) {
 
 // 	log.Printf("Starting integration test")
 // 	godogOptions := godog.Options{
-// 		Format:        "pretty,junit:powermax-short-integration-junit-report.xml,cucumber:powermax-short-integration-cucumber-report.json",
+// 		Format:        "pretty,junit:powermax-vm-integration-junit-report.xml,cucumber:powermax-vm-integration-cucumber-report.json",
 // 		Paths:         []string{"features"},
-// 		Tags:          "powermax-short-integration",
+// 		Tags:          "powermax-vm-integration",
 // 		StopOnFailure: stopOnFailure,
 // 	}
 // 	status := godog.TestSuite{
