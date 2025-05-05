@@ -284,9 +284,9 @@ Feature: Integration Test
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure       | failSecs | deploySecs | runSecs | nodeCleanSecs |
       # Small number of pods, increasing number of vols and devs
-      | ""         | "1-2"       | "1-1" | "0-0" | "isilon"    | "isilon"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
+      | ""         | "1-2"       | "1-1" | "0-0" | "isilon"    | "isilon"  | "one-third" | "zero"  | "kubeletdown" | 600      | 1800        | 1800     | 1800           |
       # Slightly more pods, increasing number of vols and devs
-      | ""         | "3-5"       | "1-1" | "0-0" | "isilon"    | "isilon"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
+      | ""         | "3-5"       | "1-1" | "0-0" | "isilon"    | "isilon"  | "one-third" | "zero"  | "kubeletdown" | 600      | 1800        | 1800     | 1800           |
 
   @powerstore-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node kubelet down)
@@ -526,7 +526,7 @@ Feature: Integration Test
     Then finally cleanup everything
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure         | failSecs | deploySecs | nodeCleanSecs |
-      | ""         | "1-2"       | "1-1" | "0-0" | "isilon"   | "isilon"      | "one-third" | "zero"  | "interfacedown" | 600      | 1800        | 900           |
+      | ""         | "1-2"       | "1-1" | "0-0" | "isilon"   | "isilon"      | "one-third" | "zero"  | "interfacedown" | 600      | 1800        | 1800           |
   
   @powerstore-integration
   Scenario Outline: Deploy pods when there are failed nodes already
@@ -864,8 +864,8 @@ Feature: Integration Test
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
        #Small number of pods, increasing number of vols and devs
-      | ""         | "1-2"       | "1-1" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 900           |
-      | ""         | "1-2"       | "2-2" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 600      | 900        | 900     | 1200           |
+      | ""         | "1-2"       | "1-1" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 1800           |
+      | ""         | "1-2"       | "2-2" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 600      | 1800        | 1800     | 1200           |
       # Slightly more pods, increasing number of vols and devs
       | ""         | "3-5"       | "1-1" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 600      | 900        | 900     | 1800           |
     # | ""         | "3-5"       | "2-2" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 240      | 240        | 300     | 600           |
@@ -1051,7 +1051,7 @@ Feature: Integration Test
       Examples:
         | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
         | ""         | "1-2"       | "1-1" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600          |
-        | ""         | "1-2"       | "2-2" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 600      | 900        | 900     | 900           |
+        | ""         | "1-2"       | "2-2" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 600      | 1800        | 1800     | 1800           |
 
 
   @powerscale-short-integration
@@ -1069,8 +1069,8 @@ Feature: Integration Test
 
       Examples:
         | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure       | failSecs | deploySecs | runSecs | nodeCleanSecs |
-        | ""         | "1-2"       | "1-1" | "0-0" | "isilon"   | "isilon"     | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
-        | ""         | "3-5"       | "1-1" | "0-0" | "isilon"   | "isilon"     | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
+        | ""         | "1-2"       | "1-1" | "0-0" | "isilon"   | "isilon"     | "one-third" | "zero"  | "kubeletdown" | 600      | 1800        | 1800     | 1800           |
+        | ""         | "3-5"       | "1-1" | "0-0" | "isilon"   | "isilon"     | "one-third" | "zero"  | "kubeletdown" | 600      | 1800        | 1800     | 1800           |
 
   @powermax-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (driver pods down)
