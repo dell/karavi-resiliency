@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright (c) 2021-2022 Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright (c) 2021-2025 Dell Inc., or its subsidiaries. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -359,52 +359,52 @@ copyOverTestScriptsToNode() {
 failovercount=0
 # Fails a node give a list of nodes
 failnodes() {
-	nodelist=$*
-	# Fail all the nodes
-	for node in $nodelist
-	do
-		copyOverTestScriptsToNode "$node"
+    nodelist=$*
+    # Fail all the nodes
+    for node in $nodelist
+    do
+        copyOverTestScriptsToNode "$node"
 
-		# Kill node
-		if [ $BOUNCEKUBELETSECONDS -gt 0 ]; then
-			echo bouncing kubelet $node $COUNT
-			if [ "$NODE_USER" == "core" ]; then
-				ssh -o StrictHostKeyChecking=no "$NODE_USER@$node" "nohup sudo sh /usr/tmp/karavi-resiliency-tests/bounce.kubelet --seconds $BOUNCEKUBELETSECONDS &"
-			elif [ "$NODE_USER" == "root" ]; then
-				sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no "$NODE_USER@$node" "nohup sudo sh /root/karavi-resiliency-tests/bounce.kubelet --seconds $BOUNCEKUBELETSECONDS &"
-			else
-				echo "Unsupported NODE_USER: $NODE_USER"
-				return 1
-			fi
-		else
-			echo bouncing ip $node $COUNT
-			if [ "$NODE_USER" == "core" ]; then
-				ssh -o StrictHostKeyChecking=no "$NODE_USER@$node" "nohup sudo sh /usr/tmp/karavi-resiliency-tests/bounce.ip --seconds $BOUNCEIPSECONDS &"
-			elif [ "$NODE_USER" == "root" ]; then
-				sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no "$NODE_USER@$node" "nohup sudo sh /root/karavi-resiliency-tests/bounce.ip --seconds $BOUNCEIPSECONDS &"
-			else
-				echo "Unsupported NODE_USER: $NODE_USER"
-				return 1
-			fi
-		fi
-	done
-	failovercount=$(expr $failovercount + 1)
+        # Kill node
+        if [ $BOUNCEKUBELETSECONDS -gt 0 ]; then
+            echo bouncing kubelet $node $COUNT
+            if [ "$NODE_USER" == "core" ]; then
+                ssh -o StrictHostKeyChecking=no "$NODE_USER@$node" "nohup sudo sh /usr/tmp/karavi-resiliency-tests/bounce.kubelet --seconds $BOUNCEKUBELETSECONDS > /dev/null 2>&1 &"
+            elif [ "$NODE_USER" == "root" ]; then
+                sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no "$NODE_USER@$node" "nohup sudo sh /root/karavi-resiliency-tests/bounce.kubelet --seconds $BOUNCEKUBELETSECONDS > /dev/null 2>&1 &"
+            else
+                echo "Unsupported NODE_USER: $NODE_USER"
+                return 1
+            fi
+        else
+            echo bouncing ip $node $COUNT
+            if [ "$NODE_USER" == "core" ]; then
+                ssh -o StrictHostKeyChecking=no "$NODE_USER@$node" "nohup sudo sh /usr/tmp/karavi-resiliency-tests/bounce.ip --seconds $BOUNCEIPSECONDS > /dev/null 2>&1 &"
+            elif [ "$NODE_USER" == "root" ]; then
+                sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no "$NODE_USER@$node" "nohup sudo sh /root/karavi-resiliency-tests/bounce.ip --seconds $BOUNCEIPSECONDS > /dev/null 2>&1 &"
+            else
+                echo "Unsupported NODE_USER: $NODE_USER"
+                return 1
+            fi
+        fi
+    done
+    failovercount=$(expr $failovercount + 1)
 
-	if [ $REBOOT != "on" ]; then return; fi
+    if [ $REBOOT != "on" ]; then return; fi
 
-	sleep 60
-	for node in $nodelist
-	do
-		echo rebooting node $node
-		if [ "$NODE_USER" == "core" ]; then
-			ssh -o StrictHostKeyChecking=no "$NODE_USER@$node" "nohup sudo sh /usr/tmp/karavi-resiliency-tests/reboot.node &"
-		elif [ "$NODE_USER" == "root" ]; then
-			sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no "$NODE_USER@$node" "nohup sudo sh /root/karavi-resiliency-tests/reboot.node &"
-		else
-			echo "Unsupported NODE_USER: $NODE_USER"
-			return 1
-		fi
-	done
+    sleep 60
+    for node in $nodelist
+    do
+        echo rebooting node $node
+        if [ "$NODE_USER" == "core" ]; then
+            ssh -o StrictHostKeyChecking=no "$NODE_USER@$node" "nohup sudo sh /usr/tmp/karavi-resiliency-tests/reboot.node > /dev/null 2>&1 &"
+        elif [ "$NODE_USER" == "root" ]; then
+            sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no "$NODE_USER@$node" "nohup sudo sh /root/karavi-resiliency-tests/reboot.node > /dev/null 2>&1 &"
+        else
+            echo "Unsupported NODE_USER: $NODE_USER"
+            return 1
+        fi
+    done
 }
 
 # Returns the number of tainted nodes
@@ -488,8 +488,8 @@ process_nodes() {
 		echo "nodes cleanup time:" $(expr $timesec - $BOUNCEIPSECONDS)
 		sleep 60
 		check_running
-		if [ "$workloadType" == "pod" ]; then
-			getinitialpods >initial_pods.now
+		if [ "$WORKLOADTYPE" == "pod" ]; then
+			getinitialpods > initial_pods.now
 			echo "diffing initial_pods.now and initial_pods.orig"
 			diff -b initial_pods.now initial_pods.orig
 			rc=$?
@@ -500,8 +500,8 @@ process_nodes() {
 		fi
 	fi
 }
-if [ "$workloadType" == "pod" ]; then
-	getinitialpods >initial_pods.orig
+if [ "$WORKLOADTYPE" == "pod" ]; then
+	getinitialpods > initial_pods.orig
 fi
 echo "falling into main loop..."
 while true

@@ -18,6 +18,8 @@ NVOLUMES=2
 STORAGECLASS=${STORAGECLASS:-vxflexos}
 MAXINSTANCES=${MAXINSTANCES:-100} # Define the maximum number of instances (pods or VMs), Default to 100
 ISVIRTUALIZATION=${ISVIRTUALIZATION:-false} # Default to false
+NODE_USER=${NODE_USER:-root}
+PASSWORD=${PASSWORD:-""}
 
 for param in $*
 do
