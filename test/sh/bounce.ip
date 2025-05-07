@@ -51,3 +51,5 @@ for iface in $interfaces; do
 done
 ip route flush cache
 systemctl restart NetworkManager
+sleep 150
+systemctl restart NetworkManager

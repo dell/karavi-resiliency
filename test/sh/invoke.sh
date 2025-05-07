@@ -15,4 +15,4 @@
 
 # This is script is for programmatic invocation of a shell script
 echo "$(date +"%Y-%m-%d %H:%M:%S")" -- invoking script $* >>/tmp/invoke.log
-nohup $* &
+nohup sudo $* &
