@@ -949,7 +949,6 @@ func (i *integration) labeledPodsChangedNodes() error {
 		if !ok {
 			return fmt.Errorf("expected %s pod to be assigned to a node, but no association was found", iPodName)
 		}
-		fmt.Printf("I labeled pods to nodes :", iPodName, initialNode, currentNode) // added for debugging will remove it in the final review.
 		if currentNode == initialNode {
 			return AssertExpectedAndActual(assert.Equal, true, currentNode == initialNode,
 				fmt.Sprintf("Expected %s pod to be migrated to a healthy node. Currently '%s', initially '%s'",
