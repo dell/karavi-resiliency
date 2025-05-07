@@ -79,9 +79,29 @@ Feature: Virtual Machine Integration Test
   #     #| ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-iscsi"   | "one-third" | "zero"  | "interfacedown" | 400      | 300        | 350     | 400           |
   #     #| ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-nvmetcp"   | "one-third" | "zero"  | "interfacedown" | 400      | 300        | 350     | 400           |
 
+# Below Testcase is passed
+  # @powerstore-vm-integration
+  # Scenario Outline: Basic node failover testing using test VM's (node slow reboots)
+  #   Given a kubernetes <kubeConfig>
+  #   And cluster is clean of test vms
+  #   And wait <nodeCleanSecs> to see there are no taints
+  #   And <vmsPerNode> vms per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
+  #   Then validate that all pods are running within <deploySecs> seconds
+  #   When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
+  #   Then validate that all pods are running within <runSecs> seconds
+  #   And labeled pods are on a different node
+  #   And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
+  #   Then finally cleanup everything
+  #   Examples:
+  #     | kubeConfig | vmsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
+  #     # Uncomment the storageclass to use. The default is set to nvme which is supported by nightly qualification.
+  #     | ""         | "1-1"      | "1-1" | "0-0" | "powerstore" | "powerstore-nfs"   | "one-third" | "zero"  | "reboot" | 300      | 600        | 600     | 600          |
+  #     #| ""         | "1-1"      | "1-1" | "0-0" | "powerstore" | "powerstore-iscsi"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600          |
+  #     #| ""         | "1-1"      | "1-1" | "0-0" | "powerstore" | "powerstore-nvmetcp"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600          |
+
 
   @powerstore-vm-integration
-  Scenario Outline: Basic node failover testing using test VM's (node slow reboots)
+  Scenario Outline: Basic node failover testing using test VM's (node kubelet down)
     Given a kubernetes <kubeConfig>
     And cluster is clean of test vms
     And wait <nodeCleanSecs> to see there are no taints
@@ -92,33 +112,13 @@ Feature: Virtual Machine Integration Test
     And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
+
     Examples:
-      | kubeConfig | vmsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
+      | kubeConfig | vmsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure       | failSecs | deploySecs | runSecs | nodeCleanSecs |
       # Uncomment the storageclass to use. The default is set to nvme which is supported by nightly qualification.
-      | ""         | "1-1"      | "1-1" | "0-0" | "powerstore" | "powerstore-nfs"   | "one-third" | "zero"  | "reboot" | 300      | 600        | 600     | 600          |
-      #| ""         | "1-1"      | "1-1" | "0-0" | "powerstore" | "powerstore-iscsi"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600          |
-      #| ""         | "1-1"      | "1-1" | "0-0" | "powerstore" | "powerstore-nvmetcp"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600          |
-
-
-#   @powerstore-vm-integration
-#   Scenario Outline: Basic node failover testing using test VM's (node kubelet down)
-#     Given a kubernetes <kubeConfig>
-#     And cluster is clean of test vms
-#     And wait <nodeCleanSecs> to see there are no taints
-#     And <vmsPerNode> vms per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
-#     Then validate that all pods are running within <deploySecs> seconds
-#     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
-#     Then validate that all pods are running within <runSecs> seconds
-#     And labeled pods are on a different node
-#     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
-#     Then finally cleanup everything
-
-#     Examples:
-#       | kubeConfig | vmsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure       | failSecs | deploySecs | runSecs | nodeCleanSecs |
-#       # Uncomment the storageclass to use. The default is set to nvme which is supported by nightly qualification.
-#       #| ""         | "1-1"      | "1-1" | "0-0" | "powerstore"    | "powerstore-nfs"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
-#       #| ""         | "1-1"      | "1-1" | "0-0" | "powerstore"    | "powerstore-iscsi"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
-#       | ""         | "1-1"      | "1-1" | "0-0" | "powerstore"    | "powerstore-nvmetcp"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
+      | ""         | "1-1"      | "1-1" | "0-0" | "powerstore"    | "powerstore-nfs"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
+      #| ""         | "1-1"      | "1-1" | "0-0" | "powerstore"    | "powerstore-iscsi"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
+      #| ""         | "1-1"      | "1-1" | "0-0" | "powerstore"    | "powerstore-nvmetcp"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
 
 #   @powerstore-vm-integration
 #   Scenario Outline: Basic node failover testing using test VM's (driver pods down)
