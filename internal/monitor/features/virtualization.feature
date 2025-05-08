@@ -57,8 +57,8 @@ Feature: Virtual Machine Integration Test
   #   And there are driver pods in <namespace> with this <name> prefix
   #   And can logon to nodes and drop test scripts
   #   Examples:
-  #     | kubeConfig | driverNames                  | namespace      | name         | storageClasses                                       |
-      | ""         | "csi-powerstore.dellemc.com" | "powerstore"   | "powerstore" | "powerstore-nfs" |
+  #     | kubeConfig | driverNames                  | namespace      | name         | storageClasses   |
+  #     | ""         | "csi-powerstore.dellemc.com" | "powerstore"   | "powerstore" | "powerstore-nfs" |
 
 # Below Testcase is passed
   # @powerstore-vm-integration

@@ -163,37 +163,37 @@ func TestOcpVirtPowerStoreIntegration(t *testing.T) {
 	log.Printf("Integration test finished")
 }
 
-// func TestOcpVirtPowerFlexIntegration(t *testing.T) {
-// 	if !setupIsGood {
-// 		message := "The setup check failed. Tests skipped"
-// 		log.Print(message)
-// 		t.Error(message)
-// 		return
-// 	}
+func TestOcpVirtPowerFlexIntegration(t *testing.T) {
+	if !setupIsGood {
+		message := "The setup check failed. Tests skipped"
+		log.Print(message)
+		t.Error(message)
+		return
+	}
 
-// 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
-// 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
-// 		stopOnFailure = false
-// 	}
-// 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
 
-// 	log.Printf("Starting integration test")
-// 	godogOptions := godog.Options{
-// 		Format:        "pretty,junit:powerflex-vm-integration-integration-junit-report.xml",
-// 		Paths:         []string{"features"},
-// 		Tags:          "powerflex-vm-integration",
-// 		StopOnFailure: stopOnFailure,
-// 	}
-// 	status := godog.TestSuite{
-// 		Name:                "integration",
-// 		ScenarioInitializer: IntegrationTestScenarioInit,
-// 		Options:             &godogOptions,
-// 	}.Run()
-// 	if status != 0 {
-// 		t.Error("There were failed integration tests")
-// 	}
-// 	log.Printf("Integration test finished")
-// }
+	log.Printf("Starting integration test")
+	godogOptions := godog.Options{
+		Format:        "pretty,junit:powerflex-vm-integration-integration-junit-report.xml",
+		Paths:         []string{"features"},
+		Tags:          "powerflex-vm-integration",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "integration",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Error("There were failed integration tests")
+	}
+	log.Printf("Integration test finished")
+}
 
 // func TestOcpVirtPowerScaleIntegration(t *testing.T) {
 // 	if !setupIsGood {
