@@ -51,32 +51,32 @@ func TestOcpVirtPowerStoreCheck(t *testing.T) {
 	log.Printf("Integration setup check finished")
 }
 
-// func TestOcpVirtPowerFlexCheck(t *testing.T) {
+func TestOcpVirtPowerFlexCheck(t *testing.T) {
 
-// 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
-// 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
-// 		stopOnFailure = false
-// 	}
-// 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
 
-// 	godogOptions := godog.Options{
-// 		Format:        "pretty,junit:powerflex-vm-integration-check-junit-report.xml",
-// 		Paths:         []string{"features"},
-// 		Tags:          "powerflex-vm-int-setup-check",
-// 		StopOnFailure: stopOnFailure,
-// 	}
-// 	status := godog.TestSuite{
-// 		Name:                "integration",
-// 		ScenarioInitializer: IntegrationTestScenarioInit,
-// 		Options:             &godogOptions,
-// 	}.Run()
-// 	if status != 0 {
-// 		t.Skip("Integration setup check failed")
-// 	} else {
-// 		setupIsGood = true
-// 	}
-// 	log.Printf("Integration setup check finished")
-// }
+	godogOptions := godog.Options{
+		Format:        "pretty,junit:powerflex-vm-integration-check-junit-report.xml",
+		Paths:         []string{"features"},
+		Tags:          "powerflex-vm-int-setup-check",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "integration",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Skip("Integration setup check failed")
+	} else {
+		setupIsGood = true
+	}
+	log.Printf("Integration setup check finished")
+}
 
 // func TestOcpVirtPowerScaleCheck(t *testing.T) {
 
