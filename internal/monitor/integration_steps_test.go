@@ -1814,6 +1814,25 @@ func (i *integration) iFailDriverPodsTaints(numNodes, failure string, wait int, 
 	return nil
 }
 
+func (i *integration) verifyKubeVirtIPAMControllerPodExists() error {
+	namespace := "openshift-cnv"
+	podPrefix := "kubevirt-ipam-controller-manager-"
+
+	podList, err := i.k8s.GetClient().CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to list pods in namespace '%s': %v", namespace, err)
+	}
+
+	for _, pod := range podList.Items {
+		if strings.HasPrefix(pod.Name, podPrefix) {
+			log.Infof("Found pod '%s' in namespace '%s'", pod.Name, pod.Namespace)
+			return nil
+		}
+	}
+
+	return fmt.Errorf("No pod with prefix '%s' found in namespace '%s'. OpenShift Virtualization might not be installed", podPrefix, namespace)
+}
+
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	i := &integration{}
 	pollK8sEnabled := false
@@ -1842,6 +1861,7 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^these CSI driver "([^"]*)" are configured on the system$`, i.theseCSIDriverAreConfiguredOnTheSystem)
 	context.Step(`^there is a "([^"]*)" in the cluster$`, i.thereIsThisNamespaceInTheCluster)
 	context.Step(`^there are driver pods in "([^"]*)" with this "([^"]*)" prefix$`, i.thereAreDriverPodsWithThisPrefix)
+	context.Step(`^Check OpenShift Virtualization is installed in the cluster$`, i.verifyKubeVirtIPAMControllerPodExists)
 	context.Step(`^finally cleanup everything$`, i.finallyCleanupEverything)
 	context.Step(`^cluster is clean of test pods$`, i.finallyCleanupEverything)
 	context.Step(`^cluster is clean of test vms$`, i.finallyCleanupEverything)

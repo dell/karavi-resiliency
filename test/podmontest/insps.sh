@@ -14,9 +14,9 @@
 # limitations under the License.
 
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-instances=${instances:-4}
+instances=${instances:-0}
 ndevices=${ndevices:-0}
-nvolumes=${nvolumes:-4}
+nvolumes=${nvolumes:-0}
 zone=${zone:-""}
 storageClassName=${storageClassName:-powerstore-nfs}
 PODMONTEST_REGISTRY="$REGISTRY_HOST"
