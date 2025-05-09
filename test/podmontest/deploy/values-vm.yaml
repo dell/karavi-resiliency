@@ -1,0 +1,13 @@
+vmConfig:
+  namespace: "vm-namespace"
+  driverLabel: "csi-powerstore"
+  storageClassName: "powerstore-nfs"
+  nvolumes: 2
+  ndevices: 2
+  instances: 3
+  # set to "true" to locate replicates on the same node
+  podAffinity: false
+  # zone will restrict node placement by matching node label failure-domain.beta.kubernetes.io/zone
+  zone: ""
+  # Number of seconds to tolerate a node unreachable taint
+  unreachableTolerationSeconds: 300
