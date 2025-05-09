@@ -50,6 +50,5 @@ for iface in $interfaces; do
   ip link show $iface >>/root/bounce.ip.out
 done
 ip route flush cache
-systemctl restart NetworkManager
-sleep 150
+sleep 180
 systemctl restart NetworkManager
