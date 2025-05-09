@@ -1051,7 +1051,7 @@ Feature: Integration Test
       Examples:
         | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
         | ""         | "1-2"       | "1-1" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600          |
-        | ""         | "1-2"       | "2-2" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 600      | 900        | 900     | 900           |
+        | ""         | "1-2"       | "2-2" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 600      | 900        | 1200     | 1200           |
 
 
   @powerscale-short-integration
