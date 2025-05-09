@@ -472,6 +472,13 @@ process_nodes() {
 		done
 		echo $(date) $timesec $failovercount "runningPods: " $runningPods
 		echo "moving pods: " $initialPodsToMove "time for pod recovery seconds: " $timesec
+		
+		# Log recovery data to CSV
+		LOG_FILE="recovery_times.csv"
+		if [ ! -f "$LOG_FILE" ]; then
+			echo "num_instances,recovery_time_sec" > "$LOG_FILE"
+		fi
+		echo "$initialPodsToMove,$timesec" >> "$LOG_FILE"
 
 		taints=$(gettaints)
 		while [ $taints -gt 0 ];
@@ -496,6 +503,9 @@ process_nodes() {
 		fi
 		if [ $failovercount -ge $MAXITERATIONS ]; then
 			echo $(date) "exiting due to failover count: " $failovercount
+			python3 plot_scale_test.py || { echo "Python script failed"; exit 1; }
+			echo "Plot saved as recovery_graph.png"
+			rm -f "$LOG_FILE"
 			exit 0
 		fi
 	fi
