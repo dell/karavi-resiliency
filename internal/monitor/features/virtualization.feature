@@ -157,8 +157,8 @@ Feature: Virtual Machine Integration Test
 
     Examples:
       | kubeConfig | vmsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-1"      | "0-0" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 400      | 300        | 350     | 400           |
-      | ""         | "2-2"      | "0-0" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 450      | 400        | 500     | 600           |
+      | ""         | "1-1"      | "0-0" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 450      | 300        | 350     | 500           |
+      | ""         | "2-2"      | "0-0" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 500      | 400        | 500     | 650           |
 
   @powerflex-vm-integration
   Scenario Outline: Basic node failover testing using test VM's (node slow reboots)
