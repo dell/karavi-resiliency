@@ -3,7 +3,7 @@ vmConfig:
   driverLabel: "csi-powerstore"
   storageClassName: "powerstore-nfs"
   nvolumes: 2
-  ndevices: 2
+  ndevices: 0
   instances: 3
   # set to "true" to locate replicates on the same node
   podAffinity: false

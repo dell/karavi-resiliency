@@ -14,9 +14,9 @@
 # limitations under the License.
 
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-instances=${instances:-4}
+instances=${instances:-0}
 ndevices=${ndevices:-0}
-nvolumes=${nvolumes:-4}
+nvolumes=${nvolumes:-0}
 zone=${zone:-""}
 storageClassName=${storageClassName:-isilon}
 PODMONTEST_REGISTRY="$REGISTRY_HOST"
@@ -30,7 +30,7 @@ deploymentType="statefulset"
 driverLabel="csi-isilon"
 podAffinity="false"
 unreachableTolerationSeconds=300
-
+workloadType=${workloadType:-"pod"}
 if [ "$DEBUG"x != "x" ]; then
   DEBUG="--dry-run --debug"
 fi
@@ -86,6 +86,11 @@ do
           driverLabel=$1
           shift
           ;;
+       "--workload-type")
+         shift
+         workloadType=$1
+         shift
+         ;;
     esac
 done
 
@@ -95,6 +100,7 @@ i=1
 while [ $i -le $instances ]; do
         echo $i
         kubectl create namespace ${prefix}$i
+ if [ "$workloadType" == "pod" ]; then
   helm install -n "${prefix}$i" "${prefix}$i" "${SCRIPTDIR}"/deploy \
               ${DEBUG} \
               --values deploy/values-isilon.yaml \
@@ -109,5 +115,19 @@ while [ $i -le $instances ]; do
               --set podmonTest.image="$image" \
               --set podmonTest.zone="$zone" \
               --set podmonTest.driverLabel="$driverLabel"
+else
+   helm install -n "${prefix}${i}" "${prefix}${i}" "${SCRIPTDIR}"/deploy \
+     ${DEBUG} \
+     --values deploy/values-vm.yaml \
+     --set vmConfig.namespace="${prefix}${i}" \
+     --set vmConfig.storageClassName="$storageClassName" \
+     --set vmConfig.ndevices=$ndevices \
+     --set vmConfig.nvolumes=$nvolumes \
+     --set vmConfig.instances=$instances \
+     --set vmConfig.podAffinity=$podAffinity \
+     --set vmConfig.unreachableTolerationSeconds=$unreachableTolerationSeconds \
+     --set vmConfig.zone="$zone" \
+     --set vmConfig.driverLabel="$driverLabel"
+ fi
   i=$((i + 1))
 done

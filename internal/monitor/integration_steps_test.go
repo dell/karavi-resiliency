@@ -531,6 +531,7 @@ func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, 
 
 	return nil
 }
+
 func (i *integration) deployVMs(protected bool, vmsPerNode, numVols, numDevs, driverType, storageClass string, wait int) error {
 	podCount, err := i.selectFromRange(vmsPerNode)
 	if err != nil {

@@ -25,7 +25,6 @@ import (
 )
 
 func TestOcpVirtPowerStoreCheck(t *testing.T) {
-
 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
 		stopOnFailure = false
@@ -78,58 +77,58 @@ func TestOcpVirtPowerFlexCheck(t *testing.T) {
 	log.Printf("Integration setup check finished")
 }
 
-// func TestOcpVirtPowerScaleCheck(t *testing.T) {
+func TestOcpVirtPowerScaleCheck(t *testing.T) {
 
-// 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
-// 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
-// 		stopOnFailure = false
-// 	}
-// 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
 
-// 	godogOptions := godog.Options{
-// 		Format:        "pretty,junit:powerscale-vm-integration-check-junit-report.xml,cucumber:powerscale-vm-integration-check-cucumber-report.json",
-// 		Paths:         []string{"features"},
-// 		Tags:          "powerscale-vm-int-setup-check",
-// 		StopOnFailure: stopOnFailure,
-// 	}
-// 	status := godog.TestSuite{
-// 		Name:                "integration",
-// 		ScenarioInitializer: IntegrationTestScenarioInit,
-// 		Options:             &godogOptions,
-// 	}.Run()
-// 	if status != 0 {
-// 		t.Skip("Integration setup check failed")
-// 	} else {
-// 		setupIsGood = true
-// 	}
-// 	log.Printf("Integration setup check finished")
-// }
+	godogOptions := godog.Options{
+		Format:        "pretty,junit:powerscale-vm-integration-check-junit-report.xml,cucumber:powerscale-vm-integration-check-cucumber-report.json",
+		Paths:         []string{"features"},
+		Tags:          "powerscale-vm-int-setup-check",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "integration",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Skip("Integration setup check failed")
+	} else {
+		setupIsGood = true
+	}
+	log.Printf("Integration setup check finished")
+}
 
-// func TestOcpVirtPowerMaxCheck(t *testing.T) {
-// 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
-// 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
-// 		stopOnFailure = false
-// 	}
-// 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+func TestOcpVirtPowerMaxCheck(t *testing.T) {
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
 
-// 	godogOptions := godog.Options{
-// 		Format:        "pretty,junit:powermax-vm-integration-check-junit-report.xml,cucumber:powermax-vm-integration-check-cucumber-report.json",
-// 		Paths:         []string{"features"},
-// 		Tags:          "powermax-vm-int-setup-check",
-// 		StopOnFailure: stopOnFailure,
-// 	}
-// 	status := godog.TestSuite{
-// 		Name:                "integration",
-// 		ScenarioInitializer: IntegrationTestScenarioInit,
-// 		Options:             &godogOptions,
-// 	}.Run()
-// 	if status != 0 {
-// 		t.Skip("Integration setup check failed")
-// 	} else {
-// 		setupIsGood = true
-// 	}
-// 	log.Printf("Integration setup check finished")
-// }
+	godogOptions := godog.Options{
+		Format:        "pretty,junit:powermax-vm-integration-check-junit-report.xml,cucumber:powermax-vm-integration-check-cucumber-report.json",
+		Paths:         []string{"features"},
+		Tags:          "powermax-vm-int-setup-check",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "integration",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Skip("Integration setup check failed")
+	} else {
+		setupIsGood = true
+	}
+	log.Printf("Integration setup check finished")
+}
 
 func TestOcpVirtPowerStoreIntegration(t *testing.T) {
 	if !setupIsGood {
@@ -195,66 +194,66 @@ func TestOcpVirtPowerFlexIntegration(t *testing.T) {
 	log.Printf("Integration test finished")
 }
 
-// func TestOcpVirtPowerScaleIntegration(t *testing.T) {
-// 	if !setupIsGood {
-// 		message := "The setup check failed. Tests skipped"
-// 		log.Print(message)
-// 		t.Error(message)
-// 		return
-// 	}
+func TestOcpVirtPowerScaleIntegration(t *testing.T) {
+	if !setupIsGood {
+		message := "The setup check failed. Tests skipped"
+		log.Print(message)
+		t.Error(message)
+		return
+	}
 
-// 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
-// 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
-// 		stopOnFailure = false
-// 	}
-// 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
 
-// 	log.Printf("Starting integration test")
-// 	godogOptions := godog.Options{
-// 		Format:        "pretty,junit:powerscale-vm-integration-junit-report.xml,cucumber:powerscale-vm-integration-cucumber-report.json",
-// 		Paths:         []string{"features"},
-// 		Tags:          "powerscale-vm-integration",
-// 		StopOnFailure: stopOnFailure,
-// 	}
-// 	status := godog.TestSuite{
-// 		Name:                "integration",
-// 		ScenarioInitializer: IntegrationTestScenarioInit,
-// 		Options:             &godogOptions,
-// 	}.Run()
-// 	if status != 0 {
-// 		t.Error("There were failed integration tests")
-// 	}
-// 	log.Printf("Integration test finished")
-// }
+	log.Printf("Starting integration test")
+	godogOptions := godog.Options{
+		Format:        "pretty,junit:powerscale-vm-integration-junit-report.xml,cucumber:powerscale-vm-integration-cucumber-report.json",
+		Paths:         []string{"features"},
+		Tags:          "powerscale-vm-integration",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "integration",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Error("There were failed integration tests")
+	}
+	log.Printf("Integration test finished")
+}
 
-// func TestOcpVirtPowerMaxIntegration(t *testing.T) {
-// 	if !setupIsGood {
-// 		message := "The setup check failed. Tests skipped"
-// 		log.Print(message)
-// 		t.Error(message)
-// 		return
-// 	}
+func TestOcpVirtPowerMaxIntegration(t *testing.T) {
+	if !setupIsGood {
+		message := "The setup check failed. Tests skipped"
+		log.Print(message)
+		t.Error(message)
+		return
+	}
 
-// 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
-// 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
-// 		stopOnFailure = false
-// 	}
-// 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
 
-// 	log.Printf("Starting integration test")
-// 	godogOptions := godog.Options{
-// 		Format:        "pretty,junit:powermax-vm-integration-junit-report.xml,cucumber:powermax-vm-integration-cucumber-report.json",
-// 		Paths:         []string{"features"},
-// 		Tags:          "powermax-vm-integration",
-// 		StopOnFailure: stopOnFailure,
-// 	}
-// 	status := godog.TestSuite{
-// 		Name:                "integration",
-// 		ScenarioInitializer: IntegrationTestScenarioInit,
-// 		Options:             &godogOptions,
-// 	}.Run()
-// 	if status != 0 {
-// 		t.Error("There were failed integration tests")
-// 	}
-// 	log.Printf("Integration test finished")
-// }
+	log.Printf("Starting integration test")
+	godogOptions := godog.Options{
+		Format:        "pretty,junit:powermax-vm-integration-junit-report.xml,cucumber:powermax-vm-integration-cucumber-report.json",
+		Paths:         []string{"features"},
+		Tags:          "powermax-vm-integration",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "integration",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Error("There were failed integration tests")
+	}
+	log.Printf("Integration test finished")
+}
