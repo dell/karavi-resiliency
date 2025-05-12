@@ -1358,6 +1358,8 @@ func (i *integration) allPodsInTestNamespacesAreRunning() (bool, error) {
 }
 
 func (i *integration) initialDiskWriteAndVerifyAllVMs() error {
+	log.Infof("Waiting 30 seconds to ensure VMs are fully running before initial disk write...")
+	time.Sleep(30 * time.Second)
 	for vmIdx := 1; vmIdx <= i.podCount; vmIdx++ {
 		for prefix := range i.testNamespacePrefix {
 			log.Infof("Verifying disk on VM %d in namespace %s", vmIdx, prefix)
@@ -1374,6 +1376,8 @@ func (i *integration) initialDiskWriteAndVerifyAllVMs() error {
 }
 
 func (i *integration) postFailoverVerifyAllVMs() error {
+	log.Infof("Waiting 30 seconds to ensure VMs are fully running after failover...")
+	time.Sleep(30 * time.Second)
 	for vmIdx := 1; vmIdx <= i.podCount; vmIdx++ {
 		for prefix := range i.testNamespacePrefix {
 			ns := fmt.Sprintf("%s%d", prefix, vmIdx)
@@ -1394,7 +1398,7 @@ const (
 func (i *integration) writeAndVerifyDiskOnVM(vmName, namespace string) error {
 	writeCmd := fmt.Sprintf(
 		"sshpass -p 'fedora' ./virtctl ssh %s --namespace=%s --username=fedora "+
-			"--local-ssh=true --local-ssh-opts='-o StrictHostKeyChecking=no' "+
+			"--local-ssh=true --local-ssh-opts='-o StrictHostKeyChecking=no' --local-ssh-opts='-o UserKnownHostsFile=/dev/null' "+
 			"--command \"printf '%s' | sudo dd of=/dev/vdc bs=1 count=150 conv=notrunc\"",
 		vmName, namespace, expectedData)
 
@@ -1412,7 +1416,7 @@ func (i *integration) writeAndVerifyDiskOnVM(vmName, namespace string) error {
 func (i *integration) verifyDiskContentOnVM(vmName, namespace string) error {
 	readCmd := fmt.Sprintf(
 		"sshpass -p 'fedora' ./virtctl ssh %s --namespace=%s --username=fedora "+
-			"--local-ssh=true --local-ssh-opts='-o StrictHostKeyChecking=no' "+
+			"--local-ssh=true --local-ssh-opts='-o StrictHostKeyChecking=no'  --local-ssh-opts='-o UserKnownHostsFile=/dev/null' "+
 			"--command \"sudo dd if=/dev/vdc bs=1 count=150\"",
 		vmName, namespace)
 
