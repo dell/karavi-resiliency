@@ -88,8 +88,8 @@ github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/dell/dell-csi-extensions/podmon v1.7.1-0.20250429070859-de50563d621e h1:Y2gEO0vrYNtA26uWKQNoFW85H0+JnjJK1ro7au3nIBI=
-github.com/dell/dell-csi-extensions/podmon v1.7.1-0.20250429070859-de50563d621e/go.mod h1:gXtib/WVKemgbncbAinHW+D/fFJAr0VE1mVIaNrIAQg=
+github.com/dell/dell-csi-extensions/podmon v1.7.1-0.20250505133644-1c9a32b5c0d0 h1:QhuG6YAjZ9P3aoriyVNuLSWvMbkDAiE2LHxy+1e5cA4=
+github.com/dell/dell-csi-extensions/podmon v1.7.1-0.20250505133644-1c9a32b5c0d0/go.mod h1:gXtib/WVKemgbncbAinHW+D/fFJAr0VE1mVIaNrIAQg=
 github.com/dell/gofsutil v1.18.1-0.20250424071242-3e01ce487273 h1:uijE7GwiGu5EQLQgRMjbedsc1qf7RjiMWBbUI0Y/R4w=
 github.com/dell/gofsutil v1.18.1-0.20250424071242-3e01ce487273/go.mod h1:tAt/uPiEK3aZ8kKvGJs4HnOoZv8qLXtuDoIwQsw5qfA=
 github.com/dgrijalva/jwt-go v3.2.0+incompatible/go.mod h1:E3ru+11k8xSBh+hMPgOLZmtrrCbhqsmaPHjLKYnJCaQ=
