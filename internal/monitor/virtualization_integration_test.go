@@ -51,7 +51,6 @@ func TestOcpVirtPowerStoreCheck(t *testing.T) {
 }
 
 func TestOcpVirtPowerFlexCheck(t *testing.T) {
-
 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
 		stopOnFailure = false
@@ -78,7 +77,6 @@ func TestOcpVirtPowerFlexCheck(t *testing.T) {
 }
 
 func TestOcpVirtPowerScaleCheck(t *testing.T) {
-
 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
 		stopOnFailure = false
