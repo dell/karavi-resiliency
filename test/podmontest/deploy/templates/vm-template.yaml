@@ -1,7 +1,7 @@
-# yamllint disable-file
-# This file is not valid YAML because it is a Helm template
 {{- if eq (include "workloadType" .) "vm" -}}
 {{- $root := . -}}
+# yamllint disable-file
+# This file is not valid YAML because it is a Helm template
 apiVersion: kubevirt.io/v1
 kind: VirtualMachine
 metadata:
