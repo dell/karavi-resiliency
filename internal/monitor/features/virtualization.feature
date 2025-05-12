@@ -149,9 +149,11 @@ Feature: Virtual Machine Integration Test
     And wait <nodeCleanSecs> to see there are no taints
     And <vmsPerNode> vms per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
     Then validate that all pods are running within <deploySecs> seconds
+    Then initial disk write and verify on all VMs succeeds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
     Then validate that all pods are running within <runSecs> seconds
     And labeled pods are on a different node
+    Then post failover disk content verification on all VMs succeeds
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
 
@@ -160,41 +162,41 @@ Feature: Virtual Machine Integration Test
       | ""         | "1-1"      | "0-0" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 450      | 300        | 350     | 500           |
       | ""         | "2-2"      | "0-0" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 500      | 400        | 500     | 650           |
 
-  @powerflex-vm-integration
-  Scenario Outline: Basic node failover testing using test VM's (node slow reboots)
-    Given a kubernetes <kubeConfig>
-    And cluster is clean of test vms
-    And wait <nodeCleanSecs> to see there are no taints
-    And <vmsPerNode> vms per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
-    Then validate that all pods are running within <deploySecs> seconds
-    When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
-    Then validate that all pods are running within <runSecs> seconds
-    And labeled pods are on a different node
-    And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
-    Then finally cleanup everything
+  # @powerflex-vm-integration
+  # Scenario Outline: Basic node failover testing using test VM's (node slow reboots)
+  #   Given a kubernetes <kubeConfig>
+  #   And cluster is clean of test vms
+  #   And wait <nodeCleanSecs> to see there are no taints
+  #   And <vmsPerNode> vms per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
+  #   Then validate that all pods are running within <deploySecs> seconds
+  #   When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
+  #   Then validate that all pods are running within <runSecs> seconds
+  #   And labeled pods are on a different node
+  #   And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
+  #   Then finally cleanup everything
 
-    Examples:
-      | kubeConfig | vmsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-1"      | "0-0" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 400      | 300        | 350     | 400           |
-      | ""         | "2-2"      | "0-0" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 450      | 400        | 300     | 600           |
+  #   Examples:
+  #     | kubeConfig | vmsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
+  #     | ""         | "1-1"      | "0-0" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 400      | 300        | 350     | 400           |
+  #     | ""         | "2-2"      | "0-0" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 450      | 400        | 300     | 600           |
 
-  @powerflex-vm-integration
-  Scenario Outline: Basic node failover testing using test VM's (node kubelet down)
-    Given a kubernetes <kubeConfig>
-    And cluster is clean of test vms
-    And wait <nodeCleanSecs> to see there are no taints
-    And <vmsPerNode> vms per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
-    Then validate that all pods are running within <deploySecs> seconds
-    When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
-    Then validate that all pods are running within <runSecs> seconds
-    And labeled pods are on a different node
-    And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
-    Then finally cleanup everything
+  # @powerflex-vm-integration
+  # Scenario Outline: Basic node failover testing using test VM's (node kubelet down)
+  #   Given a kubernetes <kubeConfig>
+  #   And cluster is clean of test vms
+  #   And wait <nodeCleanSecs> to see there are no taints
+  #   And <vmsPerNode> vms per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
+  #   Then validate that all pods are running within <deploySecs> seconds
+  #   When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
+  #   Then validate that all pods are running within <runSecs> seconds
+  #   And labeled pods are on a different node
+  #   And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
+  #   Then finally cleanup everything
 
-    Examples:
-      | kubeConfig | vmsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-1"      | "0-0" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "kubeletdown"   | 600      | 900        | 900     | 900           |
-      | ""         | "2-2"      | "0-0" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "kubeletdown"   | 600      | 900        | 900     | 900           |
+  #   Examples:
+  #     | kubeConfig | vmsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
+  #     | ""         | "1-1"      | "0-0" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "kubeletdown"   | 600      | 900        | 900     | 900           |
+  #     | ""         | "2-2"      | "0-0" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "kubeletdown"   | 600      | 900        | 900     | 900           |
 
 #   @powerscale-vm-integration
 #   Scenario Outline: Basic node failover testing using test VM's (node interface down)

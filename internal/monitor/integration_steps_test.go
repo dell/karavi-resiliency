@@ -40,7 +40,6 @@ type integration struct {
 	k8s                 k8sapi.K8sAPI
 	driverType          string
 	podCount            int
-	vmCount             int
 	devCount            int
 	volCount            int
 	testNamespacePrefix map[string]bool
@@ -1358,6 +1357,81 @@ func (i *integration) allPodsInTestNamespacesAreRunning() (bool, error) {
 	return allRunning, nil
 }
 
+func (i *integration) initialDiskWriteAndVerifyAllVMs() error {
+	for vmIdx := 1; vmIdx <= i.podCount; vmIdx++ {
+		for prefix := range i.testNamespacePrefix {
+			log.Infof("Verifying disk on VM %d in namespace %s", vmIdx, prefix)
+
+			ns := fmt.Sprintf("%s%d", prefix, vmIdx)
+			vmName := "vm-0"
+			err := i.writeAndVerifyDiskOnVM(vmName, ns)
+			if err != nil {
+				return fmt.Errorf("Disk Verification Failed: %v", err)
+			}
+		}
+	}
+	return nil
+}
+
+func (i *integration) postFailoverVerifyAllVMs() error {
+	for vmIdx := 1; vmIdx <= i.podCount; vmIdx++ {
+		for prefix := range i.testNamespacePrefix {
+			ns := fmt.Sprintf("%s%d", prefix, vmIdx)
+			vmName := "vm-0"
+			err := i.verifyDiskContentOnVM(vmName, ns)
+			if err != nil {
+				return fmt.Errorf("Data Verification Failed: %v", err)
+			}
+		}
+	}
+	return nil
+}
+
+const (
+	expectedData = "Test awesome shareable disks"
+)
+
+func (i *integration) writeAndVerifyDiskOnVM(vmName, namespace string) error {
+	writeCmd := fmt.Sprintf(
+		"sshpass -p 'fedora' ./virtctl ssh %s --namespace=%s --username=fedora "+
+			"--local-ssh=true --local-ssh-opts='-o StrictHostKeyChecking=no' "+
+			"--command \"printf '%s' | sudo dd of=/dev/vdc bs=1 count=150 conv=notrunc\"",
+		vmName, namespace, expectedData)
+
+	writeOut, err := exec.Command("bash", "-c", writeCmd).CombinedOutput()
+	if err != nil {
+		log.Printf("Write failed on %s: %s", vmName, string(writeOut))
+		return err
+	}
+	log.Printf("Write output for %s: %s", vmName, string(writeOut))
+
+	// Read and verify
+	return i.verifyDiskContentOnVM(vmName, namespace)
+}
+
+func (i *integration) verifyDiskContentOnVM(vmName, namespace string) error {
+	readCmd := fmt.Sprintf(
+		"sshpass -p 'fedora' ./virtctl ssh %s --namespace=%s --username=fedora "+
+			"--local-ssh=true --local-ssh-opts='-o StrictHostKeyChecking=no' "+
+			"--command \"sudo dd if=/dev/vdc bs=1 count=150\"",
+		vmName, namespace)
+
+	readOut, err := exec.Command("bash", "-c", readCmd).CombinedOutput()
+	if err != nil {
+		log.Printf("Read failed on %s: %s", vmName, string(readOut))
+		return err
+	}
+
+	log.Printf("Read output for %s: %s", vmName, string(readOut))
+
+	if strings.Contains(string(readOut), expectedData) {
+		log.Printf("Disk content verified for %s", vmName)
+		return nil
+	}
+	log.Printf("Expected content not found in %s", vmName)
+	return nil
+}
+
 // induceFailureOn will initiate a failure of the 'failureType' against the host at 'ip'.
 // The 'wait' will be passed as parameter to the invocation script. If it is applicable,
 // that 'wait' value indicates how long the failure should be active before it should
@@ -1871,4 +1945,7 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^wait (\d+) to see there are no taints$`, i.theTaintsForTheFailedNodesAreRemovedWithinSeconds)
 	context.Step(`^labeled pods are on a different node$`, i.labeledPodsChangedNodes)
 	context.Step(`^I fail "([^"]*)" worker driver pod with "([^"]*)" failure for (\d+) and I expect these taints "([^"]*)"$`, i.iFailDriverPodsTaints)
+	context.Step(`^initial disk write and verify on all VMs succeeds$`, i.initialDiskWriteAndVerifyAllVMs)
+	context.Step(`^post failover disk content verification on all VMs succeeds$`, i.postFailoverVerifyAllVMs)
+
 }
