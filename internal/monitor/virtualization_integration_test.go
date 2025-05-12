@@ -24,7 +24,15 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const enableVMIntTestVar = "RESILIENCY_VM_INT_TEST"
+
 func TestOcpVirtPowerStoreCheck(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableVMIntTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
+		return
+	}
+
 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
 		stopOnFailure = false
@@ -51,6 +59,12 @@ func TestOcpVirtPowerStoreCheck(t *testing.T) {
 }
 
 func TestOcpVirtPowerFlexCheck(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableVMIntTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
+		return
+	}
+
 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
 		stopOnFailure = false
@@ -77,6 +91,11 @@ func TestOcpVirtPowerFlexCheck(t *testing.T) {
 }
 
 func TestOcpVirtPowerScaleCheck(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableVMIntTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
+		return
+	}
 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
 		stopOnFailure = false
@@ -103,6 +122,11 @@ func TestOcpVirtPowerScaleCheck(t *testing.T) {
 }
 
 func TestOcpVirtPowerMaxCheck(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableVMIntTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
+		return
+	}
 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
 		stopOnFailure = false
@@ -129,6 +153,11 @@ func TestOcpVirtPowerMaxCheck(t *testing.T) {
 }
 
 func TestOcpVirtPowerStoreIntegration(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableVMIntTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
+		return
+	}
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
 		log.Print(message)
@@ -161,6 +190,11 @@ func TestOcpVirtPowerStoreIntegration(t *testing.T) {
 }
 
 func TestOcpVirtPowerFlexIntegration(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableVMIntTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
+		return
+	}
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
 		log.Print(message)
@@ -193,6 +227,11 @@ func TestOcpVirtPowerFlexIntegration(t *testing.T) {
 }
 
 func TestOcpVirtPowerScaleIntegration(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableVMIntTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
+		return
+	}
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
 		log.Print(message)
@@ -225,6 +264,11 @@ func TestOcpVirtPowerScaleIntegration(t *testing.T) {
 }
 
 func TestOcpVirtPowerMaxIntegration(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableVMIntTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
+		return
+	}
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
 		log.Print(message)

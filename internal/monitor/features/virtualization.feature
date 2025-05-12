@@ -59,7 +59,7 @@ Feature: Virtual Machine Integration Test
     And can logon to nodes and drop test scripts
     Examples:
       | kubeConfig | driverNames                  | namespace      | name         | storageClasses   |
-      | ""         | "csi-powerstore.dellemc.com" | "powerstore"   | "powerstore" | "powerstore-nfs" |
+      | ""         | "csi-powerstore.dellemc.com" | "powerstore"   | "powerstore" | "powerstore-nfs,powerstore-iscsi" |
 
   @powerstore-vm-integration
   Scenario Outline: Basic node failover testing using test VM's (node interface down)
