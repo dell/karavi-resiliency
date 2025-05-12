@@ -233,6 +233,60 @@ func (f *feature) iHaveAPodsForNodeWithVolumesDevicesCondition(nPods int, nodeNa
 	return nil
 }
 
+func (f *feature) iHaveAPodsForNodeWithVolumesDevicesConditionWithPodPhase(nPods int, nodeName string, nvolumes, _ int, condition string, phase string) error {
+	var err error
+	// To test IgnoreVolumelessPods nvolumes is supplied 0 to induce it volumeless pod
+	if nvolumes == 0 {
+		IgnoreVolumelessPods = true
+	}
+	f.podList = make([]*v1.Pod, nPods)
+	mockPaths := make([]string, nPods)
+	defer func() {
+		for _, dirName := range mockPaths {
+			os.RemoveAll(dirName)
+		}
+	}()
+	for i := 0; i < nPods; i++ {
+		pod := f.createPodWithPhase(nodeName, nvolumes, condition, "false", phase)
+		f.k8sapiMock.AddPod(pod)
+		f.podList[i] = pod
+
+		dir := os.TempDir()
+		CSIVolumePathFormat = filepath.Join(dir, "node-mode-testPath-%s")
+		mockCSIVolumePath := fmt.Sprintf(CSIVolumePathFormat, pod.UID)
+		mockCSIDevicePath := fmt.Sprintf(CSIDevicePathFormat, pod.UID)
+
+		err = os.Mkdir(mockCSIVolumePath, 0o700)
+		if err != nil {
+			return err
+		}
+
+		err = os.MkdirAll(mockCSIDevicePath, 0o700)
+		if err != nil {
+			err = fmt.Errorf("Mkdir mockCSIDevicePath failed: %s", err)
+			return err
+		}
+
+		mockPaths = append(mockPaths, mockCSIVolumePath)
+		for _, pvName := range f.pvNames {
+			if err = os.Mkdir(filepath.Join(mockCSIVolumePath, pvName), 0o700); err != nil {
+				return err
+			}
+		}
+		mockPaths = append(mockPaths, mockCSIDevicePath)
+		for _, pvName := range f.pvNames {
+			if _, err = utils.Creat(filepath.Join(mockCSIDevicePath, pvName), 0o60700); err != nil {
+				err = fmt.Errorf("Create mockCSIDevicePath failed: %s", err)
+				return err
+			}
+		}
+		if err = f.podmonMonitor.nodeModePodHandler(pod, watch.Added); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (f *feature) iCallControllerCleanupPodForNode(nodeName string) error {
 	node, _ := f.k8sapiMock.GetNode(context.Background(), nodeName)
 	f.node = node
@@ -573,6 +627,134 @@ func (f *feature) createPod(node string, nvolumes int, condition, affinity strin
 		ID:    containerID,
 		Name:  "running-container",
 		State: cri.ContainerState_CONTAINER_EXITED,
+	}
+	f.criMock.MockContainerInfos["1234"] = containerInfo
+	pod.Status.ContainerStatuses = append(pod.Status.ContainerStatuses, containerStatus)
+	if pod.Status.Conditions == nil {
+		pod.Status.Conditions = make([]v1.PodCondition, 0)
+	}
+	switch condition {
+	case "Ready":
+		condition := v1.PodCondition{
+			Type:    "Ready",
+			Status:  "True",
+			Reason:  condition,
+			Message: condition,
+		}
+		pod.Status.Conditions = append(pod.Status.Conditions, condition)
+	case "NotReady":
+		condition := v1.PodCondition{
+			Type:    "Ready",
+			Status:  "False",
+			Reason:  condition,
+			Message: condition,
+		}
+		pod.Status.Conditions = append(pod.Status.Conditions, condition)
+	case "Initialized":
+		condition := v1.PodCondition{
+			Type:    "Initialized",
+			Status:  "True",
+			Reason:  condition,
+			Message: condition,
+		}
+		pod.Status.Conditions = append(pod.Status.Conditions, condition)
+	case "CrashLoop":
+		waiting := &v1.ContainerStateWaiting{
+			Reason:  crashLoopBackOffReason,
+			Message: "unit test condition",
+		}
+		state := v1.ContainerState{
+			Waiting: waiting,
+		}
+		containerStatus := v1.ContainerStatus{
+			State: state,
+		}
+		pod.Status.ContainerStatuses = append(pod.Status.ContainerStatuses, containerStatus)
+		// PodCondition is Ready=false
+		condition := v1.PodCondition{
+			Type:    "Ready",
+			Status:  "False",
+			Reason:  condition,
+			Message: condition,
+		}
+		pod.Status.Conditions = append(pod.Status.Conditions, condition)
+	}
+	// add a number of volumes to the pod
+	for i := 0; i < nvolumes; i++ {
+		// Create a PV
+		pv := &v1.PersistentVolume{}
+		pv.ObjectMeta.Name = fmt.Sprintf("pv-%s-%d", f.podUID[podIndex], i)
+		f.pvNames = append(f.pvNames, pv.ObjectMeta.Name)
+		claimRef := &v1.ObjectReference{}
+		claimRef.Kind = "PersistentVolumeClaim"
+		claimRef.Namespace = podns
+		claimRef.Name = fmt.Sprintf("pvc-%s-%d", f.podUID[podIndex], i)
+		pv.Spec.ClaimRef = claimRef
+		log.Infof("claimRef completed")
+		csiPVSource := &v1.CSIPersistentVolumeSource{}
+		csiPVSource.Driver = "csi-vxflexos.dellemc.com"
+		csiPVSource.VolumeHandle = fmt.Sprintf("vhandle%d", i)
+		pv.Spec.CSI = csiPVSource
+		// Create a PVC
+		pvc := &v1.PersistentVolumeClaim{}
+		pvc.ObjectMeta.Namespace = podns
+		pvc.ObjectMeta.Name = fmt.Sprintf("pvc-%s-%d", f.podUID[podIndex], i)
+		pvc.Spec.VolumeName = pv.ObjectMeta.Name
+		pvc.Status.Phase = "Bound"
+		// Create a VolumeAttachment
+		va := &storagev1.VolumeAttachment{}
+		va.ObjectMeta.Name = fmt.Sprintf("va%d", i)
+		va.Spec.NodeName = node
+		va.Spec.Source.PersistentVolumeName = &pv.ObjectMeta.Name
+		// Add the objects to the mock engine.
+		f.k8sapiMock.AddPV(pv)
+		f.k8sapiMock.AddPVC(pvc)
+		f.k8sapiMock.AddVA(va)
+		// Add a volume to the pod
+		vol := v1.Volume{}
+		vol.Name = fmt.Sprintf("pv-%s-%d", f.podUID[podIndex], i)
+		pvcSource := &v1.PersistentVolumeClaimVolumeSource{}
+		pvcSource.ClaimName = pvc.ObjectMeta.Name
+		volSource := v1.VolumeSource{}
+		volSource.PersistentVolumeClaim = pvcSource
+		vol.VolumeSource = volSource
+		pod.Spec.Volumes = append(pod.Spec.Volumes, vol)
+	}
+	return pod
+}
+
+func (f *feature) createPodWithPhase(node string, nvolumes int, condition, affinity, phase string) *v1.Pod {
+	pod := &v1.Pod{}
+	pod.ObjectMeta.UID = uuid.NewUUID()
+	if len(f.podUID) == 0 {
+		f.podUID = make([]types.UID, 0)
+	}
+	f.podCount++
+	f.podUID = append(f.podUID, pod.ObjectMeta.UID)
+	podIndex := f.podCount - 1
+	pod.ObjectMeta.Namespace = podns
+	pod.ObjectMeta.Name = fmt.Sprintf("podname-%s", pod.ObjectMeta.UID)
+	pod.Spec.NodeName = node
+	pod.Spec.Volumes = make([]v1.Volume, 0)
+	if affinity == "true" {
+		f.addAffinityToPod(pod)
+	}
+	pod.Status.Message = "pod updated"
+	pod.Status.Reason = "pod reason"
+	if phase == "running" {
+		pod.Status.Phase = v1.PodRunning
+	}
+	if phase == "pending" {
+		pod.Status.Phase = v1.PodPending
+	}
+	pod.Status.ContainerStatuses = make([]v1.ContainerStatus, 0)
+	containerStatus := v1.ContainerStatus{
+		ContainerID: "//" + containerID,
+	}
+	containerInfo := &criapi.ContainerInfo{
+		ID:    containerID,
+		Name:  "running-container",
+		State: cri.ContainerState_CONTAINER_RUNNING,
 	}
 	f.criMock.MockContainerInfos["1234"] = containerInfo
 	pod.Status.ContainerStatuses = append(pod.Status.ContainerStatuses, containerStatus)
@@ -1166,6 +1348,139 @@ func (f *feature) iTaintTheNodeWith(node, boolean string) error {
 	return nil
 }
 
+func (f *feature) aPodForNodeWithRWXVolumesCondition(node string, nvolumes int) error {
+	pod := f.createPodWithRWX(node, nvolumes)
+	f.pod = pod
+	f.k8sapiMock.AddPod(pod)
+
+	node1, _ := f.k8sapiMock.GetNode(context.Background(), node)
+	f.node = node1
+	f.k8sapiMock.AddNode(node1)
+	return nil
+}
+
+func (f *feature) createPodWithRWX(node string, nvolumes int) *v1.Pod {
+	pod := f.createPod(node, 0, "", "false") // Create base pod with 0 vols
+	pod.Spec.Volumes = []v1.Volume{}         // Reset volumes just in case
+
+	podIndex := f.podCount - 1
+
+	for i := 0; i < nvolumes; i++ {
+		// Create RWX PersistentVolume
+		pv := &v1.PersistentVolume{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: fmt.Sprintf("pv-rwx-%s-%d", f.podUID[podIndex], i),
+			},
+			Spec: v1.PersistentVolumeSpec{
+				AccessModes: []v1.PersistentVolumeAccessMode{
+					v1.ReadWriteMany,
+				},
+				ClaimRef: &v1.ObjectReference{
+					Kind:      "PersistentVolumeClaim",
+					Namespace: podns,
+					Name:      fmt.Sprintf("pvc-rwx-%s-%d", f.podUID[podIndex], i),
+				},
+				PersistentVolumeSource: v1.PersistentVolumeSource{
+					CSI: &v1.CSIPersistentVolumeSource{
+						Driver:       "csi-vxflexos.dellemc.com",
+						VolumeHandle: fmt.Sprintf("rwx-vhandle-%d", i),
+					},
+				},
+			},
+		}
+
+		// Create PVC
+		pvc := &v1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: podns,
+				Name:      fmt.Sprintf("pvc-rwx-%s-%d", f.podUID[podIndex], i),
+			},
+			Spec: v1.PersistentVolumeClaimSpec{
+				VolumeName: pv.ObjectMeta.Name,
+			},
+			Status: v1.PersistentVolumeClaimStatus{
+				Phase: "Bound",
+			},
+		}
+
+		// VolumeAttachment
+		va := &storagev1.VolumeAttachment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: fmt.Sprintf("va-rwx-%d", i),
+			},
+			Spec: storagev1.VolumeAttachmentSpec{
+				NodeName: node,
+				Source: storagev1.VolumeAttachmentSource{
+					PersistentVolumeName: &pv.ObjectMeta.Name,
+				},
+			},
+		}
+
+		// Add mock objects
+		f.k8sapiMock.AddPV(pv)
+		f.k8sapiMock.AddPVC(pvc)
+		f.k8sapiMock.AddVA(va)
+
+		// Attach to pod
+		vol := v1.Volume{
+			Name: fmt.Sprintf("pv-rwx-%s-%d", f.podUID[podIndex], i),
+			VolumeSource: v1.VolumeSource{
+				PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+					ClaimName: pvc.ObjectMeta.Name,
+				},
+			},
+		}
+		pod.Spec.Volumes = append(pod.Spec.Volumes, vol)
+	}
+
+	return pod
+}
+
+var (
+	pvList    []*v1.PersistentVolume
+	rwxResult bool
+)
+
+func (f *feature) aListOfPersistentVolumesWithOneRWXMode() error {
+	pvList = []*v1.PersistentVolume{
+		{
+			Spec: v1.PersistentVolumeSpec{
+				AccessModes: []v1.PersistentVolumeAccessMode{
+					v1.ReadWriteOnce,
+					v1.ReadWriteMany,
+				},
+			},
+		},
+	}
+	return nil
+}
+
+func (f *feature) aListOfPersistentVolumesWithOnlyRWOModes() error {
+	pvList = []*v1.PersistentVolume{
+		{
+			Spec: v1.PersistentVolumeSpec{
+				AccessModes: []v1.PersistentVolumeAccessMode{
+					v1.ReadWriteOnce,
+				},
+			},
+		},
+	}
+	return nil
+}
+
+func (f *feature) iCheckIfAnyVolumeHasRWXAccess() error {
+	rwxResult = isRWXVolume(pvList)
+	return nil
+}
+
+func (f *feature) theResultShouldBe(expected string) error {
+	expect := expected == "true"
+	if rwxResult != expect {
+		return fmt.Errorf("expected result %v, got %v", expect, rwxResult)
+	}
+	return nil
+}
+
 func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	f := &feature{}
 	context.Step(`^a controller monitor "([^"]*)"$`, f.aControllerMonitor)
@@ -1176,6 +1491,7 @@ func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^a controller monitor powermax$`, f.aControllerMonitorPmax)
 	context.Step(`^a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)"$`, f.aPodForNodeWithVolumesCondition)
 	context.Step(`^a pod for node "([^"]*)" with (\d+) volumes condition "([^"]*)" affinity "([^"]*)"$`, f.aPodForNodeWithVolumesConditionAffinity)
+	context.Step(`^a pod for node "([^"]*)" with (\d+) with RWX volumes condition$`, f.aPodForNodeWithRWXVolumesCondition)
 	context.Step(`^I call controllerCleanupPod for node "([^"]*)"$`, f.iCallControllerCleanupPodForNode)
 	context.Step(`^I induce error "([^"]*)"$`, f.iInduceError)
 	context.Step(`^the last log message contains "([^"]*)"$`, f.theLastLogMessageContains)
@@ -1190,6 +1506,7 @@ func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^I call nodeModeCleanupPods for node "([^"]*)" with empty private mount$`, f.iCallNodeModeCleanupPodsForNodeWithEmptyPrivateMount)
 	context.Step(`^I expect podMonitor to have (\d+) mounts$`, f.iExpectPodMonitorToHaveMounts)
 	context.Step(`^I have a (\d+) pods for node "([^"]*)" with (\d+) volumes (\d+) devices condition "([^"]*)"$`, f.iHaveAPodsForNodeWithVolumesDevicesCondition)
+	context.Step(`^I have a (\d+) pods for node "([^"]*)" with (\d+) volumes (\d+) devices condition "([^"]*)" with pod "([^"]*)" phase$`, f.iHaveAPodsForNodeWithVolumesDevicesConditionWithPodPhase)
 	context.Step(`^the controller cleaned up (\d+) pods for node "([^"]*)"$`, f.theControllerCleanedUpPodsForNode)
 	context.Step(`^the unmount returns "([^"]*)"$`, f.theUnmountReturns)
 	context.Step(`^node "([^"]*)" env vars set$`, f.nodeEnvVarsSet)
@@ -1211,4 +1528,8 @@ func MonitorTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^I call controllerModeDriverPodHandler with event "([^"]*)"$`, f.iCallControllerModeDriverPodHandlerWithEvent)
 	context.Step(`^the node "([^"]*)" is tainted "([^"]*)"$`, f.theNodeIsTainted)
 	context.Step(`^I taint the node "([^"]*)" with "([^"]*)"$`, f.iTaintTheNodeWith)
+	context.Step(`^a list of persistent volumes with one RWX mode$`, f.aListOfPersistentVolumesWithOneRWXMode)
+	context.Step(`^a list of persistent volumes with only RWO modes$`, f.aListOfPersistentVolumesWithOnlyRWOModes)
+	context.Step(`^I check if any volume has RWX access$`, f.iCheckIfAnyVolumeHasRWXAccess)
+	context.Step(`^the result should be "([^"]*)"$`, f.theResultShouldBe)
 }

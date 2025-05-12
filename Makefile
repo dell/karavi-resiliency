@@ -24,6 +24,9 @@ clean:
 build:
 	GOOS=linux CGO_ENABLED=0 go build -o podmon ./cmd/podmon/
 
+dev-docker: build
+	docker build -t podmon -f dev-docker --network host .
+
 podman: download-csm-common
 	$(eval include csm-common.mk)
 	go run core/semver/semver.go -f mk >semver.mk
