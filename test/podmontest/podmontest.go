@@ -22,6 +22,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -74,7 +75,7 @@ func readExistingEntries(rootDir string) bool {
 	}
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), "data") {
-			f, err := os.OpenFile(rootDir+"/"+entry.Name()+"/log", os.O_RDONLY, 0o644)
+			f, err := os.OpenFile(filepath.Clean(rootDir+"/"+entry.Name()+"/log"), os.O_RDONLY, 0o600)
 			if err != nil {
 				fmt.Printf("Couldn't open %s %s\n", entry.Name(), err.Error())
 				continue
@@ -126,7 +127,10 @@ func readExistingEntries(rootDir string) bool {
 			if err := scanner.Err(); err != nil {
 				fmt.Printf("ERROR scannning %s\n", entry.Name())
 			}
-			f.Close()
+			err = f.Close()
+			if err != nil {
+				fmt.Printf("closing file %s: %v", f.Name(), err)
+			}
 			return initialPod
 		}
 	}
@@ -146,7 +150,7 @@ func makeEntry(podTag, rootDir string, index int, initialPod bool) {
 	doExit := false
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), "data") {
-			f, err := os.OpenFile(rootDir+"/"+entry.Name()+"/log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+			f, err := os.OpenFile(filepath.Clean(rootDir+"/"+entry.Name()+"/log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 			if err != nil {
 				fmt.Printf("Couldn't open %s %s\n", entry.Name(), err.Error())
 				doExit = true
@@ -154,10 +158,16 @@ func makeEntry(podTag, rootDir string, index int, initialPod bool) {
 			}
 			if index == 0 {
 				if initialPod {
-					f.WriteString(InitialPod + " " + tag)
+					_, err := f.WriteString(InitialPod + " " + tag)
+					if err != nil {
+						fmt.Printf("writing to %s: %v", f.Name(), err)
+					}
 					fmt.Printf("%s %s\n", InitialPod, tag)
 				}
-				f.WriteString("\n")
+				_, err := f.WriteString("\n")
+				if err != nil {
+					fmt.Printf("writing to %s :%v", f.Name(), err)
+				}
 			}
 			_, err = f.WriteString(tag)
 			if err != nil {
@@ -169,7 +179,10 @@ func makeEntry(podTag, rootDir string, index int, initialPod bool) {
 				doExit = true
 				fmt.Printf("Couldn't sync %s %s", entry.Name(), err.Error())
 			}
-			f.Close()
+			err = f.Close()
+			if err != nil {
+				fmt.Printf("closing file %s: %v", f.Name(), err)
+			}
 			if !logged {
 				if (counter % 10) == 0 {
 					fmt.Print(tag)
@@ -180,7 +193,7 @@ func makeEntry(podTag, rootDir string, index int, initialPod bool) {
 		if strings.HasPrefix(entry.Name(), "blockdata") {
 			var f *os.File
 			if index == 0 {
-				f, err = os.OpenFile(rootDir+"/"+entry.Name(), os.O_WRONLY, 0o644)
+				f, err = os.OpenFile(filepath.Clean(rootDir+"/"+entry.Name()), os.O_WRONLY, 0o600)
 				if err != nil {
 					fmt.Printf("Couldn't open %s %s\n", entry.Name(), err.Error())
 				}
@@ -188,7 +201,10 @@ func makeEntry(podTag, rootDir string, index int, initialPod bool) {
 			} else {
 				f = blockFiles[entry.Name()]
 			}
-			f.WriteString(tag)
+			_, err := f.WriteString(tag)
+			if err != nil {
+				fmt.Printf("couldn't write %s: %v\n", tag, err)
+			}
 			err = f.Sync()
 			if err != nil {
 				doExit = true

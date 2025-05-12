@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -255,7 +256,7 @@ func (cmd *CommandExecution) Copy(ctx context.Context, srcFile, remoteFilepath s
 		return err
 	}
 
-	src, err := os.Open(srcFile)
+	src, err := os.Open(filepath.Clean(srcFile))
 	if err != nil {
 		return err
 	}
