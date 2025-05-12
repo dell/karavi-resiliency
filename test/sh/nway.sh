@@ -34,7 +34,7 @@ BOUNCEIPSECONDS=240             # Bounce IP time in seconds for interface down
 BOUNCEKUBELETSECONDS=0          # Bounce the kubelet instead if BOUNCEIPSECONDS > 0
 TIMEOUT=600			# Maximum time in seconds to wait for a failure cycle (needs to be higher than EVACUATE_TIMEOUT)
 MAXITERATIONS=9999		# Maximum number of failover iterations
-DRIVERNS="powerstore"		# Driver namespace
+DRIVERNS="vxflexos"		# Driver namespace
 REBALANCE=0			# Do rebalance if needed for pods with affinity
 WORKLOADTYPE=${WORKLOADTYPE:-"pod"}
 NODE_USER=${NODE_USER:-"root"}
@@ -109,6 +109,8 @@ check_timeout() {
 		else
 			echo "******************* timed out: " $1 "seconds ********************"
 			../../tools/collect_logs.sh --ns $DRIVERNS
+			python3 plot_scale_test.py || { echo "Python script failed"; exit 1; }
+			echo "Plot saved as recovery_graph.png"
 			exit 2
 		fi
 	fi
@@ -505,7 +507,6 @@ process_nodes() {
 			echo $(date) "exiting due to failover count: " $failovercount
 			python3 plot_scale_test.py || { echo "Python script failed"; exit 1; }
 			echo "Plot saved as recovery_graph.png"
-			rm -f "$LOG_FILE"
 			exit 0
 		fi
 	fi

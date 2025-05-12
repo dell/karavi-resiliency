@@ -30,7 +30,7 @@ any number of groups between 2 and 10. These are configured in the NODELIST1... 
 The test fails each configured group in a successive iteration (empty groups are skipped).
 When invoked, the caller can specify how long the interfaces are to be down using --bounceipsec argument,
 the maximum number of iterations to do using --maxiterations, the timeout value for an iteration using
---timeoutseconds, the workload type to be tested either vm/pod using --workload-type, the username and password of nodes for copying failing node scripts into them using --node-user and --password.
+--timeoutseconds, the workload type to be tested either vm/pod using --workload-type, the username and password of nodes for copying scripts into them using --node-user and --password.
 
 As mentioned above either we can specify values while invoking scripts or we can export them before running scripts as mentioned below:
 
@@ -59,6 +59,10 @@ have been removed (indicating the nodes are cleaned up.)
 
 At the end of an iteration after a 60 second delay, the status of all the protected pods is displayed, and plot will be generated for Number of Instances vs. Time Taken for Recovery of pods
 and if any pods are not running nway.sh exits.
+
+To generate plot we need to install below
+    yum install -y python3-pip
+    pip3 install pandas matplotlib
 
 If the script times out, the collect_logs.sh script is called to collect all the logs necessary to analyze the potential failure.
 

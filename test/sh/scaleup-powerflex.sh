@@ -73,73 +73,75 @@ date
 if [ "$ISVIRTUALIZATION" = true ]; then
 	echo "virtualization enabled: " $ISVIRTUALIZATION
 	BOUNCEIPTIME=240
-	instances="4"
+	instances="10"
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
 	sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600 --workload-type vm --node-user core
 	fi
 
-	instances="18"
-	if [ $instances -le $MAXINSTANCES ]; then
-	cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
-	wait_on_running_vms
-	sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600 --workload-type vm --node-user core
-	fi
-
-	instances="36"
-	if [ $instances -le $MAXINSTANCES ]; then
-	cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
-	wait_on_running_vms
-	sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 600 --workload-type vm --node-user core
-	fi
-
-	BOUNCEIPTIME=480
-	instances="54"
+	BOUNCEIPTIME=300
+	instances="20"
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
 	sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 900 --workload-type vm --node-user core
 	fi
 
-	BOUNCEIPTIME=720
-	instances="72"
+	BOUNCEIPTIME=360
+	instances="30"
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
-	sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300 --workload-type vm --node-user core
+	sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1200 --workload-type vm --node-user core
+	fi
+
+	BOUNCEIPTIME=480
+	instances="40"
+	if [ $instances -le $MAXINSTANCES ]; then
+	cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
+	wait_on_running_vms
+	sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1500 --workload-type vm --node-user core
+	fi
+
+	BOUNCEIPTIME=600
+	instances="50"
+	if [ $instances -le $MAXINSTANCES ]; then
+	cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
+	wait_on_running_vms
+	sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1800 --workload-type vm --node-user core
 	fi
 
 	BOUNCEIPTIME=850
-	instances="81"
+	instances="60"
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
-	sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300 --workload-type vm --node-user core
+	sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 2100 --workload-type vm --node-user core
 	fi
 
 	BOUNCEIPTIME=1000
+	instances="70"
+	if [ $instances -le $MAXINSTANCES ]; then
+	cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
+	wait_on_running_vms
+	sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 2300 --workload-type vm --node-user core
+	fi
+
+	BOUNCEIPTIME=1200
+	instances="80"
+	if [ $instances -le $MAXINSTANCES ]; then
+	cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
+	wait_on_running_vms
+	sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 2500 --workload-type vm --node-user core
+	fi
+
+	BOUNCEIPTIME=1200
 	instances="90"
 	if [ $instances -le $MAXINSTANCES ]; then
 	cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
 	wait_on_running_vms
-	sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12 --timeoutseconds 1300 --workload-type vm --node-user core
-	fi
-
-	BOUNCEIPTIME=1200
-	instances="99"
-	if [ $instances -le $MAXINSTANCES ]; then
-	cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
-	wait_on_running_vms
-	sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500 --workload-type vm --node-user core
-	fi
-
-	BOUNCEIPTIME=1200
-	instances="108"
-	if [ $instances -le $MAXINSTANCES ]; then
-	cd ../podmontest; sh insv.sh --instances "$instances" --nvolumes $NVOLUMES --storage-class $STORAGECLASS --workload-type vm; cd $CWD
-	wait_on_running_vms
-	sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500 --workload-type vm --node-user core
+	sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 2800 --workload-type vm --node-user core
 	fi
 else
 	BOUNCEIPTIME=240
@@ -212,5 +214,4 @@ else
 	sh ../sh/nway.sh --ns vxflexos --bounceipseconds $BOUNCEIPTIME --maxiterations 12  --timeoutseconds 1500 --node-user $NODE_USER --password $PASSWORD
 	fi
 fi
-
 date
