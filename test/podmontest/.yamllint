@@ -36,4 +36,4 @@ rules:
 ignore: |
 
 ignore: |
-  deploy/templates/vm-template.yaml
+  test/podmontest/deploy/templates/vm-template.yaml
