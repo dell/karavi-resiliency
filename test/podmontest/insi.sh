@@ -1,5 +1,5 @@
 #!/bin
-# Copyright (c) 2022 Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright (c) 2022-2025 Dell Inc., or its subsidiaries. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,13 +31,14 @@ driverLabel="csi-isilon"
 podAffinity="false"
 unreachableTolerationSeconds=300
 workloadType=${workloadType:-"pod"}
+
 if [ "$DEBUG"x != "x" ]; then
-  DEBUG="--dry-run --debug"
+   DEBUG="--dry-run --debug"
 fi
 
 for param in $*
 do
-    case $param in
+   case $param in
        "--instances")
           shift
           instances=$1
@@ -92,12 +93,14 @@ do
          shift
          ;;
     esac
+
 done
 
 cd "$SCRIPTDIR"
 
 i=1
 while [ $i -le $instances ]; do
+
         echo $i
         kubectl create namespace ${prefix}$i
  if [ "$workloadType" == "pod" ]; then

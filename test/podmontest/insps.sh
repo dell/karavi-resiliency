@@ -1,5 +1,5 @@
 #!/bin
-# Copyright (c) 2023 Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright (c) 2023-2025 Dell Inc., or its subsidiaries. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ unreachableTolerationSeconds=300
 workloadType=${workloadType:-"pod"}
 
 if [ "$DEBUG"x != "x" ]; then
-  DEBUG="--dry-run --debug"
+   DEBUG="--dry-run --debug"
 fi
 
 for param in $*
@@ -93,6 +93,7 @@ do
      shift
      ;;
  esac
+
 done
 
 cd "$SCRIPTDIR"
