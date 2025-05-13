@@ -1,0 +1,8 @@
+---
+yaml-files:
+  - "*.yaml"
+  - "*.yml"
+  - ".yamllint"
+
+ignore: |
+  deploy/templates/vm-template.yaml
