@@ -1,20 +1,17 @@
-/*
-* Copyright (c) 2021-2025 Dell Inc., or its subsidiaries. All Rights Reserved.
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
- */
- 
-#!/bin/bash
+#!/bin/sh
+# Copyright (c) 2021-2025 Dell Inc., or its subsidiaries. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 # This script runs the longevity tests for CSI-Drivers that support Resiliency Module with OpenShift Virtualization
 
@@ -27,12 +24,13 @@
 # driver: Name of the CSI-DRiver, value: powerflex/powerstore/powermax/powerscale
 # iterations: Number of iterations, value: 10,20,30...
 # isOCPVirt: Boolena value, value: true/false
+# bastionNode: IP address of bastion node of OCP cluster
 
 # Default values (optional)
 driver=""
 iterations=0
 isOCPVirt=false
-
+bastionNode=""
 
 # Function to comment out lines matching a pattern
 comment_out() {
@@ -63,6 +61,11 @@ while [[ $# -gt 0 ]]; do
       ;;
     --isOCPVirt)
       isOCPVirt="$2"
+      shift
+      shift
+      ;;
+    --bastionNode)
+      bastionNode="$2"
       shift
       shift
       ;;
@@ -133,13 +136,11 @@ elif [[ $driver == "powermax" ]]; then
 fi
 
 # Execute E2E tests only for the specific driver
-export NODE_USER='root' && export PASSWORD='dangerous' && export OPENSHIFT_BASTION='$driver_node' && export REGISTRY_HOST='10.247.98.98' && export REGISTRY_PORT='5000' && export PODMON_VERSION='nightly'
-sh run.integration | tee karavi-resiliency-int-test.log; exit \${PIPESTATUS[0]}
+export NODE_USER='root' && export PASSWORD='dangerous' && export OPENSHIFT_BASTION=$bastionNode && export REGISTRY_HOST='10.247.98.98' && export REGISTRY_PORT='5000' && export PODMON_VERSION='nightly'
+sh run.integration | tee karavi-resiliency-int-test.log
 
-returnCode=$?
-if [[ $returnCode == 0 ]]; then
-    echo "Resiliency Longevity test(s) passed for $driver driver."
-fi
+# Extract the return code from the log
+returnCode=$(grep -oP 'Return code:\s+\K\d+' karavi-resiliency-int-test.log)
 
 # Revert the changes done in run.integration
 uncomment "source"
@@ -173,5 +174,11 @@ elif [[ $driver == "powermax" ]]; then
 fi
 
 sed -i 's/make "\${storage_type}-vm-integration-test"/make "\${storage_type}-integration-test"/' run.integration
+
+if [[ $returnCode -eq 0 ]]; then
+	echo "Resiliency Longevity test(s) passed for $driver driver."
+else
+	echo "run.integration failed with exit code $exit_code"
+fi
 
 exit $returnCode
