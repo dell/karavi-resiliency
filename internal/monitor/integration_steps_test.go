@@ -1359,8 +1359,8 @@ func (i *integration) allPodsInTestNamespacesAreRunning() (bool, error) {
 }
 
 func (i *integration) initialDiskWriteAndVerifyAllVMs() error {
-	log.Infof("Waiting 30 seconds to ensure VMs are fully running before initial disk write...")
-	time.Sleep(30 * time.Second)
+	log.Infof("Waiting 60 seconds to ensure VMs are fully running before initial disk write...")
+	time.Sleep(60 * time.Second)
 	for vmIdx := 1; vmIdx <= i.podCount; vmIdx++ {
 		for prefix := range i.testNamespacePrefix {
 			log.Infof("Verifying disk on VM %d in namespace %s", vmIdx, prefix)
@@ -1377,8 +1377,8 @@ func (i *integration) initialDiskWriteAndVerifyAllVMs() error {
 }
 
 func (i *integration) postFailoverVerifyAllVMs() error {
-	log.Infof("Waiting 30 seconds to ensure VMs are fully running after failover...")
-	time.Sleep(30 * time.Second)
+	log.Infof("Waiting 60 seconds to ensure VMs are fully running after failover...")
+	time.Sleep(60 * time.Second)
 	for vmIdx := 1; vmIdx <= i.podCount; vmIdx++ {
 		for prefix := range i.testNamespacePrefix {
 			ns := fmt.Sprintf("%s%d", prefix, vmIdx)
