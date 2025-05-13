@@ -499,7 +499,7 @@ process_nodes() {
 		check_running
 		if [ "$WORKLOADTYPE" == "pod" ]; then
 			getinitialpods > initial_pods.now
-			echo "diffing initial_pods.now and initial_pods.orig"
+			echo "verifying initial_pods.now and initial_pods.orig to ensure there is no data loss"
 			diff -b initial_pods.now initial_pods.orig
 			rc=$?
 		fi

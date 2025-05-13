@@ -60,7 +60,7 @@ have been removed (indicating the nodes are cleaned up.)
 At the end of an iteration after a 60 second delay, the status of all the protected pods is displayed, and plot will be generated for Number of Instances vs. Time Taken for Recovery of pods
 and if any pods are not running nway.sh exits.
 
-To generate plot we need to install below
+To generate plot we need to install below packages:
     yum install -y python3-pip
     pip3 install pandas matplotlib
 
