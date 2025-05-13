@@ -23,13 +23,20 @@
 # Arguments passed during the script execution:
 # driver: Name of the CSI-DRiver, value: powerflex/powerstore/powermax/powerscale
 # iterations: Number of iterations, value: 10,20,30...
-# isOCPVirt: Boolena value, value: true/false
+# isOCPVirt: Boolean value, value: true/false
 # bastionNode: IP address of bastion node of OCP cluster
+
+# export environment variables
+# export OPENSHIFT_BASTION=<node ip>
+# export NODE_USER=<user>
+# export PASSWORD=<password>
+# export REGISTRY_HOST=<registry host>
+# export REGISTRY_PORT=<registry port>
+# export PODMON_VERSION=<version>
 
 driver=""
 iterations=0
 isOCPVirt=false
-bastionNode=""
 
 # Function to comment out lines matching a pattern
 comment_out() {
@@ -60,11 +67,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --isOCPVirt)
       isOCPVirt="$2"
-      shift
-      shift
-      ;;
-    --bastionNode)
-      bastionNode="$2"
       shift
       shift
       ;;
@@ -135,7 +137,6 @@ elif [[ $driver == "powermax" ]]; then
 fi
 
 # Execute E2E tests only for the specific driver
-export NODE_USER='root' && export PASSWORD='dangerous' && export OPENSHIFT_BASTION=$bastionNode && export REGISTRY_HOST='10.247.98.98' && export REGISTRY_PORT='5000' && export PODMON_VERSION='nightly'
 sh run.integration | tee karavi-resiliency-int-test.log
 
 # Extract the return code from the log
