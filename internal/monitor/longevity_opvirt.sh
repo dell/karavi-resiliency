@@ -26,6 +26,7 @@
 # isOCPVirt: Boolean value, value: true/false
 # bastionNode: IP address of bastion node of OCP cluster
 
+# export the environment variables before executing the script
 # export environment variables
 # export OPENSHIFT_BASTION=<node ip>
 # export NODE_USER=<user>
@@ -110,28 +111,19 @@ original_iterations=$(grep -oP '^ITERATIONS=\K\d+' run.integration)
 sed -i "s/^ITERATIONS=$original_iterations/ITERATIONS=$iterations/" run.integration
 
 if [[ $driver == "powerflex" ]]; then
-  comment_out "unity"
-  comment_out "powerscale"
-  comment_out "powerstore"
-  comment_out "powermax"
-elif [[ $driver == "unity" ]]; then
-  comment_out "powerflex"
   comment_out "powerscale"
   comment_out "powerstore"
   comment_out "powermax"
 elif [[ $driver == "powerscale" ]]; then
   comment_out "powerflex"
-  comment_out "unity"
   comment_out "powerstore"
   comment_out "powermax"
 elif [[ $driver == "powerstore" ]]; then
   comment_out "powerflex"
-  comment_out "unity"
   comment_out "powerscale"
   comment_out "powermax"
 elif [[ $driver == "powermax" ]]; then
   comment_out "powerflex"
-  comment_out "unity"
   comment_out "powerscale"
   comment_out "powerstore"
 fi
@@ -147,28 +139,19 @@ uncomment "source"
 sed -i "s/^ITERATIONS=$iterations/ITERATIONS=$original_iterations/" run.integration
 
 if [[ $driver == "powerflex" ]]; then
-  uncomment "unity"
-  uncomment "powerscale"
-  uncomment "powerstore"
-  uncomment "powermax"
-elif [[ $driver == "unity" ]]; then
-  uncomment "powerflex"
   uncomment "powerscale"
   uncomment "powerstore"
   uncomment "powermax"
 elif [[ $driver == "powerscale" ]]; then
   uncomment "powerflex"
-  uncomment "unity"
   uncomment "powerstore"
   uncomment "powermax"
 elif [[ $driver == "powerstore" ]]; then
   uncomment "powerflex"
-  uncomment "unity"
   uncomment "powerscale"
   uncomment "powermax"
 elif [[ $driver == "powermax" ]]; then
   uncomment "powerflex"
-  uncomment "unity"
   uncomment "powerscale"
   uncomment "powerstore"
 fi
