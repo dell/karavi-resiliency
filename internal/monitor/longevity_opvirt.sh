@@ -27,7 +27,6 @@
 # bastionNode: IP address of bastion node of OCP cluster
 
 # export the environment variables before executing the script
-# export environment variables
 # export OPENSHIFT_BASTION=<node ip>
 # export NODE_USER=<user>
 # export PASSWORD=<password>
