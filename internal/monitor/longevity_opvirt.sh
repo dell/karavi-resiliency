@@ -26,7 +26,6 @@
 # isOCPVirt: Boolena value, value: true/false
 # bastionNode: IP address of bastion node of OCP cluster
 
-# Default values (optional)
 driver=""
 iterations=0
 isOCPVirt=false
