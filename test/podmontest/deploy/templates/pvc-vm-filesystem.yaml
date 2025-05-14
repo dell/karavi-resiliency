@@ -1,0 +1,21 @@
+# yamllint disable-file
+# This file is not valid YAML because it is a Helm template
+{{- if eq (include "workloadType" .) "vm" -}}
+{{- $root := . -}}
+{{- range $i, $e := untilStep 0 (int .Values.vmConfig.nvolumes) 1 }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vm-filesystem-pvc{{$i}}
+  namespace: "{{ required "Must set namespace" $root.Values.vmConfig.namespace }}"
+spec:
+  accessModes:
+    - ReadWriteMany
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: "{{ required "Must set storage class name" $root.Values.vmConfig.storageClassName }}"
+---
+{{end}}
+{{- end -}}

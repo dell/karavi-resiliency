@@ -14,9 +14,9 @@
 # limitations under the License.
 
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-instances=${instances:-4}
+instances=${instances:-0}
 ndevices=${ndevices:-0}
-nvolumes=${nvolumes:-4}
+nvolumes=${nvolumes:-0}
 zone=${zone:-""}
 storageClassName=${storageClassName:-vxflexos-retain}
 PODMONTEST_REGISTRY="$REGISTRY_HOST"
@@ -38,97 +38,100 @@ fi
 
 for param in $*
 do
-   case $param in
-      "--instances")
-         shift
-         instances=$1
-         shift
-         ;;
-      "--ndevices")
-         shift
-         ndevices=$1
-         shift
-         ;;
-      "--nvolumes")
-         shift
-         nvolumes=$1
-         shift
-         ;;
-      "--prefix")
-         shift
-         prefix=$1
-         shift
-         ;;
-      "--storage-class")
-         shift
-         storageClassName=$1
-         shift
-         ;;
-      "--replicas")
-         shift
-         replicas=$1
-         shift
-         ;;
-      "--podAffinity")
-         podAffinity="true"
-         shift
-         ;;
-      "--deployment")
-         deploymentType="deployment"
-         shift
-         ;;
-      "--unreachableTolerationSeconds")
-         shift
-         unreachableTolerationSeconds=$1
-         shift
-         ;;
-      "--label")
-         shift
-         driverLabel=$1
-         shift
-         ;;
+    case $param in
+       "--instances")
+          shift
+          instances=$1
+          shift
+          ;;
+       "--ndevices")
+          shift
+          ndevices=$1
+          shift
+          ;;
+       "--nvolumes")
+          shift
+          nvolumes=$1
+          shift
+          ;;
+       "--prefix")
+          shift
+          prefix=$1
+          shift
+          ;;
+       "--storage-class")
+          shift
+          storageClassName=$1
+          shift
+          ;;
+       "--replicas")
+          shift
+	  replicas=$1
+	  shift
+	  ;;
+       "--podAffinity")
+          podAffinity="true"
+          shift
+	  ;;
+       "--deployment")
+          deploymentType="deployment"
+          shift
+          ;;
+       "--unreachableTolerationSeconds")
+          shift
+          unreachableTolerationSeconds=$1
+          shift
+          ;;
+       "--label")
+          shift
+          driverLabel=$1
+          shift
+          ;;
+
       "--workload-type")
          shift
          workloadType=$1
          shift
          ;;
-   esac
+    esac
+
 done
 
 cd "$SCRIPTDIR"
 
 i=1
 while [ $i -le $instances ]; do
-   echo $i
-   kubectl create namespace ${prefix}$i
-   if [ "$workloadType" == "pod" ]; then
-      helm install -n "${prefix}$i" "${prefix}$i" deploy \
-         ${DEBUG} \
-         --values deploy/values-vxflex.yaml \
-         --set podmonTest.namespace="${prefix}$i" \
-         --set podmonTest.storageClassName="$storageClassName" \
-         --set podmonTest.ndevices=$ndevices \
-         --set podmonTest.nvolumes=$nvolumes \
-         --set podmonTest.deploymentType=$deploymentType \
-         --set podmonTest.replicas=$replicas \
-         --set podmonTest.podAffinity=$podAffinity \
-         --set podmonTest.unreachableTolerationSeconds=$unreachableTolerationSeconds \
-         --set podmonTest.image="$image" \
-         --set podmonTest.zone="$zone" \
-         --set podmonTest.driverLabel="$driverLabel"
-   else
-      helm install -n "${prefix}${i}" "${prefix}${i}" "${SCRIPTDIR}"/deploy \
-         ${DEBUG} \
-         --values deploy/values-vm.yaml \
-         --set vmConfig.namespace="${prefix}${i}" \
-         --set vmConfig.storageClassName="$storageClassName" \
-         --set vmConfig.ndevices=$ndevices \
-         --set vmConfig.nvolumes=$nvolumes \
-         --set vmConfig.instances=$instances \
-         --set vmConfig.podAffinity=$podAffinity \
-         --set vmConfig.unreachableTolerationSeconds=$unreachableTolerationSeconds \
-         --set vmConfig.zone="$zone" \
-         --set vmConfig.driverLabel="$driverLabel"
-   fi
-   i=$((i + 1))
+  echo $i
+  kubectl create namespace ${prefix}$i
+if [ "$workloadType" == "pod" ]; then
+  helm install -n "${prefix}$i" "${prefix}$i" deploy \
+              ${DEBUG} \
+              --values deploy/values-vxflex.yaml \
+              --set podmonTest.namespace="${prefix}$i" \
+              --set podmonTest.storageClassName="$storageClassName" \
+              --set podmonTest.ndevices=$ndevices \
+              --set podmonTest.nvolumes=$nvolumes \
+              --set podmonTest.deploymentType=$deploymentType \
+              --set podmonTest.replicas=$replicas \
+              --set podmonTest.podAffinity=$podAffinity \
+              --set podmonTest.unreachableTolerationSeconds=$unreachableTolerationSeconds \
+              --set podmonTest.image="$image" \
+              --set podmonTest.zone="$zone" \
+              --set podmonTest.driverLabel="$driverLabel"
+else
+   helm install -n "${prefix}${i}" "${prefix}${i}" "${SCRIPTDIR}"/deploy \
+     ${DEBUG} \
+     --values deploy/values-vm.yaml \
+     --set vmConfig.namespace="${prefix}${i}" \
+     --set vmConfig.storageClassName="$storageClassName" \
+     --set vmConfig.ndevices=$ndevices \
+     --set vmConfig.nvolumes=$nvolumes \
+     --set vmConfig.instances=$instances \
+     --set vmConfig.podAffinity=$podAffinity \
+     --set vmConfig.unreachableTolerationSeconds=$unreachableTolerationSeconds \
+     --set vmConfig.zone="$zone" \
+     --set vmConfig.driverLabel="$driverLabel"
+ fi
+ i=$((i + 1))
+
 done
