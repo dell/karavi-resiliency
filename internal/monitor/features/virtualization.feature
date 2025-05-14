@@ -240,8 +240,8 @@ Feature: Virtual Machine Integration Test
       Then finally cleanup everything
       Examples:
         | kubeConfig | vmsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
-        | ""         | "1-2"      | "1-1" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 450      | 600        | 600     | 600          |
-        | ""         | "1-2"      | "2-2" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 600      | 900        | 900     | 900           |
+        | ""         | "1-2"      | "1-1" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 650      | 600        | 600     | 600          |
+        | ""         | "1-2"      | "2-2" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 650      | 900        | 900     | 900           |
 
 
   @powerscale-vm-integration
@@ -261,8 +261,8 @@ Feature: Virtual Machine Integration Test
 
       Examples:
         | kubeConfig | vmsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure       | failSecs | deploySecs | runSecs | nodeCleanSecs |
-        | ""         | "1-2"      | "1-1" | "0-0" | "isilon"   | "isilon"     | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
-        | ""         | "3-5"      | "1-1" | "0-0" | "isilon"   | "isilon"     | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
+        | ""         | "1-2"      | "1-1" | "0-0" | "isilon"   | "isilon"     | "one-third" | "zero"  | "kubeletdown" | 650      | 900        | 900     | 900           |
+        | ""         | "3-5"      | "1-1" | "0-0" | "isilon"   | "isilon"     | "one-third" | "zero"  | "kubeletdown" | 650      | 900        | 900     | 900           |
 
 
 

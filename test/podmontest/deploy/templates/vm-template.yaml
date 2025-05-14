@@ -60,6 +60,7 @@ spec:
 {{- range $k, $e := untilStep 0 (int $root.Values.vmConfig.nvolumes) 1 }}
           - disk:
               bus: virtio
+            shareable: true
             name: filesystem-disk{{$k}}
 {{end}}
         machine:
