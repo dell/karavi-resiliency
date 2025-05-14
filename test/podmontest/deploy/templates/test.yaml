@@ -1,11 +1,14 @@
 # yamllint disable-file
 # This file is not valid YAML because it is a Helm template
+{{- if ne (include "workloadType" .) "vm" }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
     name: podmontest
     namespace: {{ required "Must set namespace" .Values.podmonTest.namespace }}
+{{- end }}
 ---
+{{- if eq (include "workloadType" .) "pod" -}}
 {{- if eq .Values.podmonTest.deploymentType "statefulset" }}
 kind: StatefulSet
 {{ end }}
@@ -101,3 +104,4 @@ spec:
             persistentVolumeClaim:
               claimName: pdev{{$i}}
 {{end}}
+{{- end -}}

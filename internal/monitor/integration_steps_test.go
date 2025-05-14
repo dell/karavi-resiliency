@@ -100,6 +100,7 @@ const (
 	PowerScaleNS        = "pmti"
 	PowerStoreNS        = "pmtps"
 	PowerMaxNS          = "pmtpm"
+	VM                  = "vm"
 )
 
 // Used for stopping the test from continuing
@@ -531,8 +532,159 @@ func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, 
 	return nil
 }
 
+func (i *integration) deployVMs(protected bool, vmsPerNode, numVols, numDevs, driverType, storageClass string, wait int) error {
+	podCount, err := i.selectFromRange(vmsPerNode)
+	if err != nil {
+		return err
+	}
+
+	volCount, err := i.selectFromRange(numVols)
+	if err != nil {
+		return err
+	}
+
+	devCount, err := i.selectFromRange(numDevs)
+	if err != nil {
+		return err
+	}
+
+	// Select the deployment script to use based on the driver type.
+	var deployScript string
+	cleanUpWait := 1 * time.Second
+	switch driverType {
+	case "vxflexos":
+		deployScript = "insv.sh"
+	case "isilon":
+		deployScript = "insi.sh"
+		cleanUpWait = 60 * time.Second
+	case "powerstore":
+		deployScript = "insps.sh"
+		cleanUpWait = 60 * time.Second
+	case "powermax":
+		deployScript = "inspm.sh"
+		cleanUpWait = 60 * time.Second
+	}
+
+	// Set test namespace prefix is based on the driver type.
+	// If doing an unprotected vm, use a special prefix.
+	var prefix string
+	if protected {
+		switch driverType {
+		case "vxflexos":
+			i.testNamespacePrefix[PowerflexNS] = true
+			prefix = PowerflexNS
+		case "isilon":
+			i.testNamespacePrefix[PowerScaleNS] = true
+			prefix = PowerScaleNS
+		case "powerstore":
+			i.testNamespacePrefix[PowerStoreNS] = true
+			prefix = PowerStoreNS
+		case "powermax":
+			i.testNamespacePrefix[PowerMaxNS] = true
+			prefix = PowerMaxNS
+		}
+	} else {
+		i.testNamespacePrefix[UnprotectedPodsNS] = true
+		prefix = UnprotectedPodsNS
+	}
+
+	deployScriptPath := filepath.Join("..", "..", "test", "podmontest", deployScript)
+	script := "bash"
+
+	args := []string{
+		deployScriptPath,
+		"--instances", strconv.Itoa(podCount),
+		"--nvolumes", strconv.Itoa(volCount),
+		"--ndevices", strconv.Itoa(devCount),
+		"--prefix", prefix,
+		"--storage-class", storageClass,
+		"--workload-type", VM,
+	}
+
+	if !protected {
+		args = append(args, "--label", "none")
+	}
+
+	command := exec.Command(script, args...)
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+
+	// For consecutive run provide Unity array some cleanup times
+	time.Sleep(cleanUpWait)
+	log.Infof("Attempting to deploy with command: %v", command)
+	err = command.Start()
+	if err != nil {
+		return err
+	}
+
+	err = command.Wait()
+	if err != nil {
+		return err
+	}
+
+	i.setDriverType(driverType)
+	i.podCount = podCount
+	i.devCount = devCount
+	i.volCount = volCount
+
+	log.Infof("Waiting up to %d seconds for pods to deploy", wait)
+	runningCount := 0
+	timeoutDuration := time.Duration(wait) * time.Second
+	timeout := time.NewTimer(timeoutDuration)
+	ticker := time.NewTicker(checkTickerInterval * time.Second)
+	done := make(chan bool)
+	start := time.Now()
+
+	go func() {
+		for {
+			select {
+			case <-timeout.C:
+				log.Info("Timed out, but doing last check if test pods are running")
+				runningCount = i.getNumberOfRunningTestPods()
+				done <- true
+			case <-ticker.C:
+				log.Infof("Check if test pods are running (time left %v)", timeoutDuration-time.Since(start))
+				runningCount = i.getNumberOfRunningTestPods()
+				if runningCount == i.podCount {
+					done <- true
+				}
+			}
+		}
+	}()
+
+	<-done
+	timeout.Stop()
+	ticker.Stop()
+
+	log.Infof("Test pods running check finished after %v", time.Since(start))
+	err = AssertExpectedAndActual(assert.Equal, i.podCount, runningCount,
+		fmt.Sprintf("Expected %d test pods to be running after %d seconds", i.podCount, wait))
+	if err != nil {
+		return err
+	}
+
+	// For the test vms number of namespaces = vmsCount
+	for n := 1; n <= podCount; n++ {
+		ns := fmt.Sprintf("%s%d", prefix, n)
+		nsErr := i.thereIsThisNamespaceInTheCluster(ns)
+		if nsErr != nil {
+			return nsErr
+		}
+	}
+
+	if err = i.populateLabeledPodsToNodes(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (i *integration) deployProtectedPods(podsPerNode, numVols, numDevs, driverType, storageClass string, wait int) error {
 	return i.deployPods(true, podsPerNode, numVols, numDevs, driverType, storageClass, wait)
+}
+
+func (i *integration) deployProtectedVMs(vmsPerNode, numVols, numDevs, driverType, storageClass string, wait int) error {
+	return i.deployVMs(true, vmsPerNode, numVols, numDevs, driverType, storageClass, wait)
 }
 
 func (i *integration) deployUnprotectedPods(podsPerNode, numVols, numDevs, driverType, storageClass string, wait int) error {
@@ -780,7 +932,11 @@ func (i *integration) labeledPodsChangedNodes() error {
 	pods, getPodsErr := i.listPodsByLabel(fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", i.driverType))
 	if getPodsErr == nil {
 		for _, pod := range pods.Items {
-			nsPodName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+			podName := pod.Name
+			if strings.HasPrefix(podName, "virt-launcher") && len(podName) > 6 {
+				podName = podName[:len(podName)-6] // Trim suffix
+			}
+			nsPodName := fmt.Sprintf("%s/%s", pod.Namespace, podName)
 			currentPodToNodeMap[nsPodName] = pod.Spec.NodeName
 		}
 	} else {
@@ -788,15 +944,15 @@ func (i *integration) labeledPodsChangedNodes() error {
 	}
 
 	// Search through the labeled pod map and verify node change
-	for podName, initialNode := range i.labeledPodsToNodes {
-		currentNode, ok := currentPodToNodeMap[podName]
+	for iPodName, initialNode := range i.labeledPodsToNodes {
+		currentNode, ok := currentPodToNodeMap[iPodName]
 		if !ok {
-			return fmt.Errorf("expected %s pod to be assigned to a node, but no association was found", podName)
+			return fmt.Errorf("expected %s pod to be assigned to a node, but no association was found", iPodName)
 		}
 		if currentNode == initialNode {
 			return AssertExpectedAndActual(assert.Equal, true, currentNode == initialNode,
 				fmt.Sprintf("Expected %s pod to be migrated to a healthy node. Currently '%s', initially '%s'",
-					podName, currentNode, initialNode))
+					iPodName, currentNode, initialNode))
 		}
 	}
 
@@ -1202,6 +1358,85 @@ func (i *integration) allPodsInTestNamespacesAreRunning() (bool, error) {
 	return allRunning, nil
 }
 
+func (i *integration) initialDiskWriteAndVerifyAllVMs() error {
+	log.Infof("Waiting 60 seconds to ensure VMs are fully running before initial disk write...")
+	time.Sleep(60 * time.Second)
+	for vmIdx := 1; vmIdx <= i.podCount; vmIdx++ {
+		for prefix := range i.testNamespacePrefix {
+			log.Infof("Verifying disk on VM %d in namespace %s", vmIdx, prefix)
+
+			ns := fmt.Sprintf("%s%d", prefix, vmIdx)
+			vmName := "vm-0"
+			err := i.writeAndVerifyDiskOnVM(vmName, ns)
+			if err != nil {
+				return fmt.Errorf("Disk Verification Failed: %v", err)
+			}
+		}
+	}
+	return nil
+}
+
+func (i *integration) postFailoverVerifyAllVMs() error {
+	log.Infof("Waiting 60 seconds to ensure VMs are fully running after failover...")
+	time.Sleep(60 * time.Second)
+	for vmIdx := 1; vmIdx <= i.podCount; vmIdx++ {
+		for prefix := range i.testNamespacePrefix {
+			ns := fmt.Sprintf("%s%d", prefix, vmIdx)
+			vmName := "vm-0"
+			err := i.verifyDiskContentOnVM(vmName, ns)
+			if err != nil {
+				return fmt.Errorf("Data Verification Failed: %v", err)
+			}
+		}
+	}
+	return nil
+}
+
+const (
+	expectedData = "Test awesome shareable disks"
+)
+
+func (i *integration) writeAndVerifyDiskOnVM(vmName, namespace string) error {
+	writeCmd := fmt.Sprintf(
+		"sshpass -p 'fedora' virtctl ssh %s --namespace=%s --username=fedora "+
+			"--local-ssh=true --local-ssh-opts='-o StrictHostKeyChecking=no' --local-ssh-opts='-o UserKnownHostsFile=/dev/null' "+
+			"--command \"printf '%s' | sudo dd of=/dev/vdc bs=1 count=150 conv=notrunc\"",
+		vmName, namespace, expectedData)
+	log.Printf("Running: %s", writeCmd)
+	writeOut, err := exec.Command("bash", "-c", writeCmd).CombinedOutput()
+	if err != nil {
+		log.Printf("Write failed on %s: %s", vmName, string(writeOut))
+		return err
+	}
+	log.Printf("Write output for %s: %s", vmName, string(writeOut))
+
+	// Read and verify
+	return i.verifyDiskContentOnVM(vmName, namespace)
+}
+
+func (i *integration) verifyDiskContentOnVM(vmName, namespace string) error {
+	readCmd := fmt.Sprintf(
+		"sshpass -p 'fedora' virtctl ssh %s --namespace=%s --username=fedora "+
+			"--local-ssh=true --local-ssh-opts='-o StrictHostKeyChecking=no'  --local-ssh-opts='-o UserKnownHostsFile=/dev/null' "+
+			"--command \"sudo dd if=/dev/vdc bs=1 count=150\"",
+		vmName, namespace)
+	log.Printf("Running: %s", readCmd)
+	readOut, err := exec.Command("bash", "-c", readCmd).CombinedOutput()
+	if err != nil {
+		log.Printf("Read failed on %s: %s", vmName, string(readOut))
+		return err
+	}
+
+	log.Printf("Read output for %s: %s", vmName, string(readOut))
+
+	if strings.Contains(string(readOut), expectedData) {
+		log.Printf("Disk content verified for %s", vmName)
+		return nil
+	}
+	log.Printf("Expected content not found in %s", vmName)
+	return nil
+}
+
 // induceFailureOn will initiate a failure of the 'failureType' against the host at 'ip'.
 // The 'wait' will be passed as parameter to the invocation script. If it is applicable,
 // that 'wait' value indicates how long the failure should be active before it should
@@ -1390,7 +1625,12 @@ func (i *integration) populateLabeledPodsToNodes() error {
 	}
 
 	for _, pod := range pods.Items {
-		nsPodName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+		podName := pod.Name
+		if strings.HasPrefix(podName, "virt-launcher") && len(podName) > 6 {
+			podName = podName[:len(podName)-6] // Trim last 6 characters
+		}
+		nsPodName := fmt.Sprintf("%s/%s", pod.Namespace, podName)
+
 		i.labeledPodsToNodes[nsPodName] = pod.Spec.NodeName
 	}
 	return nil
@@ -1653,6 +1893,25 @@ func (i *integration) iFailDriverPodsTaints(numNodes, failure string, wait int, 
 	return nil
 }
 
+func (i *integration) verifyKubeVirtIPAMControllerPodExists() error {
+	namespace := "openshift-cnv"
+	podPrefix := "kubevirt-ipam-controller-manager-"
+
+	podList, err := i.k8s.GetClient().CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to list pods in namespace '%s': %v", namespace, err)
+	}
+
+	for _, pod := range podList.Items {
+		if strings.HasPrefix(pod.Name, podPrefix) {
+			log.Infof("Found pod '%s' in namespace '%s'", pod.Name, pod.Namespace)
+			return nil
+		}
+	}
+
+	return fmt.Errorf("No pod with prefix '%s' found in namespace '%s'. OpenShift Virtualization might not be installed", podPrefix, namespace)
+}
+
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	i := &integration{}
 	pollK8sEnabled := false
@@ -1675,17 +1934,22 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^I fail "([^"]*)" worker nodes and "([^"]*)" primary nodes with "([^"]*)" failure for (\d+) seconds$`, i.failWorkerAndPrimaryNodes)
 	context.Step(`^I fail "([^"]*)" worker nodes and "([^"]*)" primary nodes with "([^"]*)" failure for (\d+) and I expect these taints "([^"]*)"$`, i.failAndExpectingTaints)
 	context.Step(`^"([^"]*)" pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployProtectedPods)
+	context.Step(`^"([^"]*)" vms per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployProtectedVMs)
 	context.Step(`^"([^"]*)" unprotected pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployUnprotectedPods)
 	context.Step(`^the taints for the failed nodes are removed within (\d+) seconds$`, i.theTaintsForTheFailedNodesAreRemovedWithinSeconds)
 	context.Step(`^these CSI driver "([^"]*)" are configured on the system$`, i.theseCSIDriverAreConfiguredOnTheSystem)
 	context.Step(`^there is a "([^"]*)" in the cluster$`, i.thereIsThisNamespaceInTheCluster)
 	context.Step(`^there are driver pods in "([^"]*)" with this "([^"]*)" prefix$`, i.thereAreDriverPodsWithThisPrefix)
+	context.Step(`^Check OpenShift Virtualization is installed in the cluster$`, i.verifyKubeVirtIPAMControllerPodExists)
 	context.Step(`^finally cleanup everything$`, i.finallyCleanupEverything)
 	context.Step(`^cluster is clean of test pods$`, i.finallyCleanupEverything)
+	context.Step(`^cluster is clean of test vms$`, i.finallyCleanupEverything)
 	context.Step(`^test environmental variables are set$`, i.expectedEnvVariablesAreSet)
 	context.Step(`^can logon to nodes and drop test scripts$`, i.canLogonToNodesAndDropTestScripts)
 	context.Step(`^these storageClasses "([^"]*)" exist in the cluster$`, i.theseStorageClassesExistInTheCluster)
 	context.Step(`^wait (\d+) to see there are no taints$`, i.theTaintsForTheFailedNodesAreRemovedWithinSeconds)
 	context.Step(`^labeled pods are on a different node$`, i.labeledPodsChangedNodes)
 	context.Step(`^I fail "([^"]*)" worker driver pod with "([^"]*)" failure for (\d+) and I expect these taints "([^"]*)"$`, i.iFailDriverPodsTaints)
+	context.Step(`^initial disk write and verify on all VMs succeeds$`, i.initialDiskWriteAndVerifyAllVMs)
+	context.Step(`^post failover disk content verification on all VMs succeeds$`, i.postFailoverVerifyAllVMs)
 }

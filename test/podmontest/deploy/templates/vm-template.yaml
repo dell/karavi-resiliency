@@ -1,0 +1,93 @@
+{{- if eq (include "workloadType" .) "vm" -}}
+{{- $root := . -}}
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  labels:
+    kubevirt.io/vm: vm-0
+  name: vm-0
+spec:
+  runStrategy: Always
+  template:
+    metadata:
+      labels:
+        kubevirt.io/vm: vm-0
+        podmon.dellemc.com/driver: "{{ required "Must set driver label" $root.Values.vmConfig.driverLabel }}"
+    spec:
+{{- if ne .Values.vmConfig.zone "" }}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: "topology.kubernetes.io/zone"
+                operator: In
+                values:
+                - {{.Values.vmConfig.zone}}
+{{end}}
+{{- if eq .Values.vmConfig.podAffinity true}}
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: "app"
+                operator: In
+                values:
+                - podmontest-{{ .Release.Namespace }}
+            topologyKey: "kubernetes.io/hostname"
+{{end}}
+      tolerations:
+        - effect: NoExecute
+          key: node.kubernetes.io/unreachable
+          operator: Exists
+          tolerationSeconds: {{ required "Number of seconds to tolerate unreachable taint" .Values.vmConfig.unreachableTolerationSeconds }}
+      domain:
+        devices:
+          disks:
+          - disk:
+              bus: virtio
+            name: containerdisk
+          - disk:
+              bus: virtio
+            name: cloudinitdisk
+{{- range $j, $e := untilStep 0 (int $root.Values.vmConfig.ndevices) 1 }}
+          - disk:
+              bus: virtio
+            shareable: true
+            name: block-disk{{$j}}
+{{end}}
+{{- range $k, $e := untilStep 0 (int $root.Values.vmConfig.nvolumes) 1 }}
+          - disk:
+              bus: virtio
+            shareable: true
+            name: filesystem-disk{{$k}}
+{{end}}
+        machine:
+          type: ""
+        resources:
+          requests:
+            memory: 2G
+      terminationGracePeriodSeconds: 0
+      volumes:
+      - containerDisk:
+          image: kubevirt/fedora-with-test-tooling-container-disk:devel
+        name: containerdisk
+      - cloudInitNoCloud:
+          userData: |-
+            #cloud-config
+            password: fedora
+            chpasswd: { expire: False }
+        name: cloudinitdisk
+{{- range $j, $e := untilStep 0 (int $root.Values.vmConfig.ndevices) 1 }}
+      - name: block-disk{{$j}}
+        persistentVolumeClaim:
+          claimName: vm-block-pvc{{$j}}
+{{end}}
+{{- range $k, $e := untilStep 0 (int $root.Values.vmConfig.nvolumes) 1 }}
+      - name: filesystem-disk{{$k}}
+        persistentVolumeClaim:
+          claimName: vm-filesystem-pvc{{$k}}
+{{end}}
+---
+{{- end -}}
