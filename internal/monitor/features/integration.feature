@@ -636,7 +636,7 @@ Feature: Integration Test
 
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-1"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
+      | ""         | "1-1"       | "1-1" | "0-0" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
 
   @unity-short-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
@@ -744,7 +744,7 @@ Feature: Integration Test
 
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-1"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "kubeletdown"   | 600      | 900        | 900     | 900           |
+      | ""         | "1-1"       | "1-1" | "0-0" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "kubeletdown"   | 600      | 900        | 900     | 900           |
 
   @unity-short-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node kubelet down)
