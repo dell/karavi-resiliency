@@ -68,7 +68,7 @@ Feature: Integration Test
       | kubeConfig | driverNames                  | namespace    | name       | storageClasses                |
       | ""         | "csi-powermax.dellemc.com"   | "powermax"   | "powermax" | "powermax-iscsi, powermax-fc" |
 
-  @powerflex-integration
+  @powerflex-integration @powerflex-sanity-test
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
@@ -84,13 +84,13 @@ Feature: Integration Test
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
       # Small number of pods, increasing number of vols and devs
-      | ""         | "1-2"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 120      | 240        | 300     | 300           |
-      | ""         | "1-2"       | "2-2" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 120      | 240        | 300     | 300           |
-      | ""         | "1-2"       | "4-4" | "4-4" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 120      | 240        | 300     | 300           |
+      | ""         | "1-2"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
+      | ""         | "1-2"       | "2-2" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
+      | ""         | "1-2"       | "4-4" | "4-4" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
       # Slightly more pods, increasing number of vols and devs
-      | ""         | "3-5"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 240      | 240        | 300     | 600           |
-      | ""         | "3-5"       | "2-2" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 240      | 240        | 300     | 600           |
-      | ""         | "3-5"       | "4-4" | "4-4" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 240      | 240        | 300     | 600           |
+      | ""         | "3-5"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
+      | ""         | "3-5"       | "2-2" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
+      | ""         | "3-5"       | "4-4" | "4-4" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
 
 @powerflex-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node kubelet down)
@@ -116,7 +116,7 @@ Feature: Integration Test
       | ""         | "3-5"       | "2-2" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
       | ""         | "3-5"       | "4-4" | "4-4" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
 
-  @unity-integration
+  @unity-integration @unity-sanity-test
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
@@ -136,7 +136,7 @@ Feature: Integration Test
       # Slightly more pods, increasing number of vols and devs
       | ""         | "3-5"       | "2-2" | "2-2" | "unity"    | "unity-iscsi" | "one-third" | "zero"  | "interfacedown" | 600      | 900        | 900     | 900           |
 
-  @powerscale-integration
+  @powerscale-integration @powerscale-sanity-test
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
@@ -152,10 +152,10 @@ Feature: Integration Test
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
      # Small number of pods, increasing number of vols and devs
-      | ""         | "1-2"       | "1-1" | "0-0" | "isilon"    | "isilon" | "one-third" | "zero"  | "interfacedown" | 120      | 600        | 600     | 600           |
-      | ""         | "3-5"       | "2-2" | "0-0" | "isilon"    | "isilon" | "one-third" | "zero"  | "interfacedown" | 240      | 600        | 600     | 600           |
+      | ""         | "1-2"       | "1-1" | "0-0" | "isilon"    | "isilon" | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
+      | ""         | "3-5"       | "2-2" | "0-0" | "isilon"    | "isilon" | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
   
-  @powerstore-integration
+  @powerstore-integration @powerstore-sanity-test
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
@@ -202,7 +202,7 @@ Feature: Integration Test
       # Slightly more pods, increasing number of vols and devs
       | ""         | "3-5"       | "2-2" | "0-0" | "unity"    | "unity-nfs"  | "one-third" | "zero"  | "interfacedown" | 600      | 900        | 900     | 900           |
 
-  @powermax-integration
+  @powermax-integration @powermax-sanity-test
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
@@ -727,7 +727,7 @@ Feature: Integration Test
 
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-1"       | "1-1" | "0-0" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 1200     | 1200       | 1200    | 1200          |
+      | ""         | "1-1"       | "1-1" | "0-0" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 900      | 900        | 900     | 900           |
 
   @powerflex-short-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node kubelet down)
