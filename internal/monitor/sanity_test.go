@@ -27,10 +27,169 @@ import (
 
 const enableSanityTestVar = "RESILIENCY_SANITY_TEST"
 
+func TestPowerFlexSanityCheck(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableSanityTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping short integration test. To enable short integration test: export %s=true", enableSanityTestVar)
+		return
+	}
+
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
+	godogOptions := godog.Options{
+		Format:        "pretty,junit:powerflex-sanity-check-junit-report.xml",
+		Paths:         []string{"features"},
+		Tags:          "powerflex-int-setup-check",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "integration",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Skip("Integration setup check failed")
+	} else {
+		setupIsGood = true
+	}
+	log.Printf("Integration setup check finished")
+}
+
+func TestUnitySanityCheck(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableSanityTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping short integration test. To enable short integration test: export %s=true", enableSanityTestVar)
+		return
+	}
+
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
+	godogOptions := godog.Options{
+		Format:        "pretty,junit:unity-sanity-check-junit-report.xml",
+		Paths:         []string{"features"},
+		Tags:          "unity-int-setup-check",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "integration",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Skip("Integration setup check failed")
+	} else {
+		setupIsGood = true
+	}
+	log.Printf("Integration setup check finished")
+}
+
+func TestPowerScaleSanityCheck(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableSanityTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping short integration test. To enable short integration test: export %s=true", enableSanityTestVar)
+		return
+	}
+
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
+	godogOptions := godog.Options{
+		Format:        "pretty,junit:powerscale-sanity-check-junit-report.xml,cucumber:powerscale-sanity-check-cucumber-report.json",
+		Paths:         []string{"features"},
+		Tags:          "powerscale-int-setup-check",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "integration",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Skip("Integration setup check failed")
+	} else {
+		setupIsGood = true
+	}
+	log.Printf("Integration setup check finished")
+}
+
+func TestPowerStoreSanityCheck(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableSanityTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping short integration test. To enable short integration test: export %s=true", enableSanityTestVar)
+		return
+	}
+
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
+	godogOptions := godog.Options{
+		Format:        "pretty,junit:powerstore-sanity-check-junit-report.xml,cucumber:powersctore-sanity-check-cucumber-report.json",
+		Paths:         []string{"features"},
+		Tags:          "powerstore-int-setup-check",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "integration",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Skip("Integration setup check failed")
+	} else {
+		setupIsGood = true
+	}
+	log.Printf("Integration setup check finished")
+}
+
+func TestPowerMaxSanityCheck(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableSanityTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping short integration test. To enable short integration test: export %s=true", enableSanityTestVar)
+		return
+	}
+
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
+	godogOptions := godog.Options{
+		Format:        "pretty,junit:powermax-sanity-check-junit-report.xml,cucumber:powermax-sanity-check-cucumber-report.json",
+		Paths:         []string{"features"},
+		Tags:          "powermax-int-setup-check",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "integration",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Skip("Integration setup check failed")
+	} else {
+		setupIsGood = true
+	}
+	log.Printf("Integration setup check finished")
+}
 func TestPowerFlexSanityTest(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableSanityTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
-		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableShortIntTestVar)
+		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableSanityTestVar)
 		return
 	}
 
@@ -49,7 +208,7 @@ func TestPowerFlexSanityTest(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        "pretty,junit:powerflex-short-integration-junit-report.xml",
+		Format:        "pretty,junit:powerflex-sanity-integration-junit-report.xml",
 		Paths:         []string{"features"},
 		Tags:          "powerflex-sanity-test",
 		StopOnFailure: stopOnFailure,
@@ -68,7 +227,7 @@ func TestPowerFlexSanityTest(t *testing.T) {
 func TestUnitySanityTest(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableSanityTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
-		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableShortIntTestVar)
+		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableSanityTestVar)
 		return
 	}
 
@@ -87,7 +246,7 @@ func TestUnitySanityTest(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        "pretty,junit:unity-short-integration-junit-report.xml",
+		Format:        "pretty,junit:unity-sanity-integration-junit-report.xml",
 		Paths:         []string{"features"},
 		Tags:          "unity-sanity-test",
 		StopOnFailure: stopOnFailure,
@@ -106,7 +265,7 @@ func TestUnitySanityTest(t *testing.T) {
 func TestPowerScaleSanityTest(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableSanityTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
-		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableShortIntTestVar)
+		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableSanityTestVar)
 		return
 	}
 
@@ -125,7 +284,7 @@ func TestPowerScaleSanityTest(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        "pretty,junit:powerscale-short-integration-junit-report.xml,cucumber:powerscale-short-integration-cucumber-report.json",
+		Format:        "pretty,junit:powerscale-sanity-integration-junit-report.xml,cucumber:powerscale-sanity-integration-cucumber-report.json",
 		Paths:         []string{"features"},
 		Tags:          "powerscale-sanity-test",
 		StopOnFailure: stopOnFailure,
@@ -144,7 +303,7 @@ func TestPowerScaleSanityTest(t *testing.T) {
 func TestPowerStoreSanityTest(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableSanityTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
-		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableShortIntTestVar)
+		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableSanityTestVar)
 		return
 	}
 
@@ -163,7 +322,7 @@ func TestPowerStoreSanityTest(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        "pretty,junit:powerstore-short-integration-junit-report.xml,cucumber:powerstore-short-integration-cucumber-report.json",
+		Format:        "pretty,junit:powerstore-sanity-integration-junit-report.xml,cucumber:powerstore-sanity-integration-cucumber-report.json",
 		Paths:         []string{"features"},
 		Tags:          "powerstore-sanity-test",
 		StopOnFailure: stopOnFailure,
@@ -182,7 +341,7 @@ func TestPowerStoreSanityTest(t *testing.T) {
 func TestPowerMaxSanitytest(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableSanityTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
-		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableShortIntTestVar)
+		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableSanityTestVar)
 		return
 	}
 
@@ -201,7 +360,7 @@ func TestPowerMaxSanitytest(t *testing.T) {
 
 	log.Printf("Starting integration test")
 	godogOptions := godog.Options{
-		Format:        "pretty,junit:powermax-short-integration-junit-report.xml,cucumber:powermax-short-integration-cucumber-report.json",
+		Format:        "pretty,junit:powermax-sanity-integration-junit-report.xml,cucumber:powermax-sanity-integration-cucumber-report.json",
 		Paths:         []string{"features"},
 		Tags:          "powermax-sanity-test",
 		StopOnFailure: stopOnFailure,
