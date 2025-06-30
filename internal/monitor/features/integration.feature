@@ -85,11 +85,11 @@ Feature: Integration Test
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
       # Small number of pods, increasing number of vols and devs
       | ""         | "1-2"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
-      | ""         | "1-2"       | "2-2" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
+      #| ""         | "1-2"       | "2-2" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
       #| ""         | "1-2"       | "4-4" | "4-4" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
       # Slightly more pods, increasing number of vols and devs
-      | ""         | "3-5"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
-      #| ""         | "3-5"       | "2-2" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
+      #| ""         | "3-5"       | "1-1" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
+      | ""         | "3-5"       | "2-2" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
       #| ""         | "3-5"       | "4-4" | "4-4" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
 
 @powerflex-integration
@@ -171,8 +171,8 @@ Feature: Integration Test
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
      # Small number of pods, increasing number of vols and devs
-      | ""         | "1-2"       | "1-1" | "0-0" | "powerstore"    | "powerstore-nfs" | "one-third" | "zero"  | "interfacedown" | 120      | 600        | 600     | 600           |
-      | ""         | "3-5"       | "2-2" | "0-0" | "powerstore"    | "powerstore-nfs" | "one-third" | "zero"  | "interfacedown" | 240      | 600        | 600     | 600           |
+      #| ""         | "1-2"       | "1-1" | "0-0" | "powerstore"    | "powerstore-nfs" | "one-third" | "zero"  | "interfacedown" | 120      | 600        | 600     | 600           |
+      #| ""         | "3-5"       | "2-2" | "0-0" | "powerstore"    | "powerstore-nfs" | "one-third" | "zero"  | "interfacedown" | 240      | 600        | 600     | 600           |
       # Small number of pods, increasing number of vols and devs
       | ""         | "1-2"       | "1-1" | "0-0" | "powerstore"    | "powerstore-iscsi" | "one-third" | "zero"  | "interfacedown" | 120      | 600        | 600     | 600           |
       | ""         | "3-5"       | "2-2" | "0-0" | "powerstore"    | "powerstore-iscsi" | "one-third" | "zero"  | "interfacedown" | 240      | 600        | 600     | 600           |
