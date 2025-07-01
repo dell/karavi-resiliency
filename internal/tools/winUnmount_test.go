@@ -1,7 +1,7 @@
 //go:build test || windows
 // +build test windows
 
-package utils
+package tools
 
 import (
 	"os"

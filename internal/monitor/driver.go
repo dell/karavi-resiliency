@@ -17,7 +17,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
-	"podmon/internal/utils"
+	"podmon/internal/tools"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -201,9 +201,9 @@ func (d *UnityDriver) FinalCleanup(rawBlock bool, _, pvName, podUUID string) err
 }
 
 var (
-	getLoopBackDevice    = utils.GetLoopBackDevice
-	deleteLoopBackDevice = utils.DeleteLoopBackDevice
-	unMountPath          = utils.Unmount
+	getLoopBackDevice    = tools.GetLoopBackDevice
+	deleteLoopBackDevice = tools.DeleteLoopBackDevice
+	unMountPath          = tools.Unmount
 )
 
 // PScaleDriver provides a Driver instance for the PowerScale architecture.
