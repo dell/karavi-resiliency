@@ -184,8 +184,9 @@ func TestPowerMaxSanityCheck(t *testing.T) {
 	} else {
 		setupIsGood = true
 	}
-	log.Printf("Integration setup check finished")
+	log.Printf("Integration test finished")
 }
+
 func TestPowerFlexSanityTest(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableSanityTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
