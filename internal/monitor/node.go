@@ -20,7 +20,7 @@ import (
 	"os"
 	"podmon/internal/criapi"
 	"podmon/internal/k8sapi"
-	"podmon/internal/utils"
+	"podmon/internal/tools"
 	"strings"
 	"time"
 
@@ -482,7 +482,7 @@ func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo
 			}
 
 			privBlockDev := Driver.GetDriverBlockDev(devInfo.VolumeID, devInfo.PVName, podUID)
-			err = utils.Unmount(privBlockDev, 0)
+			err = tools.Unmount(privBlockDev, 0)
 			if err != nil {
 				log.WithFields(fields).Errorf("Could not Unmount private block device: %s because: %s", privBlockDev, err.Error())
 			}

@@ -2,7 +2,7 @@
 //go:build test || linux
 // +build test linux
 
-package utils
+package tools
 
 import (
 	"bytes"
