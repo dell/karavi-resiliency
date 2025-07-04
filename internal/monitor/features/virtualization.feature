@@ -306,7 +306,7 @@ Feature: Virtual Machine Integration Test
     Examples:
       | kubeConfig | vmsPerNode | nVol  | nDev  | driverType    | storageClass        | workers     | primary | failure       | failSecs | deploySecs | runSecs | nodeCleanSecs |
       | ""         | "1-1"      | "1-1" | "0-0" | "powermax"    | "powermax-nfs"      | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
-      | ""         | "1-1"      | "0-0" | "1-1" | "powermax"    | "powermax-iscsi"    | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
+      | ""         | "1-1"      | "0-0" | "1-1" | "powermax"    | "powermax-iscsi"    | "one-third" | "zero"  | "kubeletdown" | 900      | 900        | 900     | 900           |
       #| ""         | "1-1"      | "0-0" | "1-1" | "powermax"    | "powermax-nvmetcp"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
 
  
