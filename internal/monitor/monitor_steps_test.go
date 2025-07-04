@@ -23,7 +23,7 @@ import (
 	"path/filepath"
 	"podmon/internal/criapi"
 	"podmon/internal/mocks"
-	"podmon/internal/utils"
+	"podmon/internal/tools"
 	"strconv"
 	"strings"
 	"sync"
@@ -221,7 +221,7 @@ func (f *feature) iHaveAPodsForNodeWithVolumesDevicesCondition(nPods int, nodeNa
 		}
 		mockPaths = append(mockPaths, mockCSIDevicePath)
 		for _, pvName := range f.pvNames {
-			if _, err = utils.Creat(filepath.Join(mockCSIDevicePath, pvName), 0o60700); err != nil {
+			if _, err = tools.Creat(filepath.Join(mockCSIDevicePath, pvName), 0o60700); err != nil {
 				err = fmt.Errorf("Create mockCSIDevicePath failed: %s", err)
 				return err
 			}
@@ -275,7 +275,7 @@ func (f *feature) iHaveAPodsForNodeWithVolumesDevicesConditionWithPodPhase(nPods
 		}
 		mockPaths = append(mockPaths, mockCSIDevicePath)
 		for _, pvName := range f.pvNames {
-			if _, err = utils.Creat(filepath.Join(mockCSIDevicePath, pvName), 0o60700); err != nil {
+			if _, err = tools.Creat(filepath.Join(mockCSIDevicePath, pvName), 0o60700); err != nil {
 				err = fmt.Errorf("Create mockCSIDevicePath failed: %s", err)
 				return err
 			}
