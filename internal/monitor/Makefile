@@ -163,3 +163,31 @@ powermax-array-interface-test:
 	INTERFACE_B=${INTERFACE2} \
 	INTERFACE_C=${INTERFACE3} \
 	go test -timeout 6h -test.v -test.run "^\QTestPowerMaxFirstCheck\E|\QTestPowerMaxArrayInterfaceDown\E"
+
+powerflex-sanity-test:
+	RESILIENCY_SANITY_TEST="true" \
+	RESILIENCY_TEST_CLEANUP="true" \
+	POLL_K8S="true" \
+	SCRIPTS_DIR="../../test/sh" \
+	go test -timeout 6h -test.v -test.run "^\QTestPowerFlexSanityCheck\E|\QTestPowerFlexSanityTest\E"
+
+powerstore-sanity-test:
+	RESILIENCY_SANITY_TEST="true" \
+	RESILIENCY_TEST_CLEANUP="true" \
+	POLL_K8S="true" \
+	SCRIPTS_DIR="../../test/sh" \
+	go test -timeout 6h -test.v -test.run "^\QTestPowerStoreSanityCheck\E|\QTestPowerStoreSanityTest\E"
+
+powermax-sanity-test:
+	RESILIENCY_SANITY_TEST="true" \
+	RESILIENCY_TEST_CLEANUP="true" \
+	POLL_K8S="true" \
+	SCRIPTS_DIR="../../test/sh" \
+	go test -timeout 6h -test.v -test.run "^\QTestPowerMaxSanityCheck\E|\QTestPowerMaxSanityTest\E"
+
+powerscale-sanity-test:
+	RESILIENCY_SANITY_TEST="true" \
+	RESILIENCY_TEST_CLEANUP="true" \
+	POLL_K8S="true" \
+	SCRIPTS_DIR="../../test/sh" \
+	go test -timeout 6h -test.v -test.run "^\QTestPowerScaleSanityCheck\E|\QTestPowerScaleSanityTest\E"
