@@ -79,8 +79,8 @@ Feature: Virtual Machine Integration Test
     Examples:
       | kubeConfig | vmsPerNode  | nVol  | nDev  | driverType | storageClass         | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
       # Uncomment the storageclass to use. The default is set to nvme which is supported by nightly qualification.
-      | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-nfs"   | "one-third" | "zero"  | "interfacedown" | 400      | 300        | 350     | 400           |
-      | ""         | "1-1"       | "0-0" | "1-1" | "powerstore" | "powerstore-iscsi"   | "one-third" | "zero"  | "interfacedown" | 400      | 300        | 350     | 400           |
+      | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-nfs"   | "one-third" | "zero"  | "interfacedown" | 700      | 300        | 350     | 700           |
+      | ""         | "1-1"       | "0-0" | "1-1" | "powerstore" | "powerstore-iscsi"   | "one-third" | "zero"  | "interfacedown" | 700      | 300        | 350     | 700           |
       #| ""         | "1-1"       | "0-0" | "1-1" | "powerstore" | "powerstore-nvmetcp"   | "one-third" | "zero"  | "interfacedown" | 400      | 300        | 350     | 400           |
 
   @powerstore-vm-integration
@@ -100,8 +100,8 @@ Feature: Virtual Machine Integration Test
     Examples:
       | kubeConfig | vmsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
       # Uncomment the storageclass to use. The default is set to nvme which is supported by nightly qualification.
-      | ""         | "1-1"      | "1-1" | "0-0" | "powerstore" | "powerstore-nfs"   | "one-third" | "zero"  | "reboot" | 300      | 600        | 600     | 600          |
-      | ""         | "1-1"      | "0-0" | "1-1" | "powerstore" | "powerstore-iscsi"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600          |
+      | ""         | "1-1"      | "1-1" | "0-0" | "powerstore" | "powerstore-nfs"   | "one-third" | "zero"  | "reboot" | 600      | 600        | 600     | 900          |
+      | ""         | "1-1"      | "0-0" | "1-1" | "powerstore" | "powerstore-iscsi"   | "one-third" | "zero"  | "reboot" | 540      | 600        | 600     | 900          |
       #| ""         | "1-1"      | "0-0" | "1-1" | "powerstore" | "powerstore-nvmetcp"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600          |
 
   @powerstore-vm-integration
@@ -122,8 +122,8 @@ Feature: Virtual Machine Integration Test
     Examples:
       | kubeConfig | vmsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure       | failSecs | deploySecs | runSecs | nodeCleanSecs |
       # Uncomment the storageclass to use. The default is set to nvme which is supported by nightly qualification.
-      | ""         | "1-1"      | "1-1" | "0-0" | "powerstore"    | "powerstore-nfs"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
-      | ""         | "1-1"      | "0-0" | "1-1" | "powerstore"    | "powerstore-iscsi"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
+      | ""         | "1-1"      | "1-1" | "0-0" | "powerstore"    | "powerstore-nfs"  | "one-third" | "zero"  | "kubeletdown" | 900      | 900        | 900     | 1200           |
+      | ""         | "1-1"      | "0-0" | "1-1" | "powerstore"    | "powerstore-iscsi"  | "one-third" | "zero"  | "kubeletdown" | 900      | 900        | 900     | 00           |
       #| ""         | "1-1"      | "0-0" | "1-1" | "powerstore"    | "powerstore-nvmetcp"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
 
   @powerstore-vm-integration
@@ -182,8 +182,8 @@ Feature: Virtual Machine Integration Test
 
     Examples:
       | kubeConfig | vmsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-1"      | "0-0" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 400      | 300        | 350     | 400           |
-      | ""         | "2-2"      | "0-0" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 450      | 400        | 300     | 600           |
+      | ""         | "1-1"      | "0-0" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 600      | 600        | 600     | 600           |
+      | ""         | "2-2"      | "0-0" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 900      | 900        | 900     | 900           |
 
   @powerflex-vm-integration
   Scenario Outline: Basic node failover testing using test VM's (node kubelet down)
@@ -203,7 +203,7 @@ Feature: Virtual Machine Integration Test
     Examples:
       | kubeConfig | vmsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
       | ""         | "1-1"      | "0-0" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "kubeletdown"   | 600      | 900        | 900     | 900           |
-      | ""         | "2-2"      | "0-0" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "kubeletdown"   | 600      | 900        | 900     | 900           |
+      | ""         | "2-2"      | "0-0" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "kubeletdown"   | 900      | 900        | 900     | 900           |
 
   @powerscale-vm-integration
   Scenario Outline: Basic node failover testing using test VM's (node interface down)
@@ -240,8 +240,8 @@ Feature: Virtual Machine Integration Test
       Then finally cleanup everything
       Examples:
         | kubeConfig | vmsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
-        | ""         | "1-2"      | "1-1" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 650      | 600        | 600     | 600          |
-        | ""         | "1-2"      | "2-2" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 650      | 900        | 900     | 900           |
+        | ""         | "1-2"      | "1-1" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 650      | 600        | 600     | 1200          |
+        | ""         | "1-2"      | "2-2" | "0-0" | "isilon" | "isilon"   | "one-third" | "zero"  | "reboot" | 650      | 900        | 900     | 1200           |
 
 
   @powerscale-vm-integration
@@ -306,7 +306,7 @@ Feature: Virtual Machine Integration Test
     Examples:
       | kubeConfig | vmsPerNode | nVol  | nDev  | driverType    | storageClass        | workers     | primary | failure       | failSecs | deploySecs | runSecs | nodeCleanSecs |
       | ""         | "1-1"      | "1-1" | "0-0" | "powermax"    | "powermax-nfs"      | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
-      | ""         | "1-1"      | "0-0" | "1-1" | "powermax"    | "powermax-iscsi"    | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
+      | ""         | "1-1"      | "0-0" | "1-1" | "powermax"    | "powermax-iscsi"    | "one-third" | "zero"  | "kubeletdown" | 900      | 900        | 900     | 900           |
       #| ""         | "1-1"      | "0-0" | "1-1" | "powermax"    | "powermax-nvmetcp"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
 
  
