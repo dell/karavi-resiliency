@@ -380,7 +380,7 @@ func (i *integration) internalFailWorkerAndPrimaryNodes(numNodes, numPrimary, fa
 	return nil
 }
 
-func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, driverType, storageClass string, wait int) error {
+func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, driverType, storageClass string, wait int, preferred string) error {
 	podCount, err := i.selectFromRange(podsPerNode)
 	if err != nil {
 		return err
@@ -452,6 +452,10 @@ func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, 
 		"--ndevices", strconv.Itoa(devCount),
 		"--prefix", prefix,
 		"--storage-class", storageClass,
+	}
+
+	if preferred != "" {
+		args = append(args, "--podPreferred", preferred)
 	}
 
 	if !protected {
@@ -680,7 +684,7 @@ func (i *integration) deployVMs(protected bool, vmsPerNode, numVols, numDevs, dr
 }
 
 func (i *integration) deployProtectedPods(podsPerNode, numVols, numDevs, driverType, storageClass string, wait int) error {
-	return i.deployPods(true, podsPerNode, numVols, numDevs, driverType, storageClass, wait)
+	return i.deployPods(true, podsPerNode, numVols, numDevs, driverType, storageClass, wait, "")
 }
 
 func (i *integration) deployProtectedVMs(vmsPerNode, numVols, numDevs, driverType, storageClass string, wait int) error {
@@ -688,7 +692,7 @@ func (i *integration) deployProtectedVMs(vmsPerNode, numVols, numDevs, driverTyp
 }
 
 func (i *integration) deployUnprotectedPods(podsPerNode, numVols, numDevs, driverType, storageClass string, wait int) error {
-	return i.deployPods(false, podsPerNode, numVols, numDevs, driverType, storageClass, wait)
+	return i.deployPods(false, podsPerNode, numVols, numDevs, driverType, storageClass, wait, "")
 }
 
 func (i *integration) theTaintsForTheFailedNodesAreRemovedWithinSeconds(wait int) error {
@@ -1912,6 +1916,50 @@ func (i *integration) verifyKubeVirtIPAMControllerPodExists() error {
 	return fmt.Errorf("No pod with prefix '%s' found in namespace '%s'. OpenShift Virtualization might not be installed", podPrefix, namespace)
 }
 
+func (i *integration) labelNodeAsPreferredSite(node, preferred string) error {
+	nodeObj, err := i.k8s.GetClient().CoreV1().Nodes().Get(context.TODO(), node, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("Failed to get node '%s': %v", node, err)
+	}
+
+	// Add or update the label
+	if nodeObj.ObjectMeta.Labels == nil {
+		nodeObj.ObjectMeta.Labels = make(map[string]string)
+	}
+	nodeObj.ObjectMeta.Labels["preferred"] = preferred
+
+	// Update the node
+	_, err = i.k8s.GetClient().CoreV1().Nodes().Update(context.TODO(), nodeObj, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("Failed to label node '%s': %v", node, err)
+	}
+	return nil
+}
+
+func (i *integration) deployProtectedPreferredPods(podsPerNode, numVols, numDevs, driverType, storageClass string, wait int, preferred string) error {
+	return i.deployPods(true, podsPerNode, numVols, numDevs, driverType, storageClass, wait, preferred)
+}
+
+func (i *integration) allPodsOnNode(node string) error {
+	for podIdx := 1; podIdx <= i.podCount; podIdx++ {
+		for prefix := range i.testNamespacePrefix {
+			namespace := fmt.Sprintf("%s%d", prefix, podIdx)
+			pods, err := i.k8s.GetClient().CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{})
+			if err != nil {
+				return err
+			}
+
+			for _, pod := range pods.Items {
+				if pod.Spec.NodeName != node {
+					return fmt.Errorf("Pod %s/%s is not running on node %s", pod.Namespace, pod.Name, node)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	i := &integration{}
 	pollK8sEnabled := false
@@ -1952,4 +2000,7 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^I fail "([^"]*)" worker driver pod with "([^"]*)" failure for (\d+) and I expect these taints "([^"]*)"$`, i.iFailDriverPodsTaints)
 	context.Step(`^initial disk write and verify on all VMs succeeds$`, i.initialDiskWriteAndVerifyAllVMs)
 	context.Step(`^post failover disk content verification on all VMs succeeds$`, i.postFailoverVerifyAllVMs)
+	context.Step(`^label "([^"]*)" node as "([^"]*)" site$`, i.labelNodeAsPreferredSite)
+	context.Step(`^"([^"]*)" pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+) with "([^"]*)" affinity$`, i.deployProtectedPreferredPods)
+	context.Step(`^all pods are running on "([^"]*)" node$`, i.allPodsOnNode)
 }

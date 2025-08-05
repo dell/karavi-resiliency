@@ -711,6 +711,25 @@ Feature: Integration Test
       #| ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-iscsi"   | "one-third" | "zero"  | "interfacedown" | 120      | 240        | 300     | 300           |
       | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-nvmetcp"   | "one-third" | "zero"  | "interfacedown" | 240      | 480        | 300     | 300           |
 
+  @powerstore-short-integration
+  Scenario Outline: Preferred site node failover testing using test StatefulSet pods (node interface down)
+    Given a kubernetes <kubeConfig>
+    And cluster is clean of test pods
+    And wait <nodeCleanSecs> to see there are no taints
+    And label <primary> node as <preferred> site
+    And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs> with <preferred> affinity
+    Then validate that all pods are running within <deploySecs> seconds
+    And all pods are running on <primary> node
+    When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
+    Then validate that all pods are running within <runSecs> seconds
+    And labeled pods are on a different node
+    And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
+    Then finally cleanup everything
+
+    Examples:
+      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs | preferred |
+      | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-nvmetcp"   | "one-third" | "zero"  | "interfacedown" | 240      | 480        | 300     | 300           | "site"|
+
   @powermax-short-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
     Given a kubernetes <kubeConfig>

@@ -60,6 +60,18 @@ spec:
                   - podmontest-{{ .Release.Namespace }}
               topologyKey: "kubernetes.io/hostname"
 {{end}}
+{{- if ne .Values.podmonTest.podPreferred ""}}
+        affinity:
+          podAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 1
+              preference:
+                matchExpressions:
+                - key: "preferred"
+                  operator: In
+                  values:
+                  - {{.Values.podmonTest.podPreferred}}
+{{end}}
         tolerations:
           - effect: NoExecute
             key: node.kubernetes.io/unreachable
