@@ -816,6 +816,26 @@ func (i *integration) finallyCleanupEverything() error {
 
 	// Cleaned up, so zero the podCount
 	i.podCount = 0
+
+	// Clean up nodes with the label
+	labelKey := "preferred"
+	nodes, err := i.k8s.GetClient().CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+		LabelSelector: labelKey,
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, node := range nodes.Items {
+		if _, exists := node.Labels[labelKey]; exists {
+			delete(node.Labels, labelKey)
+			_, err := i.k8s.GetClient().CoreV1().Nodes().Update(context.TODO(), &node, metav1.UpdateOptions{})
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
