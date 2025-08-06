@@ -207,7 +207,7 @@ Feature: Integration Test
     And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs> with <preferred> affinity
     Then validate that all pods are running within <deploySecs> seconds
     And all pods are running on <preferred> node
-    When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
+    When I fail labeled <preferred> nodes with <failure> failure for <failSecs> seconds
     Then validate that all pods are running within <runSecs> seconds
     And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds

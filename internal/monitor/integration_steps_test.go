@@ -268,6 +268,69 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 	return i.internalFailWorkerAndPrimaryNodes(numNodes, numPrimary, failure, "", wait)
 }
 
+func (i *integration) failLabeledNodes(preferred, failure string, wait int) error {
+	failedWorkers, err := i.failNodes(func(node corev1.Node) bool {
+		return node.Labels["preferred"] == preferred
+	}, -1, failure, wait)
+	if err != nil {
+		return err
+	}
+	// Allow a little extra for node failure to be detected than just the node downtime.
+	// This proved necessary for the really short failure times (45 sec.) to be reliable.
+	wait = wait + wait
+	log.Infof("Requested nodes to fail. Waiting up to %d seconds to see if they show up as failed.", wait)
+	timeoutDuration := time.Duration(wait) * time.Second
+	timeout := time.NewTimer(timeoutDuration)
+	ticker := time.NewTicker(checkTickerInterval * time.Second)
+	done := make(chan bool)
+	start := time.Now()
+
+	log.Infof("Waiting for failed nodes...")
+
+	requestedWorkersAndFailed := func(node corev1.Node) bool {
+		found := false
+		for _, worker := range failedWorkers {
+			if node.Name == worker && i.isNodeFailed(node, "") {
+				found = true
+				break
+			}
+		}
+		return found
+	}
+
+	foundFailedWorkers, err := i.searchForNodes(requestedWorkersAndFailed)
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-timeout.C:
+				log.Info("Timed out, but doing last check if requested nodes show up as failed")
+				foundFailedWorkers, err = i.searchForNodes(requestedWorkersAndFailed)
+				return
+			case <-ticker.C:
+				log.Infof("Checking if requested nodes show up as failed (time left %v)", timeoutDuration-time.Since(start))
+				foundFailedWorkers, err = i.searchForNodes(requestedWorkersAndFailed)
+				if len(foundFailedWorkers) == len(failedWorkers) {
+					return
+				}
+			}
+		}
+	}()
+
+	<-done
+	timeout.Stop()
+	ticker.Stop()
+
+	log.Infof("Completed checks for failed nodes after %v", time.Since(start))
+	err = AssertExpectedAndActual(assert.Equal, true, len(foundFailedWorkers) == len(failedWorkers),
+		fmt.Sprintf("Expected %d worker node(s) to be failed, but was %d. %v", len(failedWorkers), len(foundFailedWorkers), foundFailedWorkers))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (i *integration) failAndExpectingTaints(numNodes, numPrimary, failure string, wait int, expectedTaints string) error {
 	return i.internalFailWorkerAndPrimaryNodes(numNodes, numPrimary, failure, expectedTaints, wait)
 }
@@ -2063,6 +2126,7 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^validate that all pods are running within (\d+) seconds$`, i.allPodsAreRunningWithinSeconds)
 	context.Step(`^I fail "([^"]*)" worker nodes and "([^"]*)" primary nodes with "([^"]*)" failure for (\d+) seconds$`, i.failWorkerAndPrimaryNodes)
 	context.Step(`^I fail "([^"]*)" worker nodes and "([^"]*)" primary nodes with "([^"]*)" failure for (\d+) and I expect these taints "([^"]*)"$`, i.failAndExpectingTaints)
+	context.Step(`I fail labeled "([^"]*)" nodes with "([^"]*)" failure for (\d+) seconds`, i.failLabeledNodes)
 	context.Step(`^"([^"]*)" pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployProtectedPods)
 	context.Step(`^"([^"]*)" vms per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployProtectedVMs)
 	context.Step(`^"([^"]*)" unprotected pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployUnprotectedPods)
