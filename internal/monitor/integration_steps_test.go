@@ -1936,22 +1936,80 @@ func (i *integration) verifyKubeVirtIPAMControllerPodExists() error {
 	return fmt.Errorf("No pod with prefix '%s' found in namespace '%s'. OpenShift Virtualization might not be installed", podPrefix, namespace)
 }
 
-func (i *integration) labelNodeAsPreferredSite(node, preferred string) error {
-	nodeObj, err := i.k8s.GetClient().CoreV1().Nodes().Get(context.TODO(), node, metav1.GetOptions{})
+func (i *integration) labelNodeAsPreferredSite(numNodes, preferred string) error {
+	count, err := i.parseRatioOrCount(numNodes)
 	if err != nil {
-		return fmt.Errorf("Failed to get node '%s': %v", node, err)
+		return err
 	}
 
-	// Add or update the label
-	if nodeObj.ObjectMeta.Labels == nil {
-		nodeObj.ObjectMeta.Labels = make(map[string]string)
-	}
-	nodeObj.ObjectMeta.Labels["preferred"] = preferred
-
-	// Update the node
-	_, err = i.k8s.GetClient().CoreV1().Nodes().Update(context.TODO(), nodeObj, metav1.UpdateOptions{})
+	nodes, err := i.searchForNodes(isWorkerNode)
 	if err != nil {
-		return fmt.Errorf("Failed to label node '%s': %v", node, err)
+		return err
+	}
+
+	numberToLabel := 0
+	if count < 0.0 {
+		numberToLabel = len(nodes)
+	} else if count < 1.0 {
+		temp := float64(len(nodes))
+		numberToLabel = int(math.Ceil(temp * count))
+	} else { // count >= 1.0, so use the value
+		numberToLabel = int(count)
+	}
+	// Create a mapping of the node name to IP address
+	nameToIP := make(map[string]string)
+	for _, node := range nodes {
+		for _, addr := range node.Status.Addresses {
+			if addr.Type == "InternalIP" {
+				nameToIP[node.Name] = addr.Address
+				break
+			}
+		}
+	}
+
+	// Create a list of candidates. Prepend with the nodes that have labeled pods on them.
+	// This way, we will always have a chance to test fail over scenario.
+	candidates := make([]string, 0)
+	tracker := make(map[string]bool) // Used to prevent duplicates in 'candidate' list.
+	for _, name := range i.labeledPodsToNodes {
+		if !tracker[name] {
+			tracker[name] = true
+			candidates = append(candidates, name)
+		}
+	}
+
+	// Check if we have enough candidates to match the requested number to fail.
+	if len(candidates) < numberToLabel {
+		// Need to add more to list of candidates, so add the remaining node names to the candidate list.
+		for name := range nameToIP {
+			if !tracker[name] {
+				tracker[name] = true
+				candidates = append(candidates, name)
+			}
+		}
+	}
+
+	labeled := 0
+	for _, name := range candidates {
+		if labeled < numberToLabel {
+			nodeObj, err := i.k8s.GetClient().CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("Failed to get node '%s': %v", name, err)
+			}
+
+			// Add or update the label
+			if nodeObj.ObjectMeta.Labels == nil {
+				nodeObj.ObjectMeta.Labels = make(map[string]string)
+			}
+			nodeObj.ObjectMeta.Labels["preferred"] = preferred
+
+			// Update the node
+			_, err = i.k8s.GetClient().CoreV1().Nodes().Update(context.TODO(), nodeObj, metav1.UpdateOptions{})
+			if err != nil {
+				return fmt.Errorf("Failed to label node '%s': %v", name, err)
+			}
+			labeled++
+		}
 	}
 	return nil
 }
@@ -1960,7 +2018,7 @@ func (i *integration) deployProtectedPreferredPods(podsPerNode, numVols, numDevs
 	return i.deployPods(true, podsPerNode, numVols, numDevs, driverType, storageClass, wait, preferred)
 }
 
-func (i *integration) allPodsOnNode(node string) error {
+func (i *integration) allPodsOnNode(preferred string) error {
 	for podIdx := 1; podIdx <= i.podCount; podIdx++ {
 		for prefix := range i.testNamespacePrefix {
 			namespace := fmt.Sprintf("%s%d", prefix, podIdx)
@@ -1970,8 +2028,12 @@ func (i *integration) allPodsOnNode(node string) error {
 			}
 
 			for _, pod := range pods.Items {
-				if pod.Spec.NodeName != node {
-					return fmt.Errorf("Pod %s/%s is not running on node %s", pod.Namespace, pod.Name, node)
+				nodeObj, err := i.k8s.GetClient().CoreV1().Nodes().Get(context.TODO(), pod.Spec.NodeName, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if nodeObj.ObjectMeta.Labels["preferred"] != preferred {
+					return fmt.Errorf("Pod '%s' is not on preferred node '%s'", pod.Name, pod.Spec.NodeName)
 				}
 			}
 		}
