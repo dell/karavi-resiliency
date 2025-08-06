@@ -62,7 +62,7 @@ spec:
 {{end}}
 {{- if ne .Values.podmonTest.podPreferred ""}}
         affinity:
-          podAffinity:
+          nodeAffinity:
             preferredDuringSchedulingIgnoredDuringExecution:
             - weight: 1
               preference:
