@@ -275,6 +275,16 @@ func (i *integration) failLabeledNodes(preferred, failure string, wait int) erro
 	if err != nil {
 		return err
 	}
+
+	err = i.verifyExpectedNodesFailed(failedWorkers, wait)
+	if err != nil {
+		return fmt.Errorf("[failLabeledNodes] failed to verify expected nodes failed: %v", err)
+	}
+
+	return nil
+}
+
+func (i *integration) verifyExpectedNodesFailed(failedWorkers []string, wait int) error {
 	// Allow a little extra for node failure to be detected than just the node downtime.
 	// This proved necessary for the really short failure times (45 sec.) to be reliable.
 	wait = wait + wait
@@ -842,8 +852,35 @@ func (i *integration) thereAreDriverPodsWithThisPrefix(namespace, prefix string)
 			prefix, nRunningControllerPodmons, nRunningNodePodmons))
 }
 
+func (i *integration) removePreferredLabels() error {
+	log.Println("Removing preferred labels from nodes")
+
+	// Clean up nodes with the label
+	labelKey := "preferred"
+	nodes, err := i.k8s.GetClient().CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+		LabelSelector: labelKey,
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, node := range nodes.Items {
+		if _, exists := node.Labels[labelKey]; exists {
+			delete(node.Labels, labelKey)
+			_, err := i.k8s.GetClient().CoreV1().Nodes().Update(context.TODO(), &node, metav1.UpdateOptions{})
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func (i *integration) finallyCleanupEverything() error {
 	uninstallScript := "uns.sh"
+
+	defer i.removePreferredLabels()
 
 	if lastTestDriverType == "" {
 		// Nothing to clean up
@@ -879,25 +916,6 @@ func (i *integration) finallyCleanupEverything() error {
 
 	// Cleaned up, so zero the podCount
 	i.podCount = 0
-
-	// Clean up nodes with the label
-	labelKey := "preferred"
-	nodes, err := i.k8s.GetClient().CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
-		LabelSelector: labelKey,
-	})
-	if err != nil {
-		return err
-	}
-
-	for _, node := range nodes.Items {
-		if _, exists := node.Labels[labelKey]; exists {
-			delete(node.Labels, labelKey)
-			_, err := i.k8s.GetClient().CoreV1().Nodes().Update(context.TODO(), &node, metav1.UpdateOptions{})
-			if err != nil {
-				return err
-			}
-		}
-	}
 
 	return nil
 }
@@ -1999,15 +2017,15 @@ func (i *integration) verifyKubeVirtIPAMControllerPodExists() error {
 	return fmt.Errorf("No pod with prefix '%s' found in namespace '%s'. OpenShift Virtualization might not be installed", podPrefix, namespace)
 }
 
-func (i *integration) labelNodeAsPreferredSite(numNodes, preferred string) error {
+func (i *integration) createNodeNameMap(numNodes string, filter func(node corev1.Node) bool) (map[string]string, int, error) {
 	count, err := i.parseRatioOrCount(numNodes)
 	if err != nil {
-		return err
+		return nil, 0, err
 	}
 
-	nodes, err := i.searchForNodes(isWorkerNode)
+	nodes, err := i.searchForNodes(filter)
 	if err != nil {
-		return err
+		return nil, 0, err
 	}
 
 	numberToLabel := 0
@@ -2019,6 +2037,7 @@ func (i *integration) labelNodeAsPreferredSite(numNodes, preferred string) error
 	} else { // count >= 1.0, so use the value
 		numberToLabel = int(count)
 	}
+
 	// Create a mapping of the node name to IP address
 	nameToIP := make(map[string]string)
 	for _, node := range nodes {
@@ -2028,6 +2047,15 @@ func (i *integration) labelNodeAsPreferredSite(numNodes, preferred string) error
 				break
 			}
 		}
+	}
+
+	return nameToIP, numberToLabel, nil
+}
+
+func (i *integration) labelNodeAsPreferredSite(numNodes, preferred string) error {
+	nameToIP, numberToLabel, err := i.createNodeNameMap(numNodes, isWorkerNode)
+	if err != nil {
+		return err
 	}
 
 	// Create a list of candidates. Prepend with the nodes that have labeled pods on them.
@@ -2105,6 +2133,98 @@ func (i *integration) allPodsOnNodesWithPreferredLabel(preferred string) error {
 	return nil
 }
 
+func (i *integration) thereAreAtLeastWorkerNodesWhichAreReady(count int) error {
+	list, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		message := fmt.Sprintf("listing nodes error: %s", err)
+		return fmt.Errorf("%s", message)
+	}
+
+	workerNodesCount := 0
+	for _, node := range list.Items {
+		isControlPlane := false
+		for label := range node.Labels {
+			if label == "node-role.kubernetes.io/control-plane" {
+				log.Infof("Node %s is a control plane node", node.Name)
+				isControlPlane = true
+				break
+			}
+		}
+
+		if isControlPlane {
+			continue
+		}
+
+		nodeReady := nodeHasCondition(node, "Ready")
+		if nodeReady {
+			workerNodesCount++
+		}
+	}
+
+	if workerNodesCount < count {
+		log.Warnln("Skipping this scenario. Expected at least", count, "but found", workerNodesCount)
+		return godog.ErrSkip
+	}
+
+	return nil
+}
+
+func (i *integration) iFailNodesWithLabelWithFailureForSeconds(numNodes, label, failure string, wait int) error {
+	filter := func(node corev1.Node) bool {
+		if isWorkerNode(node) && node.ObjectMeta.Labels["preferred"] == label {
+			return true
+		}
+
+		return false
+	}
+
+	nameToIP, numberToLabel, err := i.createNodeNameMap(numNodes, filter)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Labeling %d nodes with preferred=%s", numberToLabel, label)
+
+	// Get application pods that were deployed by podmontest.
+	nodeToFail := ""
+	for podIdx := 1; podIdx <= i.podCount; podIdx++ {
+		for prefix := range i.testNamespacePrefix {
+			namespace := fmt.Sprintf("%s%d", prefix, podIdx)
+			podList, err := i.k8s.GetClient().CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to list pods in namespace '%s': %v", namespace, err)
+			}
+
+			if len(podList.Items) == 0 {
+				return fmt.Errorf("no pods found in namespace '%s'", namespace)
+			}
+
+			for _, pod := range podList.Items {
+				if _, ok := nameToIP[pod.Spec.NodeName]; ok {
+					nodeToFail = pod.Spec.NodeName
+					break
+				}
+			}
+		}
+	}
+
+	log.Info("Node to fail: ", nodeToFail)
+
+	failedWorkers, err := i.failNodes(func(node corev1.Node) bool {
+		return node.Name == nodeToFail
+	}, -1, failure, wait)
+	if err != nil {
+		return err
+	}
+
+	err = i.verifyExpectedNodesFailed(failedWorkers, wait)
+	if err != nil {
+		return fmt.Errorf("[iFailNodesWithLabelWithFailureForSeconds] failed to verify expected nodes failed: %v", err)
+	}
+
+	return nil
+}
+
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	i := &integration{}
 	pollK8sEnabled := false
@@ -2149,4 +2269,6 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^label "([^"]*)" node as "([^"]*)" site$`, i.labelNodeAsPreferredSite)
 	context.Step(`^"([^"]*)" pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+) with "([^"]*)" affinity$`, i.deployProtectedPreferredPods)
 	context.Step(`^all pods are running on "([^"]*)" node$`, i.allPodsOnNodesWithPreferredLabel)
+	context.Step(`^there are at least (\d+) worker nodes which are ready$`, i.thereAreAtLeastWorkerNodesWhichAreReady)
+	context.Step(`^I fail "([^"]*)" nodes with label "([^"]*)" with "([^"]*)" failure for (\d+) seconds$`, i.iFailNodesWithLabelWithFailureForSeconds)
 }

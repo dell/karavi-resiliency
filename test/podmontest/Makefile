@@ -31,5 +31,8 @@ docker:  build
 podman:
 	podman build -t "$(REGISTRY):$(VERSION)" --label commit=$(shell git log --max-count 1 --format="%H") .
 
+docker:
+	docker build -t "$(REGISTRY):$(VERSION)" --label commit=$(shell git log --max-count 1 --format="%H") .
+
 push:
 	podman push "$(REGISTRY):$(VERSION)"
