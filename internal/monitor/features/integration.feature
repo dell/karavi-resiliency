@@ -53,7 +53,7 @@ Feature: Integration Test
     And can logon to nodes and drop test scripts
     Examples:
       | kubeConfig | driverNames                  | namespace      | name         | storageClasses                                       |
-      | ""         | "csi-powerstore.dellemc.com" | "powerstore"   | "powerstore" | "powerstore-nfs,powerstore-iscsi,powerstore-nvmetcp" |
+      | ""         | "csi-powerstore.dellemc.com" | "powerstore"   | "powerstore" | "powerstore-nfs,powerstore-iscsi,powerstore-nvmetcp,powerstore-metro" |
 
   @powermax-int-setup-check
   Scenario Outline: Validate that we have a valid k8s configuration for the integration tests
