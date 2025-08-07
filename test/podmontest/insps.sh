@@ -31,7 +31,7 @@ driverLabel="csi-powerstore"
 podAffinity="false"
 unreachableTolerationSeconds=300
 workloadType=${workloadType:-"pod"}
-preferred=""
+preferred=${preferred:-"site"}
 
 if [ "$DEBUG"x != "x" ]; then
    DEBUG="--dry-run --debug"

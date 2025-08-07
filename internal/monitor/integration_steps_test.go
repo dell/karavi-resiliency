@@ -36,19 +36,20 @@ import (
 )
 
 type integration struct {
-	configPath          string
-	k8s                 k8sapi.K8sAPI
-	driverType          string
-	podCount            int
-	devCount            int
-	volCount            int
-	testNamespacePrefix map[string]bool
-	scriptsDir          string
-	labeledPodsToNodes  map[string]string
-	nodesToTaints       map[string]string
-	isOpenshift         bool
-	bastionNode         string
-	customTaints        string
+	configPath            string
+	k8s                   k8sapi.K8sAPI
+	driverType            string
+	podCount              int
+	devCount              int
+	volCount              int
+	testNamespacePrefix   map[string]bool
+	scriptsDir            string
+	labeledPodsToNodes    map[string]string
+	nodesToTaints         map[string]string
+	isOpenshift           bool
+	bastionNode           string
+	customTaints          string
+	preferredLabeledNodes []string
 }
 
 // Used for keeping of track of the last test that was
@@ -1252,6 +1253,19 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 		}
 	}
 
+	if len(i.preferredLabeledNodes) > 0 {
+		// Add the preferred labeled nodes to the candidate list for the failure
+		candidates = make([]string, 0)
+		tracker = make(map[string]bool)
+		for _, name := range i.preferredLabeledNodes {
+			if !tracker[name] {
+				tracker[name] = true
+				candidates = append(candidates, name)
+			}
+		}
+	}
+	log.Infof("All the candidate nodes to fail are %v", candidates)
+
 	failed := 0
 	for _, name := range candidates {
 		// For CSI driver pod run the script from test host not worker node
@@ -2036,6 +2050,9 @@ func (i *integration) labelNodeAsPreferredSite(numNodes, preferred string) error
 	tracker := make(map[string]bool) // Used to prevent duplicates in 'candidate' list.
 	for _, name := range i.labeledPodsToNodes {
 		if !tracker[name] {
+			if len(candidates) >= numberToLabel {
+				break
+			}
 			tracker[name] = true
 			candidates = append(candidates, name)
 		}
@@ -2046,15 +2063,20 @@ func (i *integration) labelNodeAsPreferredSite(numNodes, preferred string) error
 		// Need to add more to list of candidates, so add the remaining node names to the candidate list.
 		for name := range nameToIP {
 			if !tracker[name] {
+				if len(candidates) >= numberToLabel {
+					break
+				}
 				tracker[name] = true
 				candidates = append(candidates, name)
 			}
 		}
 	}
 
+	i.preferredLabeledNodes = []string{}
 	labeled := 0
 	for _, name := range candidates {
 		if labeled < numberToLabel {
+			log.Infof("Labeling node %s as %s", name, preferred)
 			nodeObj, err := i.k8s.GetClient().CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
 			if err != nil {
 				return fmt.Errorf("Failed to get node '%s': %v", name, err)
@@ -2065,6 +2087,7 @@ func (i *integration) labelNodeAsPreferredSite(numNodes, preferred string) error
 				nodeObj.ObjectMeta.Labels = make(map[string]string)
 			}
 			nodeObj.ObjectMeta.Labels["preferred"] = preferred
+			i.preferredLabeledNodes = append(i.preferredLabeledNodes, name)
 
 			// Update the node
 			_, err = i.k8s.GetClient().CoreV1().Nodes().Update(context.TODO(), nodeObj, metav1.UpdateOptions{})
