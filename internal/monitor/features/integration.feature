@@ -230,6 +230,7 @@ Feature: Integration Test
     Then validate that all pods are running within <runSecs> seconds
     And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
+    And pods are scheduled on the non preferred nodes
     Then finally cleanup everything
 
     Examples:

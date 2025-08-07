@@ -2128,6 +2128,30 @@ func (i *integration) allPodsOnNode(preferred string) error {
 	return nil
 }
 
+func (i *integration) verifyPodsOnNonPreferredNodes() error {
+
+	for count := 1; count <= i.podCount; count++ {
+		namespace := fmt.Sprintf("%s%d", PowerStoreNS, count)
+		podList, err := i.k8s.GetClient().CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			log.Errorf("Failed to list pods in namespace '%s': %v", namespace, err)
+			return err
+		}
+		log.Infof("Pods in namespace '%s': %v", namespace, podList.Items)
+
+		for _, pod := range podList.Items {
+			nodeName := pod.Spec.NodeName
+			log.Infof("Checking pod %s on node %s", pod.Name, nodeName)
+			for _, labeledNode := range i.preferredLabeledNodes {
+				if nodeName == labeledNode {
+					return fmt.Errorf("Pod '%s' is on preferred node '%s'", pod.Name, nodeName)
+				}
+			}
+		}
+	}
+	return nil
+}
+
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	i := &integration{}
 	pollK8sEnabled := false
@@ -2172,4 +2196,5 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^label "([^"]*)" node as "([^"]*)" site$`, i.labelNodeAsPreferredSite)
 	context.Step(`^"([^"]*)" pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+) with "([^"]*)" affinity$`, i.deployProtectedPreferredPods)
 	context.Step(`^all pods are running on "([^"]*)" node$`, i.allPodsOnNode)
+	context.Step(`^pods are scheduled on the non preferred nodes$`, i.verifyPodsOnNonPreferredNodes)
 }
