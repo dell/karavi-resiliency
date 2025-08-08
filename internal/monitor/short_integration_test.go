@@ -376,3 +376,41 @@ func TestPowerMaxShortIntegration(t *testing.T) {
 	}
 	log.Printf("Integration test finished")
 }
+
+func TestPowerStoreMetroResiliencyIntegration(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableShortIntTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableShortIntTestVar)
+		return
+	}
+
+	if !setupIsGood {
+		message := "The setup check failed. Tests skipped"
+		log.Print(message)
+		t.Error(message)
+		return
+	}
+
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
+	log.Printf("Starting integration test")
+	godogOptions := godog.Options{
+		Format:        "pretty,junit:powerstore-metro-resiliency-integration-junit-report.xml,cucumber:powerstore-metro-resiliency-integration-cucumber-report.json",
+		Paths:         []string{"features"},
+		Tags:          "powerstore-metro-resiliency-integration",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "integration",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Error("There were failed integration tests")
+	}
+	log.Printf("Integration test finished")
+}

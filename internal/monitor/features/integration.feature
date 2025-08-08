@@ -52,8 +52,8 @@ Feature: Integration Test
     And there are driver pods in <namespace> with this <name> prefix
     And can logon to nodes and drop test scripts
     Examples:
-      | kubeConfig | driverNames                  | namespace      | name         | storageClasses                                       |
-      | ""         | "csi-powerstore.dellemc.com" | "powerstore"   | "powerstore" | "powerstore-nfs,powerstore-iscsi,powerstore-nvmetcp" |
+      | kubeConfig | driverNames                  | namespace      | name         | storageClasses                                                        |
+      | ""         | "csi-powerstore.dellemc.com" | "powerstore"   | "powerstore" | "powerstore-nfs,powerstore-iscsi,powerstore-nvmetcp,powerstore-metro" |
 
   @powermax-int-setup-check
   Scenario Outline: Validate that we have a valid k8s configuration for the integration tests
@@ -217,7 +217,7 @@ Feature: Integration Test
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs | preferred |
       | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-metro"   | "one-third" | "zero"  | "interfacedown" | 240      | 600        | 600     | 600           | "site"|
 
-  @powerstore-integration @powerstore-metro-resiliency
+  @powerstore-integration @powerstore-metro-resiliency-integration
   Scenario Outline: Recovery of preferred-site node testing using test StatefulSet pods (node interface down)
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
