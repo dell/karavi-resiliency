@@ -20,12 +20,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"podmon/internal/k8sapi"
-	"podmon/test/ssh"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"podmon/internal/k8sapi"
+	"podmon/test/ssh"
 
 	"github.com/cucumber/godog"
 	log "github.com/sirupsen/logrus"
@@ -2129,7 +2130,6 @@ func (i *integration) allPodsOnNode(preferred string) error {
 }
 
 func (i *integration) verifyPodsOnNonPreferredNodes() error {
-
 	for count := 1; count <= i.podCount; count++ {
 		namespace := fmt.Sprintf("%s%d", PowerStoreNS, count)
 		podList, err := i.k8s.GetClient().CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
