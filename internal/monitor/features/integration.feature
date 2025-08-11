@@ -229,13 +229,14 @@ Feature: Integration Test
     When I fail labeled <preferred> nodes with <failure> failure for <failSecs> seconds
     Then validate that all pods are running within <runSecs> seconds
     And labeled pods are on a different node
+    And pods are scheduled on the non preferred nodes
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     And pods are scheduled on the non preferred nodes
     Then finally cleanup everything
 
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType   | storageClass         | workers      | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs | preferred |
-      | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-metro"   | "two-thirds" | "zero"  | "interfacedown" | 360      | 600        | 600     | 600           | "site"|
+      | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-metro"   | "two-thirds" | "zero"  | "interfacedown" | 600      | 600        | 600     | 600           | "site"|
 
   @unity-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
