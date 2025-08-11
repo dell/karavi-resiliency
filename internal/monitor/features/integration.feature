@@ -199,7 +199,7 @@ Feature: Integration Test
       #| ""         | "3-5"       | "2-2" | "0-0" | "powerstore"    | "powerstore-nvmetcp" | "one-third" | "zero"  | "interfacedown" | 240      | 600        | 600     | 600           |
 
   @powerstore-integration @powerstore-metro-resiliency
-  Scenario Outline: Preferred site node failover testing using test StatefulSet pods (node interface down)
+  Scenario Outline: Preferred cluster node failure hosting metro volumes testing using StatefulSet pods (node interface down)
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
     And wait <nodeCleanSecs> to see there are no taints

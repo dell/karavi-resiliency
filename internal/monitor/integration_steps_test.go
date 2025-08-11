@@ -2081,7 +2081,7 @@ func (i *integration) deployProtectedPreferredPods(podsPerNode, numVols, numDevs
 	return i.deployPods(true, podsPerNode, numVols, numDevs, driverType, storageClass, wait, preferred)
 }
 
-func (i *integration) allPodsOnNode(preferred string) error {
+func (i *integration) allPodsOnNodesWithPreferredLabel(preferred string) error {
 	for podIdx := 1; podIdx <= i.podCount; podIdx++ {
 		for prefix := range i.testNamespacePrefix {
 			namespace := fmt.Sprintf("%s%d", prefix, podIdx)
@@ -2148,5 +2148,5 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^post failover disk content verification on all VMs succeeds$`, i.postFailoverVerifyAllVMs)
 	context.Step(`^label "([^"]*)" node as "([^"]*)" site$`, i.labelNodeAsPreferredSite)
 	context.Step(`^"([^"]*)" pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+) with "([^"]*)" affinity$`, i.deployProtectedPreferredPods)
-	context.Step(`^all pods are running on "([^"]*)" node$`, i.allPodsOnNode)
+	context.Step(`^all pods are running on "([^"]*)" node$`, i.allPodsOnNodesWithPreferredLabel)
 }
