@@ -198,7 +198,7 @@ Feature: Integration Test
       #| ""         | "1-2"       | "1-1" | "0-0" | "powerstore"    | "powerstore-nvmetcp" | "one-third" | "zero"  | "interfacedown" | 120      | 600        | 600     | 600           |
       #| ""         | "3-5"       | "2-2" | "0-0" | "powerstore"    | "powerstore-nvmetcp" | "one-third" | "zero"  | "interfacedown" | 240      | 600        | 600     | 600           |
 
-  @powerstore-integration @powerstore-metro-resiliency
+  @powerstore-integration @powerstore-metro-integration
   Scenario Outline: Preferred cluster node failure hosting metro volumes testing using StatefulSet pods (node interface down)
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
