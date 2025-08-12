@@ -1033,6 +1033,14 @@ func (i *integration) theseStorageClassesExistInTheCluster(storageClassList stri
 // with what was populated upon initial deployment in i.labeledPodsToNodes. Expectation is that the
 // nodes will have changed (assuming that the failure condition was detected and handled).
 func (i *integration) labeledPodsChangedNodes() error {
+	return i.arePodsProperlyChanged(func(nodeName string) bool {
+		return true
+	})
+}
+
+/* -- Helper functions -- */
+
+func (i *integration) arePodsProperlyChanged(isOnValidNode func(nodeName string) bool) error {
 	currentPodToNodeMap := make(map[string]string)
 	pods, getPodsErr := i.listPodsByLabel(fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", i.driverType))
 	if getPodsErr == nil {
@@ -1054,6 +1062,13 @@ func (i *integration) labeledPodsChangedNodes() error {
 		if !ok {
 			return fmt.Errorf("expected %s pod to be assigned to a node, but no association was found", iPodName)
 		}
+
+		if !isOnValidNode(currentNode) {
+			return AssertExpectedAndActual(assert.Equal, true, currentNode != initialNode,
+				fmt.Sprintf("Expected %s pod to be migrated to a healthy node. Currently '%s', initially '%s'",
+					iPodName, currentNode, initialNode))
+		}
+
 		if currentNode == initialNode {
 			return AssertExpectedAndActual(assert.Equal, true, currentNode == initialNode,
 				fmt.Sprintf("Expected %s pod to be migrated to a healthy node. Currently '%s', initially '%s'",
@@ -1063,8 +1078,6 @@ func (i *integration) labeledPodsChangedNodes() error {
 
 	return nil
 }
-
-/* -- Helper functions -- */
 
 func (i *integration) dumpNodeInfo() error {
 	list, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
@@ -2225,6 +2238,29 @@ func (i *integration) iFailNodesWithLabelWithFailureForSeconds(numNodes, label, 
 	return nil
 }
 
+func (i *integration) labeledPodsAreOnANode(label string) error {
+	labelKey := "preferred"
+	nodes, err := i.k8s.GetClient().CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+		LabelSelector: labelKey,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	// Creates preferredNodeMap for quick search
+	preferredNodeMap := make(map[string]bool)
+	for _, node := range nodes.Items {
+		preferredNodeMap[node.Name] = true
+	}
+
+	return i.arePodsProperlyChanged(func(nodeName string) bool {
+		// Ensure that the node that the pod is running on is within the preferred nodes.
+		_, ok := preferredNodeMap[nodeName]
+		return ok
+	})
+}
+
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	i := &integration{}
 	pollK8sEnabled := false
@@ -2271,4 +2307,5 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^all pods are running on "([^"]*)" node$`, i.allPodsOnNodesWithPreferredLabel)
 	context.Step(`^there are at least (\d+) worker nodes which are ready$`, i.thereAreAtLeastWorkerNodesWhichAreReady)
 	context.Step(`^I fail "([^"]*)" nodes with label "([^"]*)" with "([^"]*)" failure for (\d+) seconds$`, i.iFailNodesWithLabelWithFailureForSeconds)
+	context.Step(`^labeled pods are on a "([^"]*)" node$`, i.labeledPodsAreOnANode)
 }

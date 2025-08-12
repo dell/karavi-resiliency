@@ -256,7 +256,7 @@ Feature: Integration Test
     And all pods are running on <preferred> node
     When I fail <workers> nodes with label <preferred> with <failure> failure for <failSecs> seconds
     Then validate that all pods are running within <runSecs> seconds
-    And labeled pods are on a different node
+    And labeled pods are on a <preferred> node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
 
