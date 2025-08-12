@@ -1034,6 +1034,8 @@ func (i *integration) theseStorageClassesExistInTheCluster(storageClassList stri
 // nodes will have changed (assuming that the failure condition was detected and handled).
 func (i *integration) labeledPodsChangedNodes() error {
 	return i.arePodsProperlyChanged(func(_ string) bool {
+		// Since this step does not care what node it is on and assumes all nodes are valid, just return true.
+		// Previous step should have already verified that all nodes are valid and pods are ready.
 		return true
 	})
 }
