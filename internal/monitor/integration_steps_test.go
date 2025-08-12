@@ -1033,7 +1033,7 @@ func (i *integration) theseStorageClassesExistInTheCluster(storageClassList stri
 // with what was populated upon initial deployment in i.labeledPodsToNodes. Expectation is that the
 // nodes will have changed (assuming that the failure condition was detected and handled).
 func (i *integration) labeledPodsChangedNodes() error {
-	return i.arePodsProperlyChanged(func(nodeName string) bool {
+	return i.arePodsProperlyChanged(func(_ string) bool {
 		return true
 	})
 }
@@ -2239,11 +2239,10 @@ func (i *integration) iFailNodesWithLabelWithFailureForSeconds(numNodes, label, 
 }
 
 func (i *integration) labeledPodsAreOnANode(label string) error {
-	labelKey := "preferred"
+	labelKey := "preferred=" + label
 	nodes, err := i.k8s.GetClient().CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
 		LabelSelector: labelKey,
 	})
-
 	if err != nil {
 		return err
 	}

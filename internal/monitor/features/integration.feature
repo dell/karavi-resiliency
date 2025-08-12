@@ -65,21 +65,7 @@ Feature: Integration Test
     And there are driver pods in <namespace> with this <name> prefix
     And can logon to nodes and drop test scripts
     Examples:
-      | kubeConfig | driverNames                  | namespace      | name         | storageClasses                                       |
-      | ""         | "csi-powerstore.dellemc.com" | "powerstore"   | "powerstore" | "powerstore-metro" |
-
-
-  @powerstore-metro-int-setup-check
-  Scenario Outline: Validate that we have a valid k8s configuration for the PowerStore metro integration tests
-    Given a kubernetes <kubeConfig>
-    And test environmental variables are set
-    And these CSI driver <driverNames> are configured on the system
-    And these storageClasses <storageClasses> exist in the cluster
-    And there is a <namespace> in the cluster
-    And there are driver pods in <namespace> with this <name> prefix
-    And can logon to nodes and drop test scripts
-    Examples:
-      | kubeConfig | driverNames                  | namespace      | name         | storageClasses                                       |
+      | kubeConfig | driverNames                  | namespace      | name         | storageClasses     |
       | ""         | "csi-powerstore.dellemc.com" | "powerstore"   | "powerstore" | "powerstore-metro" |
 
   @powermax-int-setup-check
