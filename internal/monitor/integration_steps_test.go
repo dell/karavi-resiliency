@@ -2077,6 +2077,7 @@ func (i *integration) labelNodeAsPreferredSite(numNodes, preferred string) error
 	for _, name := range candidates {
 		if labeled < numberToLabel {
 			log.Infof("Labeling node %s as %s", name, preferred)
+		
 			nodeObj, err := i.k8s.GetClient().CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
 			if err != nil {
 				return fmt.Errorf("Failed to get node '%s': %v", name, err)
@@ -2104,7 +2105,7 @@ func (i *integration) deployProtectedPreferredPods(podsPerNode, numVols, numDevs
 	return i.deployPods(true, podsPerNode, numVols, numDevs, driverType, storageClass, wait, preferred)
 }
 
-func (i *integration) allPodsOnNode(preferred string) error {
+func (i *integration) allPodsOnNodesWithPreferredLabel(preferred string) error {
 	for podIdx := 1; podIdx <= i.podCount; podIdx++ {
 		for prefix := range i.testNamespacePrefix {
 			namespace := fmt.Sprintf("%s%d", prefix, podIdx)
@@ -2194,6 +2195,6 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^post failover disk content verification on all VMs succeeds$`, i.postFailoverVerifyAllVMs)
 	context.Step(`^label "([^"]*)" node as "([^"]*)" site$`, i.labelNodeAsPreferredSite)
 	context.Step(`^"([^"]*)" pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+) with "([^"]*)" affinity$`, i.deployProtectedPreferredPods)
-	context.Step(`^all pods are running on "([^"]*)" node$`, i.allPodsOnNode)
 	context.Step(`^pods are scheduled on the non preferred nodes$`, i.verifyPodsOnNonPreferredNodes)
+	context.Step(`^all pods are running on "([^"]*)" node$`, i.allPodsOnNodesWithPreferredLabel)
 }

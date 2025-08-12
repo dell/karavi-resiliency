@@ -52,8 +52,21 @@ Feature: Integration Test
     And there are driver pods in <namespace> with this <name> prefix
     And can logon to nodes and drop test scripts
     Examples:
-      | kubeConfig | driverNames                  | namespace      | name         | storageClasses                                                        |
-      | ""         | "csi-powerstore.dellemc.com" | "powerstore"   | "powerstore" | "powerstore-nfs,powerstore-iscsi,powerstore-nvmetcp,powerstore-metro" |
+      | kubeConfig | driverNames                  | namespace      | name         | storageClasses                                       |
+      | ""         | "csi-powerstore.dellemc.com" | "powerstore"   | "powerstore" | "powerstore-nfs,powerstore-iscsi,powerstore-nvmetcp" |
+  
+  @powerstore-metro-int-setup-check
+  Scenario Outline: Validate that we have a valid k8s configuration for the PowerStore metro integration tests
+    Given a kubernetes <kubeConfig>
+    And test environmental variables are set
+    And these CSI driver <driverNames> are configured on the system
+    And these storageClasses <storageClasses> exist in the cluster
+    And there is a <namespace> in the cluster
+    And there are driver pods in <namespace> with this <name> prefix
+    And can logon to nodes and drop test scripts
+    Examples:
+      | kubeConfig | driverNames                  | namespace      | name         | storageClasses                                       |
+      | ""         | "csi-powerstore.dellemc.com" | "powerstore"   | "powerstore" | "powerstore-metro" |
 
   @powermax-int-setup-check
   Scenario Outline: Validate that we have a valid k8s configuration for the integration tests
@@ -198,8 +211,8 @@ Feature: Integration Test
       #| ""         | "1-2"       | "1-1" | "0-0" | "powerstore"    | "powerstore-nvmetcp" | "one-third" | "zero"  | "interfacedown" | 120      | 600        | 600     | 600           |
       #| ""         | "3-5"       | "2-2" | "0-0" | "powerstore"    | "powerstore-nvmetcp" | "one-third" | "zero"  | "interfacedown" | 240      | 600        | 600     | 600           |
 
-  @powerstore-integration @powerstore-metro-resiliency
-  Scenario Outline: Preferred site node failover testing using test StatefulSet pods (node interface down)
+  @powerstore-integration @powerstore-metro-integration
+  Scenario Outline: Preferred cluster node failure hosting metro volumes testing using StatefulSet pods (node interface down)
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
     And wait <nodeCleanSecs> to see there are no taints
@@ -212,7 +225,7 @@ Feature: Integration Test
     And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
-
+    
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs | preferred |
       | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-metro"   | "one-third" | "zero"  | "interfacedown" | 240      | 600        | 600     | 600           | "site"|
