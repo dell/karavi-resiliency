@@ -26,8 +26,9 @@ import (
 )
 
 const (
-	enableIntTestVar    = "RESILIENCY_INT_TEST"
-	enableStopOnFailure = "RESILIENCY_INT_TEST_STOP_ON_FAILURE"
+	enableIntTestVar      = "RESILIENCY_INT_TEST"
+	enableStopOnFailure   = "RESILIENCY_INT_TEST_STOP_ON_FAILURE"
+	enablePowerstoreMetro = "POWERSTORE_METRO"
 )
 
 var setupIsGood = false
@@ -144,10 +145,15 @@ func TestPowerStoreFirstCheck(t *testing.T) {
 	}
 	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
 
+	tag := "powerstore-int-setup-check"
+	if isMetro := os.Getenv(enablePowerstoreMetro); isMetro == "true" {
+		tag = "powerstore-metro-int-setup-check"
+	}
+
 	godogOptions := godog.Options{
 		Format:        "pretty,junit:powerstore-first-check-junit-report.xml,cucumber:powerstore-first-check-cucumber-report.json",
 		Paths:         []string{"features"},
-		Tags:          "powerstore-int-setup-check",
+		Tags:          tag,
 		StopOnFailure: stopOnFailure,
 	}
 	status := godog.TestSuite{
