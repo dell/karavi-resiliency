@@ -20,12 +20,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"podmon/internal/k8sapi"
-	"podmon/test/ssh"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"podmon/internal/k8sapi"
+	"podmon/test/ssh"
 
 	"github.com/cucumber/godog"
 	log "github.com/sirupsen/logrus"
@@ -2077,7 +2078,7 @@ func (i *integration) labelNodeAsPreferredSite(numNodes, preferred string) error
 	for _, name := range candidates {
 		if labeled < numberToLabel {
 			log.Infof("Labeling node %s as %s", name, preferred)
-		
+
 			nodeObj, err := i.k8s.GetClient().CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
 			if err != nil {
 				return fmt.Errorf("Failed to get node '%s': %v", name, err)
