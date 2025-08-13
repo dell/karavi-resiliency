@@ -107,6 +107,7 @@ func NewWrapper(accessInfo *AccessInfo) *Wrapper {
 		},
 		HostKeyCallback: trustedHostKeyCallback(""),
 	}
+
 	wrapper := &Wrapper{SSHConfig: config}
 	return wrapper
 }
@@ -144,6 +145,7 @@ func (w *Wrapper) GetSession(hostAndPort string) (SessionWrapper, error) {
 		w.scpClient, err = scp.NewClientBySSH(w.sshClient)
 		return w.sshSession, err
 	}
+
 	return nil, fmt.Errorf("could not create a session")
 }
 
