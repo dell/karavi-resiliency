@@ -65,9 +65,8 @@ Feature: Integration Test
     And there are driver pods in <namespace> with this <name> prefix
     And can logon to nodes and drop test scripts
     Examples:
-      | kubeConfig | driverNames                  | namespace      | name         | storageClasses                                       |
+      | kubeConfig | driverNames                  | namespace      | name         | storageClasses     |
       | ""         | "csi-powerstore.dellemc.com" | "powerstore"   | "powerstore" | "powerstore-metro" |
-
 
   @powermax-int-setup-check
   Scenario Outline: Validate that we have a valid k8s configuration for the integration tests
@@ -230,6 +229,26 @@ Feature: Integration Test
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs | preferred |
       | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-metro"   | "one-third" | "zero"  | "interfacedown" | 240      | 600        | 600     | 600           | "site"|
+
+  @powerstore-integration @powerstore-metro-integration
+  Scenario Outline: Preferred site node failover to preferred node (w/ metro, multiple preferred nodes)
+    Given a kubernetes <kubeConfig>
+    And there are at least <nNodes> worker nodes which are ready
+    And cluster is clean of test pods
+    And wait <nodeCleanSecs> to see there are no taints
+    And label <workers> node as <preferred> site
+    And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs> with <preferred> affinity
+    Then validate that all pods are running within <deploySecs> seconds
+    And all pods are running on <preferred> node
+    When I fail <workers> nodes with label <preferred> with <failure> failure for <failSecs> seconds
+    Then validate that all pods are running within <runSecs> seconds
+    And labeled pods are on a <preferred> node
+    And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
+    Then finally cleanup everything
+
+    Examples:
+      | kubeConfig | nNodes | podsPerNode | nVol  | nDev  | driverType   | storageClass       | workers     |  failure         | failSecs | deploySecs | runSecs | nodeCleanSecs | preferred |
+      | ""         | 4      | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-metro" | "one-half"  |  "interfacedown" | 240      | 600        | 600     | 600           | "site"    |
 
   @unity-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
