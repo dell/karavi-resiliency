@@ -250,7 +250,7 @@ Feature: Integration Test
       | kubeConfig | nNodes | podsPerNode | nVol  | nDev  | driverType   | storageClass       | workers     |  failure         | failSecs | deploySecs | runSecs | nodeCleanSecs | preferred |
       | ""         | 4      | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-metro" | "one-half"  |  "interfacedown" | 240      | 600        | 600     | 600           | "site"    |
   
-  @powerstore-integration @powerstore-metro-resiliency-integration
+  @powerstore-integration @powerstore-metro-integration
   Scenario Outline: Recovery of preferred-site node testing using test StatefulSet pods (node interface down)
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods

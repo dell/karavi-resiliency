@@ -199,10 +199,3 @@ powerscale-sanity-test:
 	POLL_K8S="true" \
 	SCRIPTS_DIR="../../test/sh" \
 	go test -timeout 6h -test.v -test.run "^\QTestPowerScaleSanityCheck\E|\QTestPowerScaleSanityTest\E"
-
-powerstore-metro-resiliency-integration-test:
-	RESILIENCY_SHORT_INT_TEST="true" \
-	RESILIENCY_TEST_CLEANUP="true" \
-	POLL_K8S="true" \
-	SCRIPTS_DIR="../../test/sh" \
-	go test -timeout 6h -test.v -test.run "^\QTestPowerStoreShortCheck\E|\QTestPowerStoreMetroResiliencyIntegration\E"
