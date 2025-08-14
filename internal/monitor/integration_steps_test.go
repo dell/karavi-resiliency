@@ -15,6 +15,7 @@ package monitor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -1029,6 +1030,30 @@ func (i *integration) theseStorageClassesExistInTheCluster(storageClassList stri
 	}
 
 	return nil
+}
+
+// waitForPodsToSwitchNodes periodically checks labeled pods to see if the node they are
+// currently scheduled on is different from the node they were initially scheduled on.
+// If the pod(s) has not migrated after 'waitTimeSec' seconds, a non-nil error is returned.
+func (i *integration) waitForPodsToSwitchNodes(waitTimeSec int) error {
+	timeout, ticker, stop := newTimerWithTicker(waitTimeSec)
+	defer stop()
+
+	log.Infof("waiting for %d seconds for pods to switch nodes", waitTimeSec)
+	for {
+		select {
+		case <-timeout.C:
+			log.Errorf("timed out after %d seconds while waiting for pods to switch nodes", waitTimeSec)
+			return errors.New("timed out waiting for pods to switch nodes")
+		case <-ticker.C:
+			err := i.labeledPodsChangedNodes()
+			if err == nil {
+				log.Info("pods successfully changed nodes")
+				return nil
+			}
+			log.Warn("pods have not yet change nodes")
+		}
+	}
 }
 
 // labeledPodsChangedNodes examines the current assignment of labeled pods to nodes and compares it
@@ -2310,6 +2335,22 @@ func (i *integration) labeledPodsAreOnANode(label string) error {
 	})
 }
 
+// newTimerWithTicker takes a wait time in seconds and returns a timer, a ticker and a stop function.
+// These can be used to periodically execute an action over a set period of time.
+// Users should call the stop() function as a best practice.
+func newTimerWithTicker(waitTimeSec int) (timeout *time.Timer, ticker *time.Ticker, stop func()) {
+	timeoutDuration := time.Duration(waitTimeSec) * time.Second
+	timeout = time.NewTimer(timeoutDuration)
+	ticker = time.NewTicker(checkTickerInterval * time.Second)
+
+	stop = func() {
+		timeout.Stop()
+		ticker.Stop()
+	}
+
+	return
+}
+
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	i := &integration{}
 	pollK8sEnabled := false
@@ -2358,4 +2399,5 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^there are at least (\d+) worker nodes which are ready$`, i.thereAreAtLeastWorkerNodesWhichAreReady)
 	context.Step(`^I fail "([^"]*)" nodes with label "([^"]*)" with "([^"]*)" failure for (\d+) seconds$`, i.iFailNodesWithLabelWithFailureForSeconds)
 	context.Step(`^labeled pods are on a "([^"]*)" node$`, i.labeledPodsAreOnANode)
+	context.Step(`wait at least (\d+) seconds for pods to switch nodes$`, i.waitForPodsToSwitchNodes)
 }

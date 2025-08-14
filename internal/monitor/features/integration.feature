@@ -221,7 +221,8 @@ Feature: Integration Test
     Then validate that all pods are running within <deploySecs> seconds
     And all pods are running on <preferred> node
     When I fail labeled <preferred> nodes with <failure> failure for <failSecs> seconds
-    Then validate that all pods are running within <runSecs> seconds
+    Then wait at least <failSecs> seconds for pods to switch nodes
+    And validate that all pods are running within <runSecs> seconds
     And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
@@ -241,7 +242,8 @@ Feature: Integration Test
     Then validate that all pods are running within <deploySecs> seconds
     And all pods are running on <preferred> node
     When I fail <workers> nodes with label <preferred> with <failure> failure for <failSecs> seconds
-    Then validate that all pods are running within <runSecs> seconds
+    Then wait at least <failSecs> seconds for pods to switch nodes
+    And validate that all pods are running within <runSecs> seconds
     And labeled pods are on a <preferred> node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
@@ -260,11 +262,11 @@ Feature: Integration Test
     Then validate that all pods are running within <deploySecs> seconds
     And all pods are running on <preferred> node
     When I fail labeled <preferred> nodes with <failure> failure for <failSecs> seconds
-    Then validate that all pods are running within <runSecs> seconds
+    Then wait at least <failSecs> seconds for pods to switch nodes
+    And validate that all pods are running within <runSecs> seconds
     And labeled pods are on a different node
     And pods are scheduled on the non preferred nodes
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
-    And pods are scheduled on the non preferred nodes
     Then finally cleanup everything
 
     Examples:
