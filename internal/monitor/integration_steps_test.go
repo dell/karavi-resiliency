@@ -1074,7 +1074,7 @@ func (i *integration) arePodsProperlyChanged(isOnValidNode func(nodeName string)
 		}
 
 		if currentNode == initialNode {
-			return AssertExpectedAndActual(assert.Equal, true, currentNode == initialNode,
+			return AssertExpectedAndActual(assert.Equal, false, currentNode == initialNode,
 				fmt.Sprintf("Expected %s pod to be migrated to a healthy node. Currently '%s', initially '%s'",
 					iPodName, currentNode, initialNode))
 		}
