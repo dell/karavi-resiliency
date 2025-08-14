@@ -15,3 +15,5 @@ podmonTest:
   zone: ""
   # Number of seconds to tolerate a node unreachable taint
   unreachableTolerationSeconds: 300
+  # set to "preferred label" to enable pod preferred scheduling
+  podPreferred: ""
