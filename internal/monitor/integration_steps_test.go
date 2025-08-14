@@ -1055,6 +1055,41 @@ func (i *integration) waitForPodsToSwitchNodes(waitTimeSec int) error {
 	}
 }
 
+// verifyPodsDoNotMigrate periodically checks the labeled pods to see if any have migrated
+// and returns false if migration is detected. At the end of waitTimeSec seconds, a nil error
+// is returned if the pods have not migrated.
+func (i *integration) verifyPodsDoNotMigrate(waitTimeSec int) error {
+	log.Info("validating pods have not and will not migrate")
+
+	// update the list of pods and the node they are on
+	err := i.populateLabeledPodsToNodes()
+	if err != nil {
+		return fmt.Errorf("encountered an error while validating pods will not migrate: %s", err)
+	}
+
+	timeout, ticker, stop := newTimerWithTicker(waitTimeSec)
+	defer stop()
+
+	start := time.Now()
+
+	for {
+		select {
+		case <-timeout.C:
+			// if the timeout is reached, the test passes
+			log.Infof("success: pods did not migrate in %d seconds", waitTimeSec)
+			return nil
+		case <-ticker.C:
+			log.Infof("validating pods have not migrated; %v seconds remaining", time.Duration(waitTimeSec)-time.Since(start))
+
+			err := i.labeledPodsChangedNodes()
+			// if the error is nil, then the pods have migrated
+			if err == nil {
+				return fmt.Errorf("an undesired pod migration occurred")
+			}
+		}
+	}
+}
+
 // labeledPodsChangedNodes examines the current assignment of labeled pods to nodes and compares it
 // with what was populated upon initial deployment in i.labeledPodsToNodes. Expectation is that the
 // nodes will have changed (assuming that the failure condition was detected and handled).
@@ -2399,4 +2434,5 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^I fail "([^"]*)" nodes with label "([^"]*)" with "([^"]*)" failure for (\d+) seconds$`, i.iFailNodesWithLabelWithFailureForSeconds)
 	context.Step(`^labeled pods are on a "([^"]*)" node$`, i.labeledPodsAreOnANode)
 	context.Step(`wait up to (\d+) seconds for pods to switch nodes$`, i.waitForPodsToSwitchNodes)
+	context.Step(`verify pods do not migrate for (\d+) seconds$`, i.verifyPodsDoNotMigrate)
 }

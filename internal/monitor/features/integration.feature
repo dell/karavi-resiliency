@@ -267,6 +267,7 @@ Feature: Integration Test
     And labeled pods are on a different node
     And pods are scheduled on the non preferred nodes
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
+    And verify pods do not migrate for <failSecs> seconds
     Then finally cleanup everything
 
     Examples:
