@@ -284,6 +284,15 @@ func (i *integration) failLabeledNodes(preferred, failure string, wait int) erro
 		return fmt.Errorf("[failLabeledNodes] failed to verify expected nodes failed: %v", err)
 	}
 
+	timer := time.NewTimer(time.Duration(wait) * time.Second)
+	defer timer.Stop()
+
+	// The nodes will need to be return to a "Ready" state before they can be used again, so
+	// waiting the same amount as the script that takes them down allows time for the
+	// pods to migrate and means we don't have to wait later on in the test for them to
+	// come back online.
+	<-timer.C
+
 	return nil
 }
 
@@ -452,6 +461,15 @@ func (i *integration) internalFailWorkerAndPrimaryNodes(numNodes, numPrimary, fa
 	if err != nil {
 		return err
 	}
+
+	timer := time.NewTimer(time.Duration(wait) * time.Second)
+	defer timer.Stop()
+
+	// The nodes will need to be return to a "Ready" state before they can be used again, so
+	// waiting the same amount as the script that takes them down allows time for the
+	// pods to migrate and means we don't have to wait later on in the test for them to
+	// come back online.
+	<-timer.C
 
 	return nil
 }
@@ -2050,6 +2068,16 @@ func (i *integration) iFailDriverPodsTaints(numNodes, failure string, wait int, 
 	if err != nil {
 		return err
 	}
+
+	timer := time.NewTimer(time.Duration(wait) * time.Second)
+	defer timer.Stop()
+
+	// The nodes will need to be return to a "Ready" state before they can be used again, so
+	// waiting the same amount as the script that takes them down allows time for the
+	// pods to migrate and means we don't have to wait later on in the test for them to
+	// come back online.
+	<-timer.C
+
 	return nil
 }
 
@@ -2304,6 +2332,15 @@ func (i *integration) iFailNodesWithLabelWithFailureForSeconds(numNodes, label, 
 	if err != nil {
 		return err
 	}
+
+	timer := time.NewTimer(time.Duration(wait) * time.Second)
+	defer timer.Stop()
+
+	// The nodes will need to be return to a "Ready" state before they can be used again, so
+	// waiting the same amount as the script that takes them down allows time for the
+	// pods to migrate and means we don't have to wait later on in the test for them to
+	// come back online.
+	<-timer.C
 
 	err = i.verifyExpectedNodesFailed(failedWorkers, wait)
 	if err != nil {
