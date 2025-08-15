@@ -63,10 +63,11 @@ Feature: Integration Test
     And these storageClasses <storageClasses> exist in the cluster
     And there is a <namespace> in the cluster
     And there are driver pods in <namespace> with this <name> prefix
+    And <cliTool> is installed on this machine
     And can logon to nodes and drop test scripts
     Examples:
-      | kubeConfig | driverNames                  | namespace      | name         | storageClasses     |
-      | ""         | "csi-powerstore.dellemc.com" | "powerstore"   | "powerstore" | "powerstore-metro" |
+      | kubeConfig | driverNames                  | namespace      | name         | storageClasses     | cliTool  |
+      | ""         | "csi-powerstore.dellemc.com" | "powerstore"   | "powerstore" | "powerstore-metro" | "pstcli" |
 
   @powermax-int-setup-check
   Scenario Outline: Validate that we have a valid k8s configuration for the integration tests

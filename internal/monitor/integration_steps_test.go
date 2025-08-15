@@ -1101,6 +1101,17 @@ func (i *integration) labeledPodsChangedNodes() error {
 	})
 }
 
+func (i *integration) cliToolIsInstalledOnThisMachine(cliToolName string) error {
+	_, err := exec.LookPath(cliToolName)
+	if err != nil {
+		return fmt.Errorf(
+			"could not find cli tool %q on this machine. Please download and install the tool from the following link https://www.dell.com/support/home/en-us/drivers/driversdetails?driverId=NNTWN : %s",
+			cliToolName, err.Error())
+	}
+
+	return nil
+}
+
 /* -- Helper functions -- */
 
 func (i *integration) arePodsProperlyChanged(isOnValidNode func(nodeName string) bool) error {
@@ -2433,6 +2444,7 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^there are at least (\d+) worker nodes which are ready$`, i.thereAreAtLeastWorkerNodesWhichAreReady)
 	context.Step(`^I fail "([^"]*)" nodes with label "([^"]*)" with "([^"]*)" failure for (\d+) seconds$`, i.iFailNodesWithLabelWithFailureForSeconds)
 	context.Step(`^labeled pods are on a "([^"]*)" node$`, i.labeledPodsAreOnANode)
-	context.Step(`wait up to (\d+) seconds for pods to switch nodes$`, i.waitForPodsToSwitchNodes)
-	context.Step(`verify pods do not migrate for (\d+) seconds$`, i.verifyPodsDoNotMigrate)
+	context.Step(`^wait up to (\d+) seconds for pods to switch nodes$`, i.waitForPodsToSwitchNodes)
+	context.Step(`^verify pods do not migrate for (\d+) seconds$`, i.verifyPodsDoNotMigrate)
+	context.Step(`^"([^"]*)" is installed on this machine$`, i.cliToolIsInstalledOnThisMachine)
 }
