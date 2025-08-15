@@ -15,6 +15,7 @@ package monitor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -36,19 +37,20 @@ import (
 )
 
 type integration struct {
-	configPath          string
-	k8s                 k8sapi.K8sAPI
-	driverType          string
-	podCount            int
-	devCount            int
-	volCount            int
-	testNamespacePrefix map[string]bool
-	scriptsDir          string
-	labeledPodsToNodes  map[string]string
-	nodesToTaints       map[string]string
-	isOpenshift         bool
-	bastionNode         string
-	customTaints        string
+	configPath            string
+	k8s                   k8sapi.K8sAPI
+	driverType            string
+	podCount              int
+	devCount              int
+	volCount              int
+	testNamespacePrefix   map[string]bool
+	scriptsDir            string
+	labeledPodsToNodes    map[string]string
+	nodesToTaints         map[string]string
+	isOpenshift           bool
+	bastionNode           string
+	customTaints          string
+	preferredLabeledNodes []string
 }
 
 // Used for keeping of track of the last test that was
@@ -1029,6 +1031,65 @@ func (i *integration) theseStorageClassesExistInTheCluster(storageClassList stri
 	return nil
 }
 
+// waitForPodsToSwitchNodes periodically checks labeled pods to see if the node they are
+// currently scheduled on is different from the node they were initially scheduled on.
+// If the pod(s) has not migrated after 'waitTimeSec' seconds, a non-nil error is returned.
+func (i *integration) waitForPodsToSwitchNodes(waitTimeSec int) error {
+	timeout, ticker, stop := newTimerWithTicker(waitTimeSec)
+	defer stop()
+
+	log.Infof("waiting for %d seconds for pods to switch nodes", waitTimeSec)
+	for {
+		select {
+		case <-timeout.C:
+			log.Errorf("timed out after %d seconds while waiting for pods to switch nodes", waitTimeSec)
+			return errors.New("timed out waiting for pods to switch nodes")
+		case <-ticker.C:
+			err := i.labeledPodsChangedNodes()
+			if err == nil {
+				log.Info("pods successfully changed nodes")
+				return nil
+			}
+			log.Warn("pods have not yet change nodes")
+		}
+	}
+}
+
+// verifyPodsDoNotMigrate periodically checks the labeled pods to see if any have migrated
+// and returns false if migration is detected. At the end of waitTimeSec seconds, a nil error
+// is returned if the pods have not migrated.
+func (i *integration) verifyPodsDoNotMigrate(waitTimeSec int) error {
+	log.Info("validating pods have not and will not migrate")
+
+	// update the list of pods and the node they are on
+	err := i.populateLabeledPodsToNodes()
+	if err != nil {
+		return fmt.Errorf("encountered an error while validating pods will not migrate: %s", err)
+	}
+
+	timeout, ticker, stop := newTimerWithTicker(waitTimeSec)
+	defer stop()
+
+	start := time.Now()
+
+	for {
+		select {
+		case <-timeout.C:
+			// if the timeout is reached, the test passes
+			log.Infof("success: pods did not migrate in %d seconds", waitTimeSec)
+			return nil
+		case <-ticker.C:
+			log.Infof("validating pods have not migrated; %v seconds remaining", time.Duration(waitTimeSec)-time.Since(start))
+
+			err := i.labeledPodsChangedNodes()
+			// if the error is nil, then the pods have migrated
+			if err == nil {
+				return fmt.Errorf("an undesired pod migration occurred")
+			}
+		}
+	}
+}
+
 // labeledPodsChangedNodes examines the current assignment of labeled pods to nodes and compares it
 // with what was populated upon initial deployment in i.labeledPodsToNodes. Expectation is that the
 // nodes will have changed (assuming that the failure condition was detected and handled).
@@ -1072,7 +1133,7 @@ func (i *integration) arePodsProperlyChanged(isOnValidNode func(nodeName string)
 		}
 
 		if currentNode == initialNode {
-			return AssertExpectedAndActual(assert.Equal, true, currentNode == initialNode,
+			return AssertExpectedAndActual(assert.Equal, false, currentNode == initialNode,
 				fmt.Sprintf("Expected %s pod to be migrated to a healthy node. Currently '%s', initially '%s'",
 					iPodName, currentNode, initialNode))
 		}
@@ -1284,6 +1345,19 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 			}
 		}
 	}
+
+	if len(i.preferredLabeledNodes) > 0 {
+		// Add the preferred labeled nodes to the candidate list for the failure
+		candidates = make([]string, 0)
+		tracker = make(map[string]bool)
+		for _, name := range i.preferredLabeledNodes {
+			if !tracker[name] {
+				tracker[name] = true
+				candidates = append(candidates, name)
+			}
+		}
+	}
+	log.Infof("All the candidate nodes to fail are %v", candidates)
 
 	failed := 0
 	for _, name := range candidates {
@@ -2079,6 +2153,9 @@ func (i *integration) labelNodeAsPreferredSite(numNodes, preferred string) error
 	tracker := make(map[string]bool) // Used to prevent duplicates in 'candidate' list.
 	for _, name := range i.labeledPodsToNodes {
 		if !tracker[name] {
+			if len(candidates) >= numberToLabel {
+				break
+			}
 			tracker[name] = true
 			candidates = append(candidates, name)
 		}
@@ -2089,15 +2166,21 @@ func (i *integration) labelNodeAsPreferredSite(numNodes, preferred string) error
 		// Need to add more to list of candidates, so add the remaining node names to the candidate list.
 		for name := range nameToIP {
 			if !tracker[name] {
+				if len(candidates) >= numberToLabel {
+					break
+				}
 				tracker[name] = true
 				candidates = append(candidates, name)
 			}
 		}
 	}
 
+	i.preferredLabeledNodes = []string{}
 	labeled := 0
 	for _, name := range candidates {
 		if labeled < numberToLabel {
+			log.Infof("Labeling node %s as %s", name, preferred)
+
 			nodeObj, err := i.k8s.GetClient().CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
 			if err != nil {
 				return fmt.Errorf("Failed to get node '%s': %v", name, err)
@@ -2108,6 +2191,7 @@ func (i *integration) labelNodeAsPreferredSite(numNodes, preferred string) error
 				nodeObj.ObjectMeta.Labels = make(map[string]string)
 			}
 			nodeObj.ObjectMeta.Labels["preferred"] = preferred
+			i.preferredLabeledNodes = append(i.preferredLabeledNodes, name)
 
 			// Update the node
 			_, err = i.k8s.GetClient().CoreV1().Nodes().Update(context.TODO(), nodeObj, metav1.UpdateOptions{})
@@ -2145,6 +2229,29 @@ func (i *integration) allPodsOnNodesWithPreferredLabel(preferred string) error {
 		}
 	}
 
+	return nil
+}
+
+func (i *integration) verifyPodsOnNonPreferredNodes() error {
+	for count := 1; count <= i.podCount; count++ {
+		namespace := fmt.Sprintf("%s%d", PowerStoreNS, count)
+		podList, err := i.k8s.GetClient().CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			log.Errorf("Failed to list pods in namespace '%s': %v", namespace, err)
+			return err
+		}
+		log.Infof("Pods in namespace '%s': %v", namespace, podList.Items)
+
+		for _, pod := range podList.Items {
+			nodeName := pod.Spec.NodeName
+			log.Infof("Checking pod %s on node %s", pod.Name, nodeName)
+			for _, labeledNode := range i.preferredLabeledNodes {
+				if nodeName == labeledNode {
+					return fmt.Errorf("Pod '%s' is on preferred node '%s'", pod.Name, nodeName)
+				}
+			}
+		}
+	}
 	return nil
 }
 
@@ -2262,6 +2369,22 @@ func (i *integration) labeledPodsAreOnANode(label string) error {
 	})
 }
 
+// newTimerWithTicker takes a wait time in seconds and returns a timer, a ticker and a stop function.
+// These can be used to periodically execute an action over a set period of time.
+// Users should call the stop() function as a best practice.
+func newTimerWithTicker(waitTimeSec int) (timeout *time.Timer, ticker *time.Ticker, stop func()) {
+	timeoutDuration := time.Duration(waitTimeSec) * time.Second
+	timeout = time.NewTimer(timeoutDuration)
+	ticker = time.NewTicker(checkTickerInterval * time.Second)
+
+	stop = func() {
+		timeout.Stop()
+		ticker.Stop()
+	}
+
+	return
+}
+
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	i := &integration{}
 	pollK8sEnabled := false
@@ -2305,8 +2428,11 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^post failover disk content verification on all VMs succeeds$`, i.postFailoverVerifyAllVMs)
 	context.Step(`^label "([^"]*)" node as "([^"]*)" site$`, i.labelNodeAsPreferredSite)
 	context.Step(`^"([^"]*)" pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+) with "([^"]*)" affinity$`, i.deployProtectedPreferredPods)
+	context.Step(`^pods are scheduled on the non preferred nodes$`, i.verifyPodsOnNonPreferredNodes)
 	context.Step(`^all pods are running on "([^"]*)" node$`, i.allPodsOnNodesWithPreferredLabel)
 	context.Step(`^there are at least (\d+) worker nodes which are ready$`, i.thereAreAtLeastWorkerNodesWhichAreReady)
 	context.Step(`^I fail "([^"]*)" nodes with label "([^"]*)" with "([^"]*)" failure for (\d+) seconds$`, i.iFailNodesWithLabelWithFailureForSeconds)
 	context.Step(`^labeled pods are on a "([^"]*)" node$`, i.labeledPodsAreOnANode)
+	context.Step(`wait up to (\d+) seconds for pods to switch nodes$`, i.waitForPodsToSwitchNodes)
+	context.Step(`verify pods do not migrate for (\d+) seconds$`, i.verifyPodsDoNotMigrate)
 }
