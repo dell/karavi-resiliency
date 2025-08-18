@@ -14,24 +14,32 @@
 package monitor
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"podmon/internal/k8sapi"
-	"podmon/test/ssh"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"podmon/internal/k8sapi"
+	"podmon/test/ssh"
+
 	"github.com/cucumber/godog"
+	pstoreArray "github.com/dell/csi-powerstore/v2/pkg/array"
+	pstoreID "github.com/dell/csi-powerstore/v2/pkg/identifiers"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 )
@@ -43,6 +51,9 @@ type integration struct {
 	podCount              int
 	devCount              int
 	volCount              int
+	storageClass          *storagev1.StorageClass
+	driverNamespaceName   string
+	driverSecretName      string
 	testNamespacePrefix   map[string]bool
 	scriptsDir            string
 	labeledPodsToNodes    map[string]string
@@ -103,6 +114,7 @@ const (
 	PowerStoreNS        = "pmtps"
 	PowerMaxNS          = "pmtpm"
 	VM                  = "vm"
+	preferredLabelKey   = "preferred"
 )
 
 // Used for stopping the test from continuing
@@ -469,6 +481,11 @@ func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, 
 	devCount, err := i.selectFromRange(numDevs)
 	if err != nil {
 		return err
+	}
+
+	i.storageClass, err = i.k8s.GetClient().StorageV1().StorageClasses().Get(context.Background(), storageClass, metav1.GetOptions{})
+	if err != nil {
+		log.Errorf("failed to deploy pods. Encountered an error while querying for the StorageClass: %s", err.Error())
 	}
 
 	// Select the deployment script to use based on the driver type.
@@ -1112,7 +1129,162 @@ func (i *integration) cliToolIsInstalledOnThisMachine(cliToolName string) error 
 	return nil
 }
 
+func (i *integration) failPreferredMetroConnection(labelValue string) error {
+	ctx := context.Background()
+
+	// get the secret info using the powerstore array info from the storageclass
+	secretObj, err := i.k8s.GetClient().CoreV1().Secrets(i.driverNamespaceName).Get(ctx, "powerstore-config", metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("unable to fail the preferred metro connection. error encountered while getting driver secret: %s", err.Error())
+	}
+
+	// unmarshal
+	viper.SetConfigType("yaml")
+	if err := viper.ReadConfig(bytes.NewBuffer(secretObj.Data["config"])); err != nil {
+		return fmt.Errorf("[LUKE] viper was unbable to read secret: %s", err.Error())
+	}
+
+	var Secrets struct {
+		Arrays []pstoreArray.PowerStoreArray `yaml:"arrays"`
+	}
+	if err := viper.Unmarshal(&Secrets); err != nil {
+		return fmt.Errorf("[LUKE] viper unable to unmarshal secret: %s", err.Error())
+	}
+
+	log.Infof("[LUKE] PowerStore secret: %+v", Secrets)
+
+	// use the global ID from the storageclass to determine the preferred array of the metro volume
+	arrayGlobalID := i.storageClass.Parameters[pstoreID.KeyArrayID]
+
+	var secret pstoreArray.PowerStoreArray
+	for _, secret = range Secrets.Arrays {
+		if secret.GlobalID == arrayGlobalID {
+			break
+		}
+	}
+	if reflect.DeepEqual(secret, pstoreArray.PowerStoreArray{}) {
+		return fmt.Errorf("unable to determine the PowerStore API endpoint from the provided StorageClass %q, and Secret %q", i.storageClass.Name, i.driverSecretName)
+	}
+
+	// get the iSCSI IPs via pstcli so we know which IPs to fail
+	iscsiIPs, err := getIscsiIPs(secret.Endpoint, secret.Username, secret.Password)
+	if err != nil {
+		return fmt.Errorf("unable to get iSCSI IPs: %s", err.Error())
+	}
+
+	// create a list of nodes to fail using the preferred label
+	nodesToFail, err := i.getNodes(ctx, metav1.ListOptions{
+		LabelSelector: strings.Join([]string{preferredLabelKey, labelValue}, "="),
+	})
+	if err != nil {
+		return fmt.Errorf("unable to fail nodes due to a failure querying the nodes: %s", err.Error())
+	}
+
+	// log in to each node and fail the iSCSI IPs
+	for _, node := range nodesToFail.Items {
+		var nodeIP string
+		for _, address := range node.Status.Addresses {
+			if address.Type == corev1.NodeInternalIP {
+				nodeIP = address.Address
+				break
+			}
+		}
+		info := ssh.AccessInfo{
+			Hostname: nodeIP,
+			Port:     "22",
+			Username: os.Getenv("NODE_USER"),
+			Password: os.Getenv("PASSWORD"),
+		}
+
+		wrapper := ssh.NewWrapper(&info)
+
+		client := ssh.CommandExecution{
+			AccessInfo: &info,
+			SSHWrapper: wrapper,
+			Timeout:    sshTimeoutDuration,
+		}
+
+		log.Infof("Attempting to block incoming packets from %s on node %s", iscsiIPs, nodeIP)
+
+		for _, iscsiIP := range iscsiIPs {
+			dropPacketsCmd := fmt.Sprintf("date; iptables -A INPUT -j DROP -s %s", iscsiIP)
+			if err := client.Run(dropPacketsCmd); err == nil {
+				for _, out := range client.GetOutput() {
+					log.Infof("%s", out)
+				}
+			} else {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (i *integration) setDriverNamespaceName(driverNamespaceName string) error {
+	if driverNamespaceName == "" {
+		return errors.New("expected a driver namespace name but it was empty")
+	}
+
+	i.driverNamespaceName = driverNamespaceName
+
+	return nil
+}
+
+func (i *integration) setDriverSecretName(driverSecretName string) error {
+	if driverSecretName == "" {
+		return errors.New("expected a driver secret name but it was empty")
+	}
+
+	i.driverSecretName = driverSecretName
+
+	return nil
+}
+
 /* -- Helper functions -- */
+
+// getIscsiIPs uses pstcli to query the provided PowerStore array for any available iSCSI IPs
+func getIscsiIPs(endpoint, username, password string) (iscsiIPs []string, err error) {
+	// isolate the IP address for the API endpoint
+	endpoint = strings.TrimPrefix(endpoint, "https://")
+	endpoint = strings.TrimSuffix(endpoint, "/")
+	endpoint = strings.TrimSuffix(endpoint, "/api/rest")
+
+	// build the pstcli command to query for iSCSI IPs
+	iscsiIPQuery := "purposes contains Storage_Iscsi_Target"
+	pstcli := exec.Command("pstcli", "-d", endpoint, "-u", username, "-p", password, "-ssl", "accept",
+		"ip_pool_address", "show", "-select", "address", "-query", iscsiIPQuery, "-output", "json", "-raw")
+
+	log.Infof("[LUKE] pstcli: %+v", pstcli.Args)
+
+	// execute the command and get the results
+	iscsiPortsJson, err := pstcli.CombinedOutput()
+	if err != nil {
+		return []string{}, fmt.Errorf("unable to get iSCSI IPs: %s: %s", err.Error(), string(iscsiPortsJson))
+	}
+
+	// unmarshal the json response into something we can more easily parse
+	iscsiPorts := []struct {
+		Address string `json:"address"`
+	}{}
+	err = json.Unmarshal(iscsiPortsJson, &iscsiPorts)
+	if err != nil {
+		return []string{}, fmt.Errorf("unable to unmarshal the response returned by pstcli when querying for iSCSI IPs: %s", err.Error())
+	}
+
+	// format the response as a string array
+	for _, IP := range iscsiPorts {
+		iscsiIPs = append(iscsiIPs, IP.Address)
+	}
+
+	return iscsiIPs, nil
+}
+
+// getNodes uses the k8s client from the integration struct to query the kuberentest API for
+// a list of nodes matching any opts supplied.
+func (i *integration) getNodes(ctx context.Context, opts metav1.ListOptions) (nodes *corev1.NodeList, err error) {
+	return i.k8s.GetClient().CoreV1().Nodes().List(ctx, opts)
+}
 
 func (i *integration) arePodsProperlyChanged(isOnValidNode func(nodeName string) bool) error {
 	currentPodToNodeMap := make(map[string]string)
@@ -2447,4 +2619,7 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^wait up to (\d+) seconds for pods to switch nodes$`, i.waitForPodsToSwitchNodes)
 	context.Step(`^verify pods do not migrate for (\d+) seconds$`, i.verifyPodsDoNotMigrate)
 	context.Step(`^"([^"]*)" is installed on this machine$`, i.cliToolIsInstalledOnThisMachine)
+	context.Step(`^the connection fails between the preferred metro array and the nodes with "([^"]*)" label$`, i.failPreferredMetroConnection)
+	context.Step(`^a driver namespace name "([^"]*)"$`, i.setDriverNamespaceName)
+	context.Step(`^a driver secret name "([^"]*)"$`, i.setDriverSecretName)
 }

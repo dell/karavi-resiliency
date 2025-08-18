@@ -275,6 +275,26 @@ Feature: Integration Test
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType   | storageClass         | workers      | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs | preferred |
       | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-metro"   | "two-thirds" | "zero"  | "interfacedown" | 600      | 600        | 600     | 600           | "site"|
 
+  @powerstore-integration @powerstore-metro-integration
+  Scenario Outline: Recovery of preferred-site node testing using test StatefulSet pods (node interface down)
+    Given a kubernetes <kubeConfig>
+    And a driver namespace name <driverNamespaceName>
+    And a driver secret name <driverSecretName>
+    And cluster is clean of test pods
+    And wait <nodeCleanSecs> to see there are no taints
+    And label <workers> node as <preferred> site
+    And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs> with <preferred> affinity
+    Then validate that all pods are running within <deploySecs> seconds
+    And all pods are running on <preferred> node
+    Then the connection fails between the preferred metro array and the nodes with <preferred> label
+  # And verify pods do not migrate for <failSecs> seconds
+  # When the connection is restored between the preferred metro array and the nodes with <preferred> label
+  # Then validate
+
+    Examples:
+      | kubeConfig  | podsPerNode | nVol  | nDev  | driverNamespaceName | driverSecretName      | driverType    | storageClass        | workers     | deploySecs  | nodeCleanSecs | preferred |
+      | ""          | "1-1"       | "1-1" | "0-0" | "powerstore"        | "powerstore-config"   | "powerstore"  | "powerstore-metro"  | "one-third" | 300         | 300           | "site"    |
+  
   @unity-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
     Given a kubernetes <kubeConfig>
