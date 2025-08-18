@@ -54,7 +54,7 @@ jobs:
     name: Create Tag and Release
     with:
       version: ${{ needs.process-inputs.outputs.processedVersion }}
-      images: 'csi-vxflexos'
+      images: 'podmon'
     secrets: inherit
 
   next-steps:
@@ -67,4 +67,3 @@ jobs:
           echo "✅ Tag and release completed."
           echo "➡️ Please manually trigger the Jenkins image build job: CSM-Images-Build-Nightly."
           echo "🚀 Once the Jenkins image build job is successful, trigger the Release Image workflow from GitHub Actions."
-          
