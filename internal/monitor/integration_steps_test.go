@@ -1118,6 +1118,8 @@ func (i *integration) labeledPodsChangedNodes() error {
 	})
 }
 
+// cliToolIsInstalledOnThisMachine validates whether the provided cliToolName resolves
+// to an installed executable in the PATH.
 func (i *integration) cliToolIsInstalledOnThisMachine(cliToolName string) error {
 	_, err := exec.LookPath(cliToolName)
 	if err != nil {
@@ -1129,6 +1131,9 @@ func (i *integration) cliToolIsInstalledOnThisMachine(cliToolName string) error 
 	return nil
 }
 
+// failPreferredMetroConnection uses the configured storage class to determine the preferred array for a
+// metro volume and pstcli to get the iSCSI IPs for the storage array, then updates the nodes possessing
+// label "preferred=labelValue", adding entries to iptables to drop incoming packets from the iSCSI IPs.
 func (i *integration) failPreferredMetroConnection(labelValue string) error {
 	ctx := context.Background()
 
@@ -1141,17 +1146,15 @@ func (i *integration) failPreferredMetroConnection(labelValue string) error {
 	// unmarshal
 	viper.SetConfigType("yaml")
 	if err := viper.ReadConfig(bytes.NewBuffer(secretObj.Data["config"])); err != nil {
-		return fmt.Errorf("[LUKE] viper was unbable to read secret: %s", err.Error())
+		return fmt.Errorf("viper was unable to read the Kubernetes secret: %s", err.Error())
 	}
 
 	var Secrets struct {
 		Arrays []pstoreArray.PowerStoreArray `yaml:"arrays"`
 	}
 	if err := viper.Unmarshal(&Secrets); err != nil {
-		return fmt.Errorf("[LUKE] viper unable to unmarshal secret: %s", err.Error())
+		return fmt.Errorf("viper was unable to unmarshal Kubernetes secret: %s", err.Error())
 	}
-
-	log.Infof("[LUKE] PowerStore secret: %+v", Secrets)
 
 	// use the global ID from the storageclass to determine the preferred array of the metro volume
 	arrayGlobalID := i.storageClass.Parameters[pstoreID.KeyArrayID]
@@ -1182,6 +1185,9 @@ func (i *integration) failPreferredMetroConnection(labelValue string) error {
 
 	// log in to each node and fail the iSCSI IPs
 	for _, node := range nodesToFail.Items {
+
+		// Get the node's IP address by looping over "status.addresses"
+		// field in the K8s node resource and filtering by the "internalIP" type.
 		var nodeIP string
 		for _, address := range node.Status.Addresses {
 			if address.Type == corev1.NodeInternalIP {
@@ -1189,32 +1195,18 @@ func (i *integration) failPreferredMetroConnection(labelValue string) error {
 				break
 			}
 		}
-		info := ssh.AccessInfo{
-			Hostname: nodeIP,
-			Port:     "22",
-			Username: os.Getenv("NODE_USER"),
-			Password: os.Getenv("PASSWORD"),
-		}
-
-		wrapper := ssh.NewWrapper(&info)
-
-		client := ssh.CommandExecution{
-			AccessInfo: &info,
-			SSHWrapper: wrapper,
-			Timeout:    sshTimeoutDuration,
-		}
 
 		log.Infof("Attempting to block incoming packets from %s on node %s", iscsiIPs, nodeIP)
 
+		// build a single command to drop all incoming packets from all the iSCSI IPs
+		var dropPacketsCmd string
 		for _, iscsiIP := range iscsiIPs {
-			dropPacketsCmd := fmt.Sprintf("date; iptables -A INPUT -j DROP -s %s", iscsiIP)
-			if err := client.Run(dropPacketsCmd); err == nil {
-				for _, out := range client.GetOutput() {
-					log.Infof("%s", out)
-				}
-			} else {
-				return err
-			}
+			dropPacketsCmd = dropPacketsCmd + fmt.Sprintf("iptables -A INPUT -j DROP -s %s; ", iscsiIP)
+		}
+
+		client := i.getSSHClient(nodeIP)
+		if err := i.SSHExec(client, nodeIP, dropPacketsCmd); err != nil {
+			return fmt.Errorf("encountered an error while attempting to drop incoming iSCSI packets on preferred nodes: %s", err)
 		}
 	}
 
@@ -1243,6 +1235,55 @@ func (i *integration) setDriverSecretName(driverSecretName string) error {
 
 /* -- Helper functions -- */
 
+// getSSHClient determines whether the test is running on vanilla Kubernetes
+// or OpenShift and configures the ssh client accordingly. SSH commands run
+// with this client will be sent to the targetIP IP address if run against
+// Kubernetes or the previously configured i.bastionNode IP address if running
+// on OpenShift. Environment variables NODE_USER and PASSWORD are used for
+// the SSH user and password.
+func (i *integration) getSSHClient(targetIP string) ssh.CommandExecution {
+	username := os.Getenv("NODE_USER")
+	password := os.Getenv("PASSWORD")
+
+	hostname := targetIP
+	if i.isOpenshift {
+		hostname = i.bastionNode
+	}
+
+	info := ssh.AccessInfo{
+		Hostname: hostname,
+		Port:     "22",
+		Username: username,
+		Password: password,
+	}
+
+	wrapper := ssh.NewWrapper(&info)
+
+	return ssh.CommandExecution{
+		AccessInfo: &info,
+		SSHWrapper: wrapper,
+		Timeout:    sshTimeoutDuration,
+	}
+}
+
+// SSHExec provides a convenient method for executing commands over ssh on cluster worker nodes
+// making adjustments to the request, as necessary, to support connections to OpenShift nodes.
+func (i *integration) SSHExec(client ssh.CommandExecution, IPAddr string, cmd string) error {
+	if i.isOpenshift {
+		cmd = fmt.Sprintf("ssh %s core@%s '%s'", sshOptions, IPAddr, cmd)
+	}
+
+	if err := client.Run(cmd); err != nil {
+		response := client.GetOutput()
+		return fmt.Errorf("encountered an error executing ssh on IP %q: %s :%s", IPAddr, response, err.Error())
+	}
+	for _, response := range client.GetOutput() {
+		log.Info(response)
+	}
+
+	return nil
+}
+
 // getIscsiIPs uses pstcli to query the provided PowerStore array for any available iSCSI IPs
 func getIscsiIPs(endpoint, username, password string) (iscsiIPs []string, err error) {
 	// isolate the IP address for the API endpoint
@@ -1255,7 +1296,7 @@ func getIscsiIPs(endpoint, username, password string) (iscsiIPs []string, err er
 	pstcli := exec.Command("pstcli", "-d", endpoint, "-u", username, "-p", password, "-ssl", "accept",
 		"ip_pool_address", "show", "-select", "address", "-query", iscsiIPQuery, "-output", "json", "-raw")
 
-	log.Infof("[LUKE] pstcli: %+v", pstcli.Args)
+	log.Infof("attempting to get PowerStore iSCSI IPs: %v", pstcli.Args)
 
 	// execute the command and get the results
 	iscsiPortsJson, err := pstcli.CombinedOutput()
