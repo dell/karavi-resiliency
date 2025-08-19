@@ -21,12 +21,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"podmon/internal/k8sapi"
-	"podmon/test/ssh"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"podmon/internal/k8sapi"
+	"podmon/test/ssh"
 
 	"github.com/cucumber/godog"
 	log "github.com/sirupsen/logrus"
@@ -283,6 +284,8 @@ func (i *integration) failLabeledNodes(preferred, failure string, wait int) erro
 		return fmt.Errorf("[failLabeledNodes] failed to verify expected nodes failed: %v", err)
 	}
 
+	i.Wait(wait)
+
 	return nil
 }
 
@@ -451,6 +454,8 @@ func (i *integration) internalFailWorkerAndPrimaryNodes(numNodes, numPrimary, fa
 	if err != nil {
 		return err
 	}
+
+	i.Wait(wait)
 
 	return nil
 }
@@ -1067,6 +1072,7 @@ func (i *integration) verifyPodsDoNotMigrate(waitTimeSec int) error {
 		return fmt.Errorf("encountered an error while validating pods will not migrate: %s", err)
 	}
 
+	timeoutDuration := time.Duration(waitTimeSec) * time.Second
 	timeout, ticker, stop := newTimerWithTicker(waitTimeSec)
 	defer stop()
 
@@ -1079,7 +1085,7 @@ func (i *integration) verifyPodsDoNotMigrate(waitTimeSec int) error {
 			log.Infof("success: pods did not migrate in %d seconds", waitTimeSec)
 			return nil
 		case <-ticker.C:
-			log.Infof("validating pods have not migrated; %v seconds remaining", time.Duration(waitTimeSec)-time.Since(start))
+			log.Infof("validating pods have not migrated (time left %v)", timeoutDuration-time.Since(start))
 
 			err := i.labeledPodsChangedNodes()
 			// if the error is nil, then the pods have migrated
@@ -1130,6 +1136,12 @@ func (i *integration) arePodsProperlyChanged(isOnValidNode func(nodeName string)
 			return AssertExpectedAndActual(assert.Equal, true, currentNode != initialNode,
 				fmt.Sprintf("Expected %s pod to be migrated to a healthy node. Currently '%s', initially '%s'",
 					iPodName, currentNode, initialNode))
+		}
+
+		_, ok = i.nodesToTaints[initialNode]
+		if !ok {
+			log.Infof("node %s is not tainted so it was not a failed node", currentNode)
+			continue
 		}
 
 		if currentNode == initialNode {
@@ -2084,6 +2096,9 @@ func (i *integration) iFailDriverPodsTaints(numNodes, failure string, wait int, 
 	if err != nil {
 		return err
 	}
+
+	i.Wait(wait)
+
 	return nil
 }
 
@@ -2344,6 +2359,8 @@ func (i *integration) iFailNodesWithLabelWithFailureForSeconds(numNodes, label, 
 		return fmt.Errorf("[iFailNodesWithLabelWithFailureForSeconds] failed to verify expected nodes failed: %v", err)
 	}
 
+	i.Wait(wait)
+
 	return nil
 }
 
@@ -2383,6 +2400,46 @@ func newTimerWithTicker(waitTimeSec int) (timeout *time.Timer, ticker *time.Tick
 	}
 
 	return
+}
+
+func (i *integration) Wait(waitTimeSec int) {
+	timer, ticker, stop := newTimerWithTicker(waitTimeSec)
+	defer stop()
+
+	timeoutDuration := time.Duration(waitTimeSec) * time.Second
+
+	start := time.Now()
+	// The nodes will need to be return to a "Ready" state before they can be used again, so
+	// waiting the same amount as the script that takes them down allows time for the
+	// pods to migrate and means we don't have to wait later on in the test for them to
+	// come back online.
+	for {
+		select {
+		case <-timer.C:
+			return
+		case <-ticker.C:
+			log.Infof("waiting for failed resources to come back online (time left %v)", timeoutDuration-time.Since(start))
+
+			workerNodes, err := i.searchForNodes(isWorkerNode)
+			if err != nil {
+				log.Errorf("failed to get worker nodes: %v", err)
+				continue
+			}
+
+			allReady := true
+			for _, node := range workerNodes {
+				if !nodeHasCondition(node, "Ready") {
+					allReady = false
+					break
+				}
+			}
+
+			if allReady {
+				log.Info("[Wait] all nodes are ready")
+				return
+			}
+		}
+	}
 }
 
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
