@@ -286,14 +286,15 @@ Feature: Integration Test
     And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs> with <preferred> affinity
     Then validate that all pods are running within <deploySecs> seconds
     And all pods are running on <preferred> node
-    Then the connection fails between the preferred metro array and the nodes with <preferred> label
-  # And verify pods do not migrate for <failSecs> seconds
-  # When the connection is restored between the preferred metro array and the nodes with <preferred> label
+    Then the connection fails between the preferred metro array and the nodes <with> <preferred> label
+    And verify pods do not migrate for <failSecs> seconds
+    When the connection is restored between the preferred metro array and the nodes <with> <preferred> label
+  # And confirm the connection is restored
   # Then validate
 
     Examples:
-      | kubeConfig  | podsPerNode | nVol  | nDev  | driverNamespaceName | driverSecretName      | driverType    | storageClass        | workers     | deploySecs  | nodeCleanSecs | preferred |
-      | ""          | "1-1"       | "1-1" | "0-0" | "powerstore"        | "powerstore-config"   | "powerstore"  | "powerstore-metro"  | "one-third" | 300         | 300           | "site"    |
+      | kubeConfig  | podsPerNode | nVol  | nDev  | driverNamespaceName | driverSecretName      | driverType    | storageClass        | workers     | failSecs  | deploySecs  | nodeCleanSecs | with    | preferred |
+      | ""          | "1-1"       | "1-1" | "0-0" | "powerstore"        | "powerstore-config"   | "powerstore"  | "powerstore-metro"  | "one-third" | 300       | 300         | 300           | "true"  | "site"    |
   
   @unity-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)

@@ -64,6 +64,13 @@ type integration struct {
 	preferredLabeledNodes []string
 }
 
+type MetroOperation string
+
+const (
+	MetroRestore MetroOperation = "DROP"
+	MetroFail    MetroOperation = "ACCEPT"
+)
+
 // Used for keeping of track of the last test that was
 // run, so that we can clean up in case of failure
 var lastTestDriverType string
@@ -1096,7 +1103,7 @@ func (i *integration) verifyPodsDoNotMigrate(waitTimeSec int) error {
 			log.Infof("success: pods did not migrate in %d seconds", waitTimeSec)
 			return nil
 		case <-ticker.C:
-			log.Infof("validating pods have not migrated; %v seconds remaining", time.Duration(waitTimeSec)-time.Since(start))
+			log.Infof("validating pods have not migrated; %v seconds remaining", (time.Duration(waitTimeSec)*time.Second)-time.Since(start))
 
 			err := i.labeledPodsChangedNodes()
 			// if the error is nil, then the pods have migrated
@@ -1131,10 +1138,46 @@ func (i *integration) cliToolIsInstalledOnThisMachine(cliToolName string) error 
 	return nil
 }
 
-// failPreferredMetroConnection uses the configured storage class to determine the preferred array for a
-// metro volume and pstcli to get the iSCSI IPs for the storage array, then updates the nodes possessing
-// label "preferred=labelValue", adding entries to iptables to drop incoming packets from the iSCSI IPs.
-func (i *integration) failPreferredMetroConnection(labelValue string) error {
+// failPreferredMetroConnection utilizes iptables entries to simulate network failure between
+// a storage array and select worker nodes. If matchLabel is set to "true", nodes that possess
+// the labelValue will be failed. If matchLabel is set to "false", all other nodes
+// (excluding the control plane) will be failed.
+func (i *integration) failPreferredMetroConnection(matchLabel, labelValue string) error {
+	shouldMatchLabel, err := strconv.ParseBool(matchLabel)
+	if err != nil {
+		return fmt.Errorf("error parsing expected boolean %s: %s", matchLabel, err.Error())
+	}
+
+	opts := getPreferredNodeOpts(shouldMatchLabel, labelValue)
+
+	getNodes := func() (*corev1.NodeList, error) {
+		return i.getNodes(context.Background(), opts)
+	}
+
+	return i.setPreferredMetroConnection(MetroFail, getNodes)
+}
+
+// restorePreferredMetroConnection restores nodes that have the provided labelValue if matchLabel
+// is set to "true", and fails all other nodes (excluding the control plane) if set to "false".
+func (i *integration) restorePreferredMetroConnection(matchLabel string, labelValue string) error {
+	shouldMatchLabel, err := strconv.ParseBool(matchLabel)
+	if err != nil {
+		return fmt.Errorf("error parsing expected boolean %s: %s", matchLabel, err.Error())
+	}
+
+	opts := getPreferredNodeOpts(shouldMatchLabel, labelValue)
+
+	getNodes := func() (*corev1.NodeList, error) {
+		return i.getNodes(context.Background(), opts)
+	}
+	return i.setPreferredMetroConnection(MetroRestore, getNodes)
+}
+
+// setPreferredMetroConnection uses the configured storage class to determine the preferred array for a
+// metro volume, and pstcli to get the iSCSI IPs for the storage array, then updates the iptable entries
+// for nodes returned by getNodes to either drop or accept (determined by operation) incoming packets from
+// the iSCSI IPs.
+func (i *integration) setPreferredMetroConnection(operation MetroOperation, getNodes func() (*corev1.NodeList, error)) error {
 	ctx := context.Background()
 
 	// get the secret info using the powerstore array info from the storageclass
@@ -1176,9 +1219,7 @@ func (i *integration) failPreferredMetroConnection(labelValue string) error {
 	}
 
 	// create a list of nodes to fail using the preferred label
-	nodesToFail, err := i.getNodes(ctx, metav1.ListOptions{
-		LabelSelector: strings.Join([]string{preferredLabelKey, labelValue}, "="),
-	})
+	nodesToFail, err := getNodes()
 	if err != nil {
 		return fmt.Errorf("unable to fail nodes due to a failure querying the nodes: %s", err.Error())
 	}
@@ -1199,9 +1240,15 @@ func (i *integration) failPreferredMetroConnection(labelValue string) error {
 		log.Infof("Attempting to block incoming packets from %s on node %s", iscsiIPs, nodeIP)
 
 		// build a single command to drop all incoming packets from all the iSCSI IPs
-		var dropPacketsCmd string
+		var dropPacketsCmd, op string
+		switch operation {
+		case MetroFail:
+			op = "-A" // add rule to DROP all packets
+		case MetroRestore:
+			op = "-D" // delete previously added rule
+		}
 		for _, iscsiIP := range iscsiIPs {
-			dropPacketsCmd = dropPacketsCmd + fmt.Sprintf("iptables -A INPUT -j DROP -s %s; ", iscsiIP)
+			dropPacketsCmd = dropPacketsCmd + fmt.Sprintf("iptables %s INPUT -j DROP -s %s; ", op, iscsiIP)
 		}
 
 		client := i.getSSHClient(nodeIP)
@@ -1234,6 +1281,26 @@ func (i *integration) setDriverSecretName(driverSecretName string) error {
 }
 
 /* -- Helper functions -- */
+
+// getPreferredNodeOpts returns a set of options used to query the Kubernetes API
+// for nodes. If matchLabel is true, the returned options will select nodes that
+// have the provided labelValue. If matchLabel is false, the returned options
+// will select nodes that both are not part of the control plane and do not have
+// the provided labelValue.
+func getPreferredNodeOpts(matchLabel bool, labelValue string) metav1.ListOptions {
+	if matchLabel {
+		// select nodes that are labeled with the provided labelValue
+		return metav1.ListOptions{
+			LabelSelector: strings.Join([]string{preferredLabelKey, labelValue}, "="),
+		}
+	}
+
+	// select nodes that are both not part of the control plane
+	// and do not have the provided labelValue
+	return metav1.ListOptions{
+		LabelSelector: preferredLabelKey + "!=" + labelValue + "," + controlPlane + "!=",
+	}
+}
 
 // getSSHClient determines whether the test is running on vanilla Kubernetes
 // or OpenShift and configures the ssh client accordingly. SSH commands run
@@ -2660,7 +2727,8 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^wait up to (\d+) seconds for pods to switch nodes$`, i.waitForPodsToSwitchNodes)
 	context.Step(`^verify pods do not migrate for (\d+) seconds$`, i.verifyPodsDoNotMigrate)
 	context.Step(`^"([^"]*)" is installed on this machine$`, i.cliToolIsInstalledOnThisMachine)
-	context.Step(`^the connection fails between the preferred metro array and the nodes with "([^"]*)" label$`, i.failPreferredMetroConnection)
 	context.Step(`^a driver namespace name "([^"]*)"$`, i.setDriverNamespaceName)
 	context.Step(`^a driver secret name "([^"]*)"$`, i.setDriverSecretName)
+	context.Step(`^the connection fails between the preferred metro array and the nodes "([^"]*)" "([^"]*)" label$`, i.failPreferredMetroConnection)
+	context.Step(`^the connection is restored between the preferred metro array and the nodes "([^"]*)" "([^"]*)" label$`, i.restorePreferredMetroConnection)
 }
