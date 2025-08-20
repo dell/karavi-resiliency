@@ -194,6 +194,7 @@ Feature: Integration Test
     And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
+    Then wait up to <failSecs> seconds for pods to switch nodes
     Then validate that all pods are running within <runSecs> seconds
     And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
@@ -211,7 +212,7 @@ Feature: Integration Test
       #| ""         | "1-2"       | "1-1" | "0-0" | "powerstore"    | "powerstore-nvmetcp" | "one-third" | "zero"  | "interfacedown" | 120      | 600        | 600     | 600           |
       #| ""         | "3-5"       | "2-2" | "0-0" | "powerstore"    | "powerstore-nvmetcp" | "one-third" | "zero"  | "interfacedown" | 240      | 600        | 600     | 600           |
 
-  @powerstore-integration 
+  @powerstore-integration @powerstore-metro-integration
   Scenario Outline: Preferred cluster node failure hosting metro volumes testing using StatefulSet pods (node interface down)
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
@@ -228,8 +229,8 @@ Feature: Integration Test
     Then finally cleanup everything
 
     Examples:
-      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs | preferred |
-      | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-metro"   | "one-third" | "zero"  | "interfacedown" | 240      | 600        | 600     | 600           | "site"|
+      | kubeConfig | podsPerNode | nVol  | nDev  | driverType   | storageClass       | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs | preferred |
+      | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-metro" | "one-third" | "zero"  | "interfacedown" | 240      | 600        | 600     | 600           | "site"    |
 
   @powerstore-integration @powerstore-metro-integration
   Scenario Outline: Preferred site node failover to preferred node (w/ metro, multiple preferred nodes)
@@ -272,7 +273,7 @@ Feature: Integration Test
 
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType   | storageClass       | workers     | primary | failure         | failSecs | deploySecs | nodeCleanSecs | preferred |
-      | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-metro" | "one-third" | "zero"  | "interfacedown" | 300      | 600        | 300           | "site"    |
+      | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-metro" | "one-third" | "zero"  | "interfacedown" | 300      | 600        | 600           | "site"    |
 
   @unity-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
@@ -380,7 +381,7 @@ Feature: Integration Test
       # Slightly more pods, increasing number of vols and devs
       | ""         | "3-5"       | "1-1" | "0-0" | "isilon"    | "isilon"  | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
 
-  @powerstore-integration @wip
+  @powerstore-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node kubelet down)
     Given a kubernetes <kubeConfig>
     And skip if <failure> is not compatible with <driverType>
@@ -389,6 +390,7 @@ Feature: Integration Test
     And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
+    Then wait up to <failSecs> seconds for pods to switch nodes
     Then validate that all pods are running within <runSecs> seconds
     And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
@@ -626,6 +628,7 @@ Feature: Integration Test
   Scenario Outline: Deploy pods when there are failed nodes already
     Given a kubernetes <kubeConfig>
     And cluster is clean of test pods
+    And I set the correct driver type to <driverType>
     And wait <nodeCleanSecs> to see there are no taints
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
     And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
@@ -636,10 +639,10 @@ Feature: Integration Test
     Then validate that all pods are running within <deploySecs> seconds
     Then finally cleanup everything
     Examples:
-      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure         | failSecs | deploySecs | nodeCleanSecs |
-      | ""         | "1-2"       | "1-1" | "0-0" | "powerstore"   | "powerstore-nfs"      | "one-third" | "zero"  | "interfacedown" | 600      | 900        | 900           |
-      | ""         | "1-2"       | "1-1" | "0-0" | "powerstore"   | "powerstore-iscsi"      | "one-third" | "zero"  | "interfacedown" | 600      | 900        | 900           |
-      #| ""         | "1-2"       | "1-1" | "0-0" | "powerstore"   | "powerstore-nvmetcp"      | "one-third" | "zero"  | "interfacedown" | 600      | 900        | 900           |
+      | kubeConfig | podsPerNode | nVol  | nDev  | driverType   | storageClass           | workers     | primary | failure         | failSecs | deploySecs | nodeCleanSecs |
+      | ""         | "1-2"       | "1-1" | "0-0" | "powerstore" | "powerstore-nfs"       | "one-third" | "zero"  | "interfacedown" | 300      | 900        | 900           |
+      | ""         | "1-2"       | "1-1" | "0-0" | "powerstore" | "powerstore-iscsi"     | "one-third" | "zero"  | "interfacedown" | 300      | 900        | 900           |
+      # | ""         | "1-2"       | "1-1" | "0-0" | "powerstore"   | "powerstore-nvmetcp" | "one-third" | "zero"  | "interfacedown" | 600      | 900        | 900           |
 
   @powermax-integration
   Scenario Outline: Deploy pods when there are failed nodes already
@@ -970,24 +973,25 @@ Feature: Integration Test
     And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
     Then validate that all pods are running within <deploySecs> seconds
     When I fail <workers> worker nodes and <primary> primary nodes with <failure> failure for <failSecs> seconds
+    Then wait up to <failSecs> seconds for pods to switch nodes
     Then validate that all pods are running within <runSecs> seconds
     And labeled pods are on a different node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
     Then finally cleanup everything
     Examples:
-      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
+      | kubeConfig | podsPerNode | nVol  | nDev  | driverType   | storageClass         | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
       #Small number of pods, increasing number of vols and devs
-      | ""         | "1-2"       | "1-1" | "0-0" | "powerstore" | "powerstore-nfs"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600          |
+      | ""         | "1-2"       | "1-1" | "0-0" | "powerstore" | "powerstore-nfs"     | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600           |
       # Slightly more pods, increasing number of vols and devs
-      | ""         | "3-5"       | "1-1" | "0-0" | "powerstore" | "powerstore-nfs"   | "one-third" | "zero"  | "reboot" | 240      | 900        | 900     | 900           |
+      | ""         | "3-5"       | "1-1" | "0-0" | "powerstore" | "powerstore-nfs"     | "one-third" | "zero"  | "reboot" | 240      | 900        | 900     | 900           |
       #Small number of pods, increasing number of vols and devs
-      | ""         | "1-2"       | "1-1" | "0-0" | "powerstore" | "powerstore-iscsi"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600          |
+      | ""         | "1-2"       | "1-1" | "0-0" | "powerstore" | "powerstore-iscsi"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600           |
       # Slightly more pods, increasing number of vols and devs
       | ""         | "3-5"       | "1-1" | "0-0" | "powerstore" | "powerstore-iscsi"   | "one-third" | "zero"  | "reboot" | 240      | 900        | 900     | 900           |
       #Small number of pods, increasing number of vols and devs
-      #| ""         | "1-2"       | "1-1" | "0-0" | "powerstore" | "powerstore-nvmetcp"   | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600          |
+      # | ""         | "1-2"       | "1-1" | "0-0" | "powerstore" | "powerstore-nvmetcp" | "one-third" | "zero"  | "reboot" | 240      | 600        | 600     | 600           |
       # Slightly more pods, increasing number of vols and devs
-      #| ""         | "3-5"       | "1-1" | "0-0" | "powerstore" | "powerstore-nvmetcp"   | "one-third" | "zero"  | "reboot" | 240      | 900        | 900     | 900           |
+      # | ""         | "3-5"       | "1-1" | "0-0" | "powerstore" | "powerstore-nvmetcp" | "one-third" | "zero"  | "reboot" | 240      | 900        | 900     | 900           |
 
   @powermax-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node slow reboots)
