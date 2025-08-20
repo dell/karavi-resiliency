@@ -64,11 +64,12 @@ type integration struct {
 	preferredLabeledNodes []string
 }
 
-type MetroOperation string
+type MetroConnection string
 
 const (
-	MetroRestore MetroOperation = "DROP"
-	MetroFail    MetroOperation = "ACCEPT"
+	MetroConnectionRestore MetroConnection = "ALLOW"
+	MetroConnectionFail    MetroConnection = "BLOCK"
+)
 )
 
 // Used for keeping of track of the last test that was
@@ -1088,7 +1089,7 @@ func (i *integration) verifyPodsDoNotMigrate(waitTimeSec int) error {
 	// update the list of pods and the node they are on
 	err := i.populateLabeledPodsToNodes()
 	if err != nil {
-		return fmt.Errorf("encountered an error while validating pods will not migrate: %s", err)
+		return fmt.Errorf("encountered an error while validating pods will not migrate: %s", err.Error())
 	}
 
 	timeout, ticker, stop := newTimerWithTicker(waitTimeSec)
@@ -1143,41 +1144,41 @@ func (i *integration) cliToolIsInstalledOnThisMachine(cliToolName string) error 
 // the labelValue will be failed. If matchLabel is set to "false", all other nodes
 // (excluding the control plane) will be failed.
 func (i *integration) failPreferredMetroConnection(matchLabel, labelValue string) error {
-	shouldMatchLabel, err := strconv.ParseBool(matchLabel)
+	withMatchingLabel, err := strconv.ParseBool(matchLabel)
 	if err != nil {
 		return fmt.Errorf("error parsing expected boolean %s: %s", matchLabel, err.Error())
 	}
 
-	opts := getPreferredNodeOpts(shouldMatchLabel, labelValue)
+	opts := getPreferredNodeOpts(withMatchingLabel, labelValue)
 
 	getNodes := func() (*corev1.NodeList, error) {
 		return i.getNodes(context.Background(), opts)
 	}
 
-	return i.setPreferredMetroConnection(MetroFail, getNodes)
+	return i.setPreferredMetroConnection(MetroConnectionFail, getNodes)
 }
 
 // restorePreferredMetroConnection restores nodes that have the provided labelValue if matchLabel
 // is set to "true", and fails all other nodes (excluding the control plane) if set to "false".
-func (i *integration) restorePreferredMetroConnection(matchLabel string, labelValue string) error {
-	shouldMatchLabel, err := strconv.ParseBool(matchLabel)
+func (i *integration) restorePreferredMetroConnection(matchLabel, labelValue string) error {
+	withMatchingLabel, err := strconv.ParseBool(matchLabel)
 	if err != nil {
 		return fmt.Errorf("error parsing expected boolean %s: %s", matchLabel, err.Error())
 	}
 
-	opts := getPreferredNodeOpts(shouldMatchLabel, labelValue)
+	opts := getPreferredNodeOpts(withMatchingLabel, labelValue)
 
 	getNodes := func() (*corev1.NodeList, error) {
 		return i.getNodes(context.Background(), opts)
 	}
-	return i.setPreferredMetroConnection(MetroRestore, getNodes)
+	return i.setPreferredMetroConnection(MetroConnectionRestore, getNodes)
 }
 
 // setPreferredMetroConnection uses the configured storage class to determine the preferred array for a
 // metro volume, and pstcli to get the iSCSI IPs for the storage array, then updates the iptable entries
 // for nodes returned by getNodes to either drop or accept (determined by operation) incoming packets from
 // the iSCSI IPs.
-func (i *integration) setPreferredMetroConnection(operation MetroOperation, getNodes func() (*corev1.NodeList, error)) error {
+func (i *integration) setPreferredMetroConnection(operation MetroConnection, getNodes func() (*corev1.NodeList, error)) error {
 	ctx := context.Background()
 
 	// get the secret info using the powerstore array info from the storageclass
@@ -1242,9 +1243,9 @@ func (i *integration) setPreferredMetroConnection(operation MetroOperation, getN
 		// build a single command to drop all incoming packets from all the iSCSI IPs
 		var dropPacketsCmd, op string
 		switch operation {
-		case MetroFail:
+		case MetroConnectionFail:
 			op = "-A" // add rule to DROP all packets
-		case MetroRestore:
+		case MetroConnectionRestore:
 			op = "-D" // delete previously added rule
 		}
 		for _, iscsiIP := range iscsiIPs {
@@ -1252,8 +1253,8 @@ func (i *integration) setPreferredMetroConnection(operation MetroOperation, getN
 		}
 
 		client := i.getSSHClient(nodeIP)
-		if err := i.SSHExec(client, nodeIP, dropPacketsCmd); err != nil {
-			return fmt.Errorf("encountered an error while attempting to drop incoming iSCSI packets on preferred nodes: %s", err)
+		if _, err := i.SSHExec(client, nodeIP, dropPacketsCmd); err != nil {
+			return fmt.Errorf("encountered an error while attempting to drop incoming iSCSI packets on preferred nodes: %s", err.Error())
 		}
 	}
 
@@ -1278,6 +1279,58 @@ func (i *integration) setDriverSecretName(driverSecretName string) error {
 	i.driverSecretName = driverSecretName
 
 	return nil
+}
+
+func (i *integration) nodesWithLabelAreTainted(matchLabel, labelValue, taints string, waitTime int) error {
+	withLabel, err := strconv.ParseBool(matchLabel)
+	if err != nil {
+		return fmt.Errorf("error parsing expected boolean %s: %s", matchLabel, err.Error())
+	}
+
+	// get nodes that either have or do not have the labelValue based on
+	// the truthiness of `withLabel`
+	opts := getPreferredNodeOpts(withLabel, labelValue)
+
+	timeout, ticker, stop := newTimerWithTicker(waitTime)
+	defer stop()
+
+	log.Info("waiting for nodes to have the expected taints")
+
+	start := time.Now()
+	for {
+		select {
+		case <-timeout.C:
+			return errors.New("timed out waiting to confirm nodes had the expected taints")
+		case <-ticker.C:
+			nodes, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), opts)
+			if err != nil {
+				return fmt.Errorf("unable to list nodes: %s", err.Error())
+			}
+			allNodesTainted := func() bool {
+				for _, node := range nodes.Items {
+					podsOnNode, err := i.k8s.GetClient().CoreV1().Pods("").List(context.Background(), metav1.ListOptions{
+						// gets pods on this node
+						FieldSelector: fmt.Sprintf("spec.nodeName=%s", node.Name),
+						// should return pods that possess this label key regardles off the label value
+						LabelSelector: "podmon.dellemc.com/driver",
+					})
+					if err != nil {
+						log.Errorf("failed to get pods for node %s: %s", node.Name, err.Error())
+					}
+
+					if len(podsOnNode.Items) != 0 && !i.isNodeFailed(node, taints) {
+						log.Warnf("node %q still waiting to be tainted; time remaining %v", node.Name, time.Duration(waitTime)*time.Second-time.Since(start))
+						return false
+					}
+				}
+				return true
+			}()
+			if allNodesTainted {
+				log.Info("all nodes with pods are tainted as expected")
+				return nil
+			}
+		}
+	}
 }
 
 /* -- Helper functions -- */
@@ -1335,20 +1388,21 @@ func (i *integration) getSSHClient(targetIP string) ssh.CommandExecution {
 
 // SSHExec provides a convenient method for executing commands over ssh on cluster worker nodes
 // making adjustments to the request, as necessary, to support connections to OpenShift nodes.
-func (i *integration) SSHExec(client ssh.CommandExecution, IPAddr string, cmd string) error {
+func (i *integration) SSHExec(client ssh.CommandExecution, IPAddr string, cmd string) (response []string, err error) {
 	if i.isOpenshift {
 		cmd = fmt.Sprintf("ssh %s core@%s '%s'", sshOptions, IPAddr, cmd)
 	}
 
-	if err := client.Run(cmd); err != nil {
-		response := client.GetOutput()
-		return fmt.Errorf("encountered an error executing ssh on IP %q: %s :%s", IPAddr, response, err.Error())
+	err = client.Run(cmd)
+	response = client.GetOutput()
+	if err != nil {
+		return response, fmt.Errorf("encountered an error executing ssh on IP %q: %s :%s", IPAddr, response, err.Error())
 	}
-	for _, response := range client.GetOutput() {
-		log.Info(response)
+	for _, line := range response {
+		log.Info(line)
 	}
 
-	return nil
+	return response, nil
 }
 
 // getIscsiIPs uses pstcli to query the provided PowerStore array for any available iSCSI IPs
@@ -2731,4 +2785,5 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^a driver secret name "([^"]*)"$`, i.setDriverSecretName)
 	context.Step(`^the connection fails between the preferred metro array and the nodes "([^"]*)" "([^"]*)" label$`, i.failPreferredMetroConnection)
 	context.Step(`^the connection is restored between the preferred metro array and the nodes "([^"]*)" "([^"]*)" label$`, i.restorePreferredMetroConnection)
+	context.Step(`^nodes with pods and "([^"]*)" "([^"]*)" label have taint "([^"]*)" within (\d+) seconds$`, i.nodesWithLabelAreTainted)
 }

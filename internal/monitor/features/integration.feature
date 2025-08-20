@@ -276,7 +276,7 @@ Feature: Integration Test
       | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-metro"   | "two-thirds" | "zero"  | "interfacedown" | 600      | 600        | 600     | 600           | "site"|
 
   @powerstore-integration @powerstore-metro-integration
-  Scenario Outline: Recovery of preferred-site node testing using test StatefulSet pods (node interface down)
+  Scenario Outline: Recovery of preferred metro array on preferred node testing using test StatefulSet pods (iptables drop iscsi)
     Given a kubernetes <kubeConfig>
     And a driver namespace name <driverNamespaceName>
     And a driver secret name <driverSecretName>
@@ -287,14 +287,15 @@ Feature: Integration Test
     Then validate that all pods are running within <deploySecs> seconds
     And all pods are running on <preferred> node
     Then the connection fails between the preferred metro array and the nodes <with> <preferred> label
+    And nodes with pods and <with> <preferred> label have taint <taint> within <failSecs> seconds
     And verify pods do not migrate for <failSecs> seconds
     When the connection is restored between the preferred metro array and the nodes <with> <preferred> label
   # And confirm the connection is restored
   # Then validate
 
     Examples:
-      | kubeConfig  | podsPerNode | nVol  | nDev  | driverNamespaceName | driverSecretName      | driverType    | storageClass        | workers     | failSecs  | deploySecs  | nodeCleanSecs | with    | preferred |
-      | ""          | "1-1"       | "1-1" | "0-0" | "powerstore"        | "powerstore-config"   | "powerstore"  | "powerstore-metro"  | "one-third" | 300       | 300         | 300           | "true"  | "site"    |
+      | kubeConfig  | podsPerNode | nVol  | nDev  | driverNamespaceName | driverSecretName      | driverType    | storageClass        | workers     | failSecs  | deploySecs  | nodeCleanSecs | with    | preferred | taint                                 |
+      | ""          | "1-1"       | "1-1" | "0-0" | "powerstore"        | "powerstore-config"   | "powerstore"  | "powerstore-metro"  | "one-third" | 300       | 300         | 300           | "true"  | "site"    | "powerstore.podmon.storage.dell.com"  |
   
   @unity-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
