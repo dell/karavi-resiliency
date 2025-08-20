@@ -2442,6 +2442,42 @@ func (i *integration) Wait(waitTimeSec int) {
 	}
 }
 
+func (i *integration) skipIfIsNotCompatibleWith(failure, driverType string) error {
+	if driverType == "powerstore" {
+		log.Infoln("Checking if the follwing test is compatible with PowerStore environment")
+
+		deployment, err := i.k8s.GetClient().AppsV1().Deployments(driverType).Get(context.Background(), "powerstore-controller", metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		isCompatible := true
+		for _, container := range deployment.Spec.Template.Spec.Containers {
+			if strings.Contains(container.Image, "podmon") {
+				for _, arg := range container.Args {
+					if strings.Contains(arg, "skipArrayConnectionValidation") {
+						split := strings.Split(arg, "=")
+						if split[1] == "false" && failure == "kubeletdown" {
+							log.Info("For running kubeletdown test on PowerStore, skipArrayConnectionValidation should be set to true")
+							isCompatible = false
+						}
+
+						break
+					}
+				}
+
+				break
+			}
+		}
+
+		if !isCompatible {
+			log.Warnf("Skipping this scenario. Test is not compatible with %s environment", driverType)
+			return godog.ErrSkip
+		}
+	}
+	return nil
+}
+
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	i := &integration{}
 	pollK8sEnabled := false
@@ -2492,4 +2528,5 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^labeled pods are on a "([^"]*)" node$`, i.labeledPodsAreOnANode)
 	context.Step(`wait up to (\d+) seconds for pods to switch nodes$`, i.waitForPodsToSwitchNodes)
 	context.Step(`verify pods do not migrate for (\d+) seconds$`, i.verifyPodsDoNotMigrate)
+	context.Step(`^skip if "([^"]*)" is not compatible with "([^"]*)"$`, i.skipIfIsNotCompatibleWith)
 }

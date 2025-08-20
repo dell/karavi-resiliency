@@ -383,6 +383,7 @@ Feature: Integration Test
   @powerstore-integration @wip
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node kubelet down)
     Given a kubernetes <kubeConfig>
+    And skip if <failure> is not compatible with <driverType>
     And cluster is clean of test pods
     And wait <nodeCleanSecs> to see there are no taints
     And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
@@ -396,13 +397,13 @@ Feature: Integration Test
     Examples:
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType   | storageClass         | workers     | primary | failure       | failSecs | deploySecs | runSecs | nodeCleanSecs |
       # Small number of pods, increasing number of vols and devs
-      | ""         | "1-2"       | "1-1" | "0-0" | "powerstore" | "powerstore-nfs"     | "one-third" | "zero"  | "kubeletdown" | 240      | 900        | 900     | 900           |
+      | ""         | "1-2"       | "1-1" | "0-0" | "powerstore" | "powerstore-nfs"     | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
       # Slightly more pods, increasing number of vols and devs
-      # | ""         | "3-5"       | "1-1" | "0-0" | "powerstore" | "powerstore-nfs"     | "one-third" | "zero"  | "kubeletdown" | 240      | 900        | 900     | 900           |
+      | ""         | "3-5"       | "1-1" | "0-0" | "powerstore" | "powerstore-nfs"     | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
       # Small number of pods, increasing number of vols and devs
-      # | ""         | "1-2"       | "1-1" | "0-0" | "powerstore" | "powerstore-iscsi"   | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
+      | ""         | "1-2"       | "1-1" | "0-0" | "powerstore" | "powerstore-iscsi"   | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
       # Slightly more pods, increasing number of vols and devs
-      # | ""         | "3-5"       | "1-1" | "0-0" | "powerstore" | "powerstore-iscsi"   | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
+      | ""         | "3-5"       | "1-1" | "0-0" | "powerstore" | "powerstore-iscsi"   | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
       # Small number of pods, increasing number of vols and devs
       #| ""         | "1-2"      | "1-1" | "0-0" | "powerstore" | "powerstore-nvmetcp" | "one-third" | "zero"  | "kubeletdown" | 600      | 900        | 900     | 900           |
       # Slightly more pods, increasing number of vols and devs
@@ -411,6 +412,7 @@ Feature: Integration Test
   @powerstore-short-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node kubelet down)
     Given a kubernetes <kubeConfig>
+    And skip if <failure> is not compatible with <driverType>
     And cluster is clean of test pods
     And wait <nodeCleanSecs> to see there are no taints
     And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs>
