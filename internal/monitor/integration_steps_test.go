@@ -14,7 +14,9 @@
 package monitor
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -23,15 +25,20 @@ import (
 	"path/filepath"
 	"podmon/internal/k8sapi"
 	"podmon/test/ssh"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/cucumber/godog"
+	pstoreArray "github.com/dell/csi-powerstore/v2/pkg/array"
+	pstoreID "github.com/dell/csi-powerstore/v2/pkg/identifiers"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 )
@@ -43,6 +50,9 @@ type integration struct {
 	podCount              int
 	devCount              int
 	volCount              int
+	storageClass          *storagev1.StorageClass
+	driverNamespaceName   string
+	driverSecretName      string
 	testNamespacePrefix   map[string]bool
 	scriptsDir            string
 	labeledPodsToNodes    map[string]string
@@ -52,6 +62,13 @@ type integration struct {
 	customTaints          string
 	preferredLabeledNodes []string
 }
+
+type MetroConnection string
+
+const (
+	MetroConnectionRestore MetroConnection = "ALLOW"
+	MetroConnectionFail    MetroConnection = "BLOCK"
+)
 
 // Used for keeping of track of the last test that was
 // run, so that we can clean up in case of failure
@@ -103,6 +120,7 @@ const (
 	PowerStoreNS        = "pmtps"
 	PowerMaxNS          = "pmtpm"
 	VM                  = "vm"
+	preferredLabelKey   = "preferred"
 )
 
 // Used for stopping the test from continuing
@@ -469,6 +487,11 @@ func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, 
 	devCount, err := i.selectFromRange(numDevs)
 	if err != nil {
 		return err
+	}
+
+	i.storageClass, err = i.k8s.GetClient().StorageV1().StorageClasses().Get(context.Background(), storageClass, metav1.GetOptions{})
+	if err != nil {
+		log.Errorf("failed to deploy pods. Encountered an error while querying for the StorageClass: %s", err.Error())
 	}
 
 	// Select the deployment script to use based on the driver type.
@@ -1064,7 +1087,7 @@ func (i *integration) verifyPodsDoNotMigrate(waitTimeSec int) error {
 	// update the list of pods and the node they are on
 	err := i.populateLabeledPodsToNodes()
 	if err != nil {
-		return fmt.Errorf("encountered an error while validating pods will not migrate: %s", err)
+		return fmt.Errorf("encountered an error while validating pods will not migrate: %s", err.Error())
 	}
 
 	timeout, ticker, stop := newTimerWithTicker(waitTimeSec)
@@ -1079,7 +1102,7 @@ func (i *integration) verifyPodsDoNotMigrate(waitTimeSec int) error {
 			log.Infof("success: pods did not migrate in %d seconds", waitTimeSec)
 			return nil
 		case <-ticker.C:
-			log.Infof("validating pods have not migrated; %v seconds remaining", time.Duration(waitTimeSec)-time.Since(start))
+			log.Infof("validating pods have not migrated; %v seconds remaining", (time.Duration(waitTimeSec)*time.Second)-time.Since(start))
 
 			err := i.labeledPodsChangedNodes()
 			// if the error is nil, then the pods have migrated
@@ -1101,7 +1124,337 @@ func (i *integration) labeledPodsChangedNodes() error {
 	})
 }
 
+// cliToolIsInstalledOnThisMachine validates whether the provided cliToolName resolves
+// to an installed executable in the PATH.
+func (i *integration) cliToolIsInstalledOnThisMachine(cliToolName string) error {
+	log.Infof("checking if the %q executable is installed and part of the $PATH", cliToolName)
+	_, err := exec.LookPath(cliToolName)
+	if err != nil {
+		return fmt.Errorf("could not find cli tool %q on this machine: %s", cliToolName, err.Error())
+	}
+
+	return nil
+}
+
+// failPreferredMetroConnection utilizes iptables entries to simulate network failure between
+// a storage array and select worker nodes. If matchLabel is set to "true", nodes that possess
+// the labelValue will be failed. If matchLabel is set to "false", all other nodes
+// (excluding the control plane) will be failed.
+func (i *integration) failPreferredMetroConnection(matchLabel, labelValue string) error {
+	withMatchingLabel, err := strconv.ParseBool(matchLabel)
+	if err != nil {
+		return fmt.Errorf("error parsing expected boolean %s: %s", matchLabel, err.Error())
+	}
+
+	opts := getPreferredNodeOpts(withMatchingLabel, labelValue)
+
+	getNodes := func() (*corev1.NodeList, error) {
+		return i.getNodes(context.Background(), opts)
+	}
+
+	return i.setPreferredMetroConnection(MetroConnectionFail, getNodes)
+}
+
+// restorePreferredMetroConnection restores nodes that have the provided labelValue if matchLabel
+// is set to "true", and fails all other nodes (excluding the control plane) if set to "false".
+func (i *integration) restorePreferredMetroConnection(matchLabel, labelValue string) error {
+	withMatchingLabel, err := strconv.ParseBool(matchLabel)
+	if err != nil {
+		return fmt.Errorf("error parsing expected boolean %s: %s", matchLabel, err.Error())
+	}
+
+	opts := getPreferredNodeOpts(withMatchingLabel, labelValue)
+
+	getNodes := func() (*corev1.NodeList, error) {
+		return i.getNodes(context.Background(), opts)
+	}
+	return i.setPreferredMetroConnection(MetroConnectionRestore, getNodes)
+}
+
+// setPreferredMetroConnection uses the configured storage class to determine the preferred array for a
+// metro volume, and pstcli to get the iSCSI IPs for the storage array, then updates the iptable entries
+// for nodes returned by getNodes to either drop or accept (determined by operation) incoming packets from
+// the iSCSI IPs.
+func (i *integration) setPreferredMetroConnection(operation MetroConnection, getNodes func() (*corev1.NodeList, error)) error {
+	ctx := context.Background()
+
+	// get the secret info using the powerstore array info from the storageclass
+	secretObj, err := i.k8s.GetClient().CoreV1().Secrets(i.driverNamespaceName).Get(ctx, "powerstore-config", metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("unable to fail the preferred metro connection. error encountered while getting driver secret: %s", err.Error())
+	}
+
+	// unmarshal
+	viper.SetConfigType("yaml")
+	if err := viper.ReadConfig(bytes.NewBuffer(secretObj.Data["config"])); err != nil {
+		return fmt.Errorf("viper was unable to read the Kubernetes secret: %s", err.Error())
+	}
+
+	var Secrets struct {
+		Arrays []pstoreArray.PowerStoreArray `yaml:"arrays"`
+	}
+	if err := viper.Unmarshal(&Secrets); err != nil {
+		return fmt.Errorf("viper was unable to unmarshal Kubernetes secret: %s", err.Error())
+	}
+
+	// use the global ID from the storageclass to determine the preferred array of the metro volume
+	arrayGlobalID := i.storageClass.Parameters[pstoreID.KeyArrayID]
+
+	var secret pstoreArray.PowerStoreArray
+	for _, secret = range Secrets.Arrays {
+		if secret.GlobalID == arrayGlobalID {
+			break
+		}
+	}
+	if reflect.DeepEqual(secret, pstoreArray.PowerStoreArray{}) {
+		return fmt.Errorf("unable to determine the PowerStore API endpoint from the provided StorageClass %q, and Secret %q", i.storageClass.Name, i.driverSecretName)
+	}
+
+	// get the iSCSI IPs via pstcli so we know which IPs to fail
+	iscsiIPs, err := getIscsiIPs(secret.Endpoint, secret.Username, secret.Password)
+	if err != nil {
+		return fmt.Errorf("unable to get iSCSI IPs: %s", err.Error())
+	}
+
+	// create a list of nodes to fail using the preferred label
+	nodesToFail, err := getNodes()
+	if err != nil {
+		return fmt.Errorf("unable to fail nodes due to a failure querying the nodes: %s", err.Error())
+	}
+
+	// log in to each node and fail the iSCSI IPs
+	for _, node := range nodesToFail.Items {
+
+		// Get the node's IP address by looping over "status.addresses"
+		// field in the K8s node resource and filtering by the "internalIP" type.
+		var nodeIP string
+		for _, address := range node.Status.Addresses {
+			if address.Type == corev1.NodeInternalIP {
+				nodeIP = address.Address
+				break
+			}
+		}
+
+		// build a single command to drop all incoming packets from all the iSCSI IPs
+		var dropPacketsCmd, op string
+		switch operation {
+		case MetroConnectionFail:
+			log.Infof("Attempting to block incoming packets from %s on node %s", iscsiIPs, nodeIP)
+			op = "-A" // add rule to DROP all packets
+		case MetroConnectionRestore:
+			log.Infof("Attempting to allow incoming packets from %s on node %s", iscsiIPs, nodeIP)
+			op = "-D" // delete previously added rule
+		}
+		for _, iscsiIP := range iscsiIPs {
+			dropPacketsCmd = dropPacketsCmd + fmt.Sprintf("iptables %s INPUT -j DROP -s %s; ", op, iscsiIP)
+		}
+
+		client := i.getSSHClient(nodeIP)
+		if _, err := i.SSHExec(client, nodeIP, dropPacketsCmd); err != nil {
+			return fmt.Errorf("encountered an error while attempting to drop incoming iSCSI packets on preferred nodes: %s", err.Error())
+		}
+	}
+
+	return nil
+}
+
+func (i *integration) setDriverNamespaceName(driverNamespaceName string) error {
+	if driverNamespaceName == "" {
+		return errors.New("expected a driver namespace name but it was empty")
+	}
+
+	i.driverNamespaceName = driverNamespaceName
+
+	return nil
+}
+
+func (i *integration) setDriverSecretName(driverSecretName string) error {
+	if driverSecretName == "" {
+		return errors.New("expected a driver secret name but it was empty")
+	}
+
+	i.driverSecretName = driverSecretName
+
+	return nil
+}
+
+// labeledNodesWithPodsAreTainted periodically checks nodes for the given taints, `taints`.
+// It checks nodes that have a resiliency-monitored pod and do or do not have a label with value `labelValue`
+// based on the truthiness of `matchLabel`. If taints are found within the given wait time, `waitTime`, it returns
+// a nil error. If the timeout is reached, it returns an error.
+func (i *integration) labeledNodesWithPodsAreTainted(matchLabel, labelValue, taints string, waitTimeSeconds int) error {
+	withLabel, err := strconv.ParseBool(matchLabel)
+	if err != nil {
+		return fmt.Errorf("error parsing expected boolean %s: %s", matchLabel, err.Error())
+	}
+
+	// get nodes that either have or do not have the labelValue based on
+	// the truthiness of `withLabel`
+	opts := getPreferredNodeOpts(withLabel, labelValue)
+
+	timeout, ticker, stop := newTimerWithTicker(waitTimeSeconds)
+	defer stop()
+
+	log.Info("waiting for nodes to have the expected taints")
+
+	start := time.Now()
+	for {
+		select {
+		case <-timeout.C:
+			return errors.New("timed out waiting to confirm nodes had the expected taints")
+		case <-ticker.C:
+			nodes, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), opts)
+			if err != nil {
+				return fmt.Errorf("unable to list nodes: %s", err.Error())
+			}
+
+			nodesWithPodsTainted := func() bool {
+				for _, node := range nodes.Items {
+					// get pods on this node that are monitored by resiliency
+					podsOnNode, err := i.k8s.GetClient().CoreV1().Pods("").List(context.Background(), metav1.ListOptions{
+						// gets pods on this node
+						FieldSelector: fmt.Sprintf("spec.nodeName=%s", node.Name),
+						// ignores the label value and should return pods that possess this label key,
+						// indicating it is a pod monitored by podmon
+						LabelSelector: "podmon.dellemc.com/driver",
+					})
+					if err != nil {
+						log.Errorf("error listing pods on node %q: %s", node.Name, err.Error())
+						continue
+					}
+
+					// exit early and return false if a pod exists on the node and the node is not yet tainted
+					if len(podsOnNode.Items) != 0 && !i.isNodeFailed(node, taints) {
+						log.Warnf("node %q still waiting to be tainted; time remaining %v",
+							node.Name, time.Duration(waitTimeSeconds)*time.Second-time.Since(start))
+						return false
+					}
+				}
+				return true
+			}()
+
+			if nodesWithPodsTainted {
+				log.Info("all nodes with pods are tainted as expected")
+				return nil
+			}
+		}
+	}
+}
+
 /* -- Helper functions -- */
+
+// getPreferredNodeOpts returns a set of options used to query the Kubernetes API
+// for nodes. If matchLabel is true, the returned options will select nodes that
+// have the provided labelValue. If matchLabel is false, the returned options
+// will select nodes that both are not part of the control plane and do not have
+// the provided labelValue.
+func getPreferredNodeOpts(matchLabel bool, labelValue string) metav1.ListOptions {
+	if matchLabel {
+		// select nodes that are labeled with the provided labelValue
+		return metav1.ListOptions{
+			LabelSelector: strings.Join([]string{preferredLabelKey, labelValue}, "="),
+		}
+	}
+
+	// select nodes that are both not part of the control plane
+	// and do not have the provided labelValue
+	return metav1.ListOptions{
+		LabelSelector: preferredLabelKey + "!=" + labelValue + "," + controlPlane + "!=",
+	}
+}
+
+// getSSHClient determines whether the test is running on vanilla Kubernetes
+// or OpenShift and configures the ssh client accordingly. SSH commands run
+// with this client will be sent to the targetIP IP address if run against
+// Kubernetes or the previously configured i.bastionNode IP address if running
+// on OpenShift. Environment variables NODE_USER and PASSWORD are used for
+// the SSH user and password.
+func (i *integration) getSSHClient(targetIP string) ssh.CommandExecution {
+	username := os.Getenv("NODE_USER")
+	password := os.Getenv("PASSWORD")
+
+	hostname := targetIP
+	if i.isOpenshift {
+		hostname = i.bastionNode
+	}
+
+	info := ssh.AccessInfo{
+		Hostname: hostname,
+		Port:     "22",
+		Username: username,
+		Password: password,
+	}
+
+	wrapper := ssh.NewWrapper(&info)
+
+	return ssh.CommandExecution{
+		AccessInfo: &info,
+		SSHWrapper: wrapper,
+		Timeout:    sshTimeoutDuration,
+	}
+}
+
+// SSHExec provides a convenient method for executing commands over ssh on cluster worker nodes
+// making adjustments to the request, as necessary, to support connections to OpenShift nodes.
+func (i *integration) SSHExec(client ssh.CommandExecution, IPAddr string, cmd string) (response []string, err error) {
+	if i.isOpenshift {
+		cmd = fmt.Sprintf("ssh %s core@%s '%s'", sshOptions, IPAddr, cmd)
+	}
+
+	err = client.Run(cmd)
+	response = client.GetOutput()
+	if err != nil {
+		return response, fmt.Errorf("encountered an error executing ssh on IP %q: %s :%s", IPAddr, response, err.Error())
+	}
+	for _, line := range response {
+		log.Info(line)
+	}
+
+	return response, nil
+}
+
+// getIscsiIPs uses pstcli to query the provided PowerStore array for any available iSCSI IPs
+func getIscsiIPs(endpoint, username, password string) (iscsiIPs []string, err error) {
+	// isolate the IP address for the API endpoint
+	endpoint = strings.TrimPrefix(endpoint, "https://")
+	endpoint = strings.TrimSuffix(endpoint, "/")
+	endpoint = strings.TrimSuffix(endpoint, "/api/rest")
+
+	// build the pstcli command to query for iSCSI IPs
+	iscsiIPQuery := "purposes contains Storage_Iscsi_Target"
+	pstcli := exec.Command("pstcli", "-d", endpoint, "-u", username, "-p", password, "-ssl", "accept",
+		"ip_pool_address", "show", "-select", "address", "-query", iscsiIPQuery, "-output", "json", "-raw")
+
+	log.Infof("attempting to get PowerStore iSCSI IPs: %v", pstcli.Args)
+
+	// execute the command and get the results
+	iscsiPortsJSON, err := pstcli.CombinedOutput()
+	if err != nil {
+		return []string{}, fmt.Errorf("unable to get iSCSI IPs: %s: %s", err.Error(), string(iscsiPortsJSON))
+	}
+
+	// unmarshal the json response into something we can more easily parse
+	iscsiPorts := []struct {
+		Address string `json:"address"`
+	}{}
+	err = json.Unmarshal(iscsiPortsJSON, &iscsiPorts)
+	if err != nil {
+		return []string{}, fmt.Errorf("unable to unmarshal the response returned by pstcli when querying for iSCSI IPs: %s", err.Error())
+	}
+
+	// format the response as a string array
+	for _, IP := range iscsiPorts {
+		iscsiIPs = append(iscsiIPs, IP.Address)
+	}
+
+	return iscsiIPs, nil
+}
+
+// getNodes uses the k8s client from the integration struct to query the kuberentest API for
+// a list of nodes matching any opts supplied.
+func (i *integration) getNodes(ctx context.Context, opts metav1.ListOptions) (nodes *corev1.NodeList, err error) {
+	return i.k8s.GetClient().CoreV1().Nodes().List(ctx, opts)
+}
 
 func (i *integration) arePodsProperlyChanged(isOnValidNode func(nodeName string) bool) error {
 	currentPodToNodeMap := make(map[string]string)
@@ -2433,6 +2786,12 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^there are at least (\d+) worker nodes which are ready$`, i.thereAreAtLeastWorkerNodesWhichAreReady)
 	context.Step(`^I fail "([^"]*)" nodes with label "([^"]*)" with "([^"]*)" failure for (\d+) seconds$`, i.iFailNodesWithLabelWithFailureForSeconds)
 	context.Step(`^labeled pods are on a "([^"]*)" node$`, i.labeledPodsAreOnANode)
-	context.Step(`wait up to (\d+) seconds for pods to switch nodes$`, i.waitForPodsToSwitchNodes)
-	context.Step(`verify pods do not migrate for (\d+) seconds$`, i.verifyPodsDoNotMigrate)
+	context.Step(`^wait up to (\d+) seconds for pods to switch nodes$`, i.waitForPodsToSwitchNodes)
+	context.Step(`^verify pods do not migrate for (\d+) seconds$`, i.verifyPodsDoNotMigrate)
+	context.Step(`^"([^"]*)" is installed on this machine$`, i.cliToolIsInstalledOnThisMachine)
+	context.Step(`^a driver namespace name "([^"]*)"$`, i.setDriverNamespaceName)
+	context.Step(`^a driver secret name "([^"]*)"$`, i.setDriverSecretName)
+	context.Step(`^the connection fails between the preferred metro array and the nodes "([^"]*)" "([^"]*)" label$`, i.failPreferredMetroConnection)
+	context.Step(`^the connection is restored between the preferred metro array and the nodes "([^"]*)" "([^"]*)" label$`, i.restorePreferredMetroConnection)
+	context.Step(`^nodes with pods and "([^"]*)" "([^"]*)" label have taint "([^"]*)" within (\d+) seconds$`, i.labeledNodesWithPodsAreTainted)
 }
