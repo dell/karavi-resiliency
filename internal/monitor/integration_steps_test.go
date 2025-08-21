@@ -1068,6 +1068,10 @@ func (i *integration) waitForPodsToSwitchNodes(waitTimeSec int) error {
 	}
 }
 
+// havePodsMigrated checks if pods have migrated to new nodes.
+//
+// This function takes no parameters and returns a boolean indicating if pods have migrated,
+// a string indicating which pod has migrated, and an error if there was an issue checking pods.
 func (i *integration) havePodsMigrated() (bool, string, error) {
 	currentPodToNodeMap := make(map[string]string)
 	pods, err := i.listPodsByLabel(fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", i.driverType))
@@ -1107,8 +1111,6 @@ func (i *integration) verifyPodsDoNotMigrate(waitTimeSec int) error {
 		return fmt.Errorf("encountered an error while validating pods will not migrate: %s", err)
 	}
 
-	// Reduce the timeout to half of the expected failure time. Attempt to speed up tests.
-	waitTimeSec = waitTimeSec / 2
 	timeoutDuration := time.Duration(waitTimeSec) * time.Second
 	timeout, ticker, stop := newTimerWithTicker(waitTimeSec)
 	defer stop()
@@ -1398,7 +1400,7 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 	}
 
 	// Get deployment and see how many replicas for the controller there are.
-	deployment, err := i.getDeployment(i.driverType)
+	deployment, err := i.getDriverControllerDeployment(i.driverType)
 	if err != nil {
 		return failedNodes, err
 	}
@@ -1435,7 +1437,7 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 		}
 
 		if name == i.shouldNotFailNode {
-			log.Infof("Single replica deployment running, not failing node %s", name)
+			log.Infof("Detected only a single controller replica running on a worker node; skipping failing this node %s", name)
 			continue
 		}
 
@@ -2453,7 +2455,7 @@ func newTimerWithTicker(waitTimeSec int) (timeout *time.Timer, ticker *time.Tick
 	return
 }
 
-func (i *integration) getDeployment(driverType string) (*v1.Deployment, error) {
+func (i *integration) getDriverControllerDeployment(driverType string) (*v1.Deployment, error) {
 	log.Infof("Getting deployment for driver: %s", driverType)
 	deployments, err := i.k8s.GetClient().AppsV1().Deployments(driverType).List(context.Background(), metav1.ListOptions{})
 	if err != nil {
@@ -2475,7 +2477,7 @@ func (i *integration) skipIfIsNotCompatibleWith(failure, driverType string) erro
 	if driverType == "powerstore" {
 		log.Infoln("Checking if the follwing test is compatible with PowerStore environment")
 
-		deployment, err := i.getDeployment(driverType)
+		deployment, err := i.getDriverControllerDeployment(driverType)
 		if err != nil {
 			return err
 		}

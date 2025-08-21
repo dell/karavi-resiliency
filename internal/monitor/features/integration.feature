@@ -268,12 +268,12 @@ Feature: Integration Test
     And labeled pods are on a different node
     And pods are scheduled on the non preferred nodes
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
-    And verify pods do not migrate for <failSecs> seconds
+    And verify pods do not migrate for <migrateSecs> seconds
     Then finally cleanup everything
 
     Examples:
-      | kubeConfig | podsPerNode | nVol  | nDev  | driverType   | storageClass       | workers     | primary | failure         | failSecs | deploySecs | nodeCleanSecs | preferred |
-      | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-metro" | "one-third" | "zero"  | "interfacedown" | 300      | 600        | 600           | "site"    |
+      | kubeConfig | podsPerNode | nVol  | nDev  | driverType   | storageClass       | workers     | primary | failure         | failSecs | deploySecs | nodeCleanSecs | preferred | migrateSecs |
+      | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-metro" | "one-third" | "zero"  | "interfacedown" | 300      | 600        | 600           | "site"    | 150         |
 
   @unity-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
