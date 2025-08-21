@@ -23,14 +23,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"podmon/internal/k8sapi"
+	"podmon/test/ssh"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"podmon/internal/k8sapi"
-	"podmon/test/ssh"
 
 	"github.com/cucumber/godog"
 	pstoreArray "github.com/dell/csi-powerstore/v2/pkg/array"
@@ -69,7 +68,6 @@ type MetroConnection string
 const (
 	MetroConnectionRestore MetroConnection = "ALLOW"
 	MetroConnectionFail    MetroConnection = "BLOCK"
-)
 )
 
 // Used for keeping of track of the last test that was
@@ -1129,11 +1127,10 @@ func (i *integration) labeledPodsChangedNodes() error {
 // cliToolIsInstalledOnThisMachine validates whether the provided cliToolName resolves
 // to an installed executable in the PATH.
 func (i *integration) cliToolIsInstalledOnThisMachine(cliToolName string) error {
+	log.Infof("checking if the %q executable is installed and part of the $PATH", cliToolName)
 	_, err := exec.LookPath(cliToolName)
 	if err != nil {
-		return fmt.Errorf(
-			"could not find cli tool %q on this machine. Please download and install the tool from the following link https://www.dell.com/support/home/en-us/drivers/driversdetails?driverId=NNTWN : %s",
-			cliToolName, err.Error())
+		return fmt.Errorf("could not find cli tool %q on this machine: %s", cliToolName, err.Error())
 	}
 
 	return nil
@@ -1238,14 +1235,14 @@ func (i *integration) setPreferredMetroConnection(operation MetroConnection, get
 			}
 		}
 
-		log.Infof("Attempting to block incoming packets from %s on node %s", iscsiIPs, nodeIP)
-
 		// build a single command to drop all incoming packets from all the iSCSI IPs
 		var dropPacketsCmd, op string
 		switch operation {
 		case MetroConnectionFail:
+			log.Infof("Attempting to block incoming packets from %s on node %s", iscsiIPs, nodeIP)
 			op = "-A" // add rule to DROP all packets
 		case MetroConnectionRestore:
+			log.Infof("Attempting to allow incoming packets from %s on node %s", iscsiIPs, nodeIP)
 			op = "-D" // delete previously added rule
 		}
 		for _, iscsiIP := range iscsiIPs {
@@ -1281,7 +1278,11 @@ func (i *integration) setDriverSecretName(driverSecretName string) error {
 	return nil
 }
 
-func (i *integration) nodesWithLabelAreTainted(matchLabel, labelValue, taints string, waitTime int) error {
+// labeledNodesWithPodsAreTainted periodically checks nodes for the given taints, `taints`.
+// It checks nodes that have a resiliency-monitored pod and do or do not have a label with value `labelValue`
+// based on the truthiness of `matchLabel`. If taints are found within the given wait time, `waitTime`, it returns
+// a nil error. If the timeout is reached, it returns an error.
+func (i *integration) labeledNodesWithPodsAreTainted(matchLabel, labelValue, taints string, waitTimeSeconds int) error {
 	withLabel, err := strconv.ParseBool(matchLabel)
 	if err != nil {
 		return fmt.Errorf("error parsing expected boolean %s: %s", matchLabel, err.Error())
@@ -1291,7 +1292,7 @@ func (i *integration) nodesWithLabelAreTainted(matchLabel, labelValue, taints st
 	// the truthiness of `withLabel`
 	opts := getPreferredNodeOpts(withLabel, labelValue)
 
-	timeout, ticker, stop := newTimerWithTicker(waitTime)
+	timeout, ticker, stop := newTimerWithTicker(waitTimeSeconds)
 	defer stop()
 
 	log.Info("waiting for nodes to have the expected taints")
@@ -1306,26 +1307,33 @@ func (i *integration) nodesWithLabelAreTainted(matchLabel, labelValue, taints st
 			if err != nil {
 				return fmt.Errorf("unable to list nodes: %s", err.Error())
 			}
-			allNodesTainted := func() bool {
+
+			nodesWithPodsTainted := func() bool {
 				for _, node := range nodes.Items {
+					// get pods on this node that are monitored by resiliency
 					podsOnNode, err := i.k8s.GetClient().CoreV1().Pods("").List(context.Background(), metav1.ListOptions{
 						// gets pods on this node
 						FieldSelector: fmt.Sprintf("spec.nodeName=%s", node.Name),
-						// should return pods that possess this label key regardles off the label value
+						// ignores the label value and should return pods that possess this label key,
+						// indicating it is a pod monitored by podmon
 						LabelSelector: "podmon.dellemc.com/driver",
 					})
 					if err != nil {
-						log.Errorf("failed to get pods for node %s: %s", node.Name, err.Error())
+						log.Errorf("error listing pods on node %q: %s", node.Name, err.Error())
+						continue
 					}
 
+					// exit early and return false if a pod exists on the node and the node is not yet tainted
 					if len(podsOnNode.Items) != 0 && !i.isNodeFailed(node, taints) {
-						log.Warnf("node %q still waiting to be tainted; time remaining %v", node.Name, time.Duration(waitTime)*time.Second-time.Since(start))
+						log.Warnf("node %q still waiting to be tainted; time remaining %v",
+							node.Name, time.Duration(waitTimeSeconds)*time.Second-time.Since(start))
 						return false
 					}
 				}
 				return true
 			}()
-			if allNodesTainted {
+
+			if nodesWithPodsTainted {
 				log.Info("all nodes with pods are tainted as expected")
 				return nil
 			}
@@ -2785,5 +2793,5 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^a driver secret name "([^"]*)"$`, i.setDriverSecretName)
 	context.Step(`^the connection fails between the preferred metro array and the nodes "([^"]*)" "([^"]*)" label$`, i.failPreferredMetroConnection)
 	context.Step(`^the connection is restored between the preferred metro array and the nodes "([^"]*)" "([^"]*)" label$`, i.restorePreferredMetroConnection)
-	context.Step(`^nodes with pods and "([^"]*)" "([^"]*)" label have taint "([^"]*)" within (\d+) seconds$`, i.nodesWithLabelAreTainted)
+	context.Step(`^nodes with pods and "([^"]*)" "([^"]*)" label have taint "([^"]*)" within (\d+) seconds$`, i.labeledNodesWithPodsAreTainted)
 }
