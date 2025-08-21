@@ -1428,16 +1428,16 @@ func getIscsiIPs(endpoint, username, password string) (iscsiIPs []string, err er
 	log.Infof("attempting to get PowerStore iSCSI IPs: %v", pstcli.Args)
 
 	// execute the command and get the results
-	iscsiPortsJson, err := pstcli.CombinedOutput()
+	iscsiPortsJSON, err := pstcli.CombinedOutput()
 	if err != nil {
-		return []string{}, fmt.Errorf("unable to get iSCSI IPs: %s: %s", err.Error(), string(iscsiPortsJson))
+		return []string{}, fmt.Errorf("unable to get iSCSI IPs: %s: %s", err.Error(), string(iscsiPortsJSON))
 	}
 
 	// unmarshal the json response into something we can more easily parse
 	iscsiPorts := []struct {
 		Address string `json:"address"`
 	}{}
-	err = json.Unmarshal(iscsiPortsJson, &iscsiPorts)
+	err = json.Unmarshal(iscsiPortsJSON, &iscsiPorts)
 	if err != nil {
 		return []string{}, fmt.Errorf("unable to unmarshal the response returned by pstcli when querying for iSCSI IPs: %s", err.Error())
 	}
