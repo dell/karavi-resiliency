@@ -59,8 +59,6 @@ const (
 	podmonNodeLogFormat                            = "PODMON_NODE_LOG_FORMAT"
 	podmonNodeLogLevel                             = "PODMON_NODE_LOG_LEVEL"
 	podmonSkipArrayConnectionValidation            = "PODMON_SKIP_ARRAY_CONNECTION_VALIDATION"
-	driverPodLabelKey                              = "driver.dellemc.com"
-	driverPodLabelValue                            = "dell-storage"
 )
 
 // K8sAPI is reference to the internal Kubernetes wrapper client
@@ -241,8 +239,8 @@ func getArgs() {
 		args.skipArrayConnectionValidation = flag.Bool("skipArrayConnectionValidation", skipArrayConnectionValidation, "skip validation of array connectivity loss before killing pod")
 		args.driverPath = flag.String("driverPath", driverPath, "driverPath to use for parsing csi.volume.kubernetes.io/nodeid annotation")
 		args.driverConfigParamsFile = flag.String("driver-config-params", driverConfigParamsDefault, "Full path to the YAML file containing the driver ConfigMap")
-		args.driverPodLabelKey = flag.String("driverPodLabelKey", driverPodLabelKey, "label key for pods or other objects to be monitored")
-		args.driverPodLabelValue = flag.String("driverPodLabelValue", driverPodLabelValue, "label value for pods or other objects to be monitored")
+		args.driverPodLabelKey = flag.String("driverPodLabelKey", constants.DriverPodLabelKey, "label key for pods or other objects to be monitored")
+		args.driverPodLabelValue = flag.String("driverPodLabelValue", constants.DriverPodLabelValue, "label value for pods or other objects to be monitored")
 		args.ignoreVolumelessPods = flag.Bool("ignoreVolumelessPods", ignoreVolumelessPods, "ingnore volumeless pods even though they have podmon label")
 	})
 
@@ -258,8 +256,8 @@ func getArgs() {
 	*args.skipArrayConnectionValidation = skipArrayConnectionValidation
 	*args.driverPath = driverPath
 	*args.driverConfigParamsFile = driverConfigParamsDefault
-	*args.driverPodLabelKey = driverPodLabelKey
-	*args.driverPodLabelValue = driverPodLabelValue
+	*args.driverPodLabelKey = constants.DriverPodLabelKey
+	*args.driverPodLabelValue = constants.DriverPodLabelValue
 	*args.ignoreVolumelessPods = ignoreVolumelessPods
 	flag.Parse()
 }

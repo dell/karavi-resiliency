@@ -59,10 +59,15 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 
 	driverNamespace := os.Getenv("MY_POD_NAMESPACE")
 	log.Debugf("podMonitorHandler-controller: driverNamespace %s", driverNamespace)
+
 	// For driver pod
-	if driverNamespace == pod.ObjectMeta.Namespace {
+	// the pod should reside in the same namespace as the driver AND have
+	// the label:value expected by podmon
+	if podmonLabel, ok := pod.ObjectMeta.Labels[constants.DriverPodLabelKey]; ok && podmonLabel == constants.DriverPodLabelValue &&
+		driverNamespace == pod.ObjectMeta.Namespace {
 		return cm.controllerModeDriverPodHandler(pod, eventType)
 	}
+
 	// Lock so that only one thread is processing pod at a time
 	podKey := getPodKey(pod)
 	// Clean up pod key to PodInfo and CrashLoopBackOffCount mappings if deleting.
