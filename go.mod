@@ -8,6 +8,7 @@ require (
 	github.com/bramvdbogaerde/go-scp v1.5.0
 	github.com/container-storage-interface/spec v1.6.0
 	github.com/cucumber/godog v0.15.0
+	github.com/dell/csi-powerstore/v2 v2.14.1-0.20250818152723-adb67faa6011
 	github.com/dell/dell-csi-extensions/podmon v1.8.1-0.20250811191959-eb2cab02fb75
 	github.com/dell/gofsutil v1.19.1-0.20250812102612-38ce511bc840
 	github.com/fsnotify/fsnotify v1.9.0
@@ -30,7 +31,6 @@ require (
 	github.com/cucumber/gherkin/go/v26 v26.2.0 // indirect
 	github.com/cucumber/messages/go/v21 v21.0.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/dell/csi-powerstore/v2 v2.14.1-0.20250818152723-adb67faa6011 // indirect
 	github.com/dell/gobrick v1.14.0 // indirect
 	github.com/dell/gocsi v1.14.1-0.20250814142855-75596c20cbec // indirect
 	github.com/dell/goiscsi v1.12.0 // indirect
