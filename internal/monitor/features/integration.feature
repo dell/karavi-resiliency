@@ -56,8 +56,6 @@ Feature: Integration Test
       | ""         | "csi-powerstore.dellemc.com" | "powerstore"   | "powerstore" | "powerstore-nfs,powerstore-iscsi,powerstore-nvmetcp" |
   
   @powerstore-metro-int-setup-check
-  # Requires "pstcli" executable installed on the test machine.
-  # Download and install the tool from the following link https://www.dell.com/support/home/en-us/drivers/driversdetails?driverId=NNTWN
   Scenario Outline: Validate that we have a valid k8s configuration for the PowerStore metro integration tests
     Given a kubernetes <kubeConfig>
     And test environmental variables are set
