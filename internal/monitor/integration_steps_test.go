@@ -23,13 +23,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"podmon/internal/k8sapi"
-	"podmon/test/ssh"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"podmon/internal/k8sapi"
+	"podmon/test/ssh"
 
 	"github.com/cucumber/godog"
 	pstoreArray "github.com/dell/csi-powerstore/v2/pkg/array"
@@ -37,6 +38,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -61,6 +63,7 @@ type integration struct {
 	bastionNode           string
 	customTaints          string
 	preferredLabeledNodes []string
+	shouldNotFailNode     string
 }
 
 type MetroConnection string
@@ -430,7 +433,14 @@ func (i *integration) internalFailWorkerAndPrimaryNodes(numNodes, numPrimary, fa
 	}
 
 	foundFailedWorkers, err := i.searchForNodes(requestedWorkersAndFailed)
+	if err != nil {
+		return err
+	}
+
 	foundFailedPrimary, err := i.searchForNodes(requestedPrimaryAndFailed)
+	if err != nil {
+		return err
+	}
 
 	go func() {
 		defer close(done)
@@ -828,6 +838,10 @@ func (i *integration) thereAreDriverPodsWithThisPrefix(namespace, prefix string)
 	}
 
 	nodes, err := i.searchForNodes(isWorkerNode)
+	if err != nil {
+		return err
+	}
+
 	nWorkerNodes := len(nodes)
 
 	// Look for controller and node driver pods running in the cluster
@@ -948,21 +962,21 @@ func (i *integration) finallyCleanupEverything() error {
 func (i *integration) expectedEnvVariablesAreSet() error {
 	nodeUser := os.Getenv("NODE_USER")
 	err := AssertExpectedAndActual(assert.Equal, true, nodeUser != "",
-		fmt.Sprintf("Expected NODE_USER env variable. Try export NODE_USER=nodeUser before running tests."))
+		"Expected NODE_USER env variable. Try export NODE_USER=nodeUser before running tests.")
 	if err != nil {
 		return err
 	}
 
 	password := os.Getenv("PASSWORD")
 	err = AssertExpectedAndActual(assert.Equal, true, password != "",
-		fmt.Sprintf("Expected PASSWORD env variable. Try export PASSWORD=password before running tests."))
+		"Expected PASSWORD env variable. Try export PASSWORD=password before running tests.")
 	if err != nil {
 		return err
 	}
 
 	i.scriptsDir = os.Getenv("SCRIPTS_DIR")
 	err = AssertExpectedAndActual(assert.Equal, true, i.scriptsDir != "",
-		fmt.Sprintf("Expected SCRIPTS_DIR env variable. Try export SCRIPTS_DIR=scriptsDir before running tests."))
+		"Expected SCRIPTS_DIR env variable. Try export SCRIPTS_DIR=scriptsDir before running tests.")
 	if err != nil {
 		return err
 	}
@@ -1078,6 +1092,37 @@ func (i *integration) waitForPodsToSwitchNodes(waitTimeSec int) error {
 	}
 }
 
+// havePodsMigrated checks if pods have migrated to new nodes.
+//
+// This function takes no parameters and returns a boolean indicating if pods have migrated,
+// a string indicating which pod has migrated, and an error if there was an issue checking pods.
+func (i *integration) havePodsMigrated() (bool, string, error) {
+	currentPodToNodeMap := make(map[string]string)
+	pods, err := i.listPodsByLabel(fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", i.driverType))
+	if err != nil {
+		return false, "", err
+	}
+
+	for _, pod := range pods.Items {
+		nsPodName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+		currentPodToNodeMap[nsPodName] = pod.Spec.NodeName
+	}
+
+	// Search through the labeled pod map and verify node change
+	for podName, orginalNode := range i.labeledPodsToNodes {
+		currentNode, ok := currentPodToNodeMap[podName]
+		if !ok {
+			return false, "", fmt.Errorf("expected %s pod to be assigned to a node, but no association was found", podName)
+		}
+
+		if currentNode != orginalNode {
+			return true, podName, nil
+		}
+	}
+
+	return false, "", nil
+}
+
 // verifyPodsDoNotMigrate periodically checks the labeled pods to see if any have migrated
 // and returns false if migration is detected. At the end of waitTimeSec seconds, a nil error
 // is returned if the pods have not migrated.
@@ -1090,6 +1135,7 @@ func (i *integration) verifyPodsDoNotMigrate(waitTimeSec int) error {
 		return fmt.Errorf("encountered an error while validating pods will not migrate: %s", err.Error())
 	}
 
+	timeoutDuration := time.Duration(waitTimeSec) * time.Second
 	timeout, ticker, stop := newTimerWithTicker(waitTimeSec)
 	defer stop()
 
@@ -1102,12 +1148,15 @@ func (i *integration) verifyPodsDoNotMigrate(waitTimeSec int) error {
 			log.Infof("success: pods did not migrate in %d seconds", waitTimeSec)
 			return nil
 		case <-ticker.C:
-			log.Infof("validating pods have not migrated; %v seconds remaining", (time.Duration(waitTimeSec)*time.Second)-time.Since(start))
+			log.Infof("validating pods have not migrated (time left %v)", timeoutDuration-time.Since(start))
 
-			err := i.labeledPodsChangedNodes()
-			// if the error is nil, then the pods have migrated
-			if err == nil {
-				return fmt.Errorf("an undesired pod migration occurred")
+			migrated, podName, err := i.havePodsMigrated()
+			if err != nil {
+				return fmt.Errorf("encountered an error while validating pods have not migrated: %s", err)
+			}
+
+			if migrated {
+				return fmt.Errorf("pod %s has migrated when it should not have", podName)
 			}
 		}
 	}
@@ -1470,6 +1519,13 @@ func (i *integration) arePodsProperlyChanged(isOnValidNode func(nodeName string)
 					iPodName, currentNode, initialNode))
 		}
 
+		// Check to see if the node was failed, if it wasn't then the pods would not have migrated.
+		_, ok = i.nodesToTaints[initialNode]
+		if !ok {
+			log.Infof("node %s is not tainted so it was not a failed node", currentNode)
+			continue
+		}
+
 		if currentNode == initialNode {
 			return AssertExpectedAndActual(assert.Equal, false, currentNode == initialNode,
 				fmt.Sprintf("Expected %s pod to be migrated to a healthy node. Currently '%s', initially '%s'",
@@ -1508,26 +1564,6 @@ func (i *integration) dumpNodeInfo() error {
 	}
 
 	return nil
-}
-
-func (i *integration) checkIfAllNodesReady() (bool, error) {
-	list, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
-	if err != nil {
-		message := fmt.Sprintf("listing nodes error: %s", err)
-		return false, fmt.Errorf("%s", message)
-	}
-
-	readyCount := 0
-	for _, node := range list.Items {
-		for _, status := range node.Status.Conditions {
-			if status.Reason == "KubeletReady" {
-				readyCount++
-				break
-			}
-		}
-	}
-
-	return readyCount == len(list.Items), nil
 }
 
 func (i *integration) checkIfAllPodsRunning(namespace string) (bool, error) {
@@ -1695,14 +1731,37 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 			}
 		}
 	}
+
 	log.Infof("All the candidate nodes to fail are %v", candidates)
+
+	if i.driverType == "" {
+		return nil, fmt.Errorf("driver type not specified")
+	}
+
+	// Get deployment and see how many replicas for the controller there are.
+	deployment, err := i.getDriverControllerDeployment(i.driverType)
+	if err != nil {
+		return failedNodes, err
+	}
+
+	if int(*deployment.Spec.Replicas) == 1 {
+		// If there is only one replica, get node that the controller pod is running on and ensure that we don't fail it.
+		controllerPod, err := i.k8s.GetClient().CoreV1().Pods(i.driverType).List(context.Background(), metav1.ListOptions{
+			LabelSelector: "name=" + i.driverType + "-controller",
+		})
+		if err != nil {
+			return failedNodes, err
+		}
+
+		log.Infof("Controller pod is running on node %s", controllerPod.Items[0].Spec.NodeName)
+		i.shouldNotFailNode = controllerPod.Items[0].Spec.NodeName
+	}
 
 	failed := 0
 	for _, name := range candidates {
 		// For CSI driver pod run the script from test host not worker node
 		if failureType == "driverpod" {
-			var cmd *exec.Cmd
-			cmd = exec.Command( // #nosec G204
+			cmd := exec.Command( // #nosec G204
 				"/bin/sh", fmt.Sprintf("%s/failpods.sh", i.scriptsDir),
 				"--ns", i.driverType,
 				"--timeoutseconds", fmt.Sprintf("%d", wait),
@@ -1715,6 +1774,12 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 			}
 			return failedNodes, nil
 		}
+
+		if name == i.shouldNotFailNode {
+			log.Infof("Detected only a single controller replica running on a worker node; skipping failing this node %s", name)
+			continue
+		}
+
 		if failed < numberToFail {
 			ip := nameToIP[name]
 			if err = i.induceFailureOn(name, ip, failureType, wait); err != nil {
@@ -2422,6 +2487,7 @@ func (i *integration) iFailDriverPodsTaints(numNodes, failure string, wait int, 
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -2584,6 +2650,11 @@ func (i *integration) verifyPodsOnNonPreferredNodes() error {
 			nodeName := pod.Spec.NodeName
 			log.Infof("Checking pod %s on node %s", pod.Name, nodeName)
 			for _, labeledNode := range i.preferredLabeledNodes {
+				if nodeName == i.shouldNotFailNode {
+					log.Warnf("Due to single replica and controller pod running on a preferred node, pod %s is still running on a preferred node", pod.Name)
+					continue
+				}
+
 				if nodeName == labeledNode {
 					return fmt.Errorf("Pod '%s' is on preferred node '%s'", pod.Name, nodeName)
 				}
@@ -2723,6 +2794,66 @@ func newTimerWithTicker(waitTimeSec int) (timeout *time.Timer, ticker *time.Tick
 	return
 }
 
+func (i *integration) getDriverControllerDeployment(driverType string) (*v1.Deployment, error) {
+	log.Infof("Getting deployment for driver: %s", driverType)
+	deployments, err := i.k8s.GetClient().AppsV1().Deployments(driverType).List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		log.Errorln("Deployment list error: ", err)
+		return nil, err
+	}
+
+	for _, deployment := range deployments.Items {
+		log.Info("Found deployment: ", deployment.Name)
+		if deployment.Name == driverType+"-controller" {
+			return &deployment, nil
+		}
+	}
+
+	return nil, errors.New("deployment not found")
+}
+
+func (i *integration) skipIfIsNotCompatibleWith(failure, driverType string) error {
+	if driverType == "powerstore" {
+		log.Infoln("Checking if the follwing test is compatible with PowerStore environment")
+
+		deployment, err := i.getDriverControllerDeployment(driverType)
+		if err != nil {
+			return err
+		}
+
+		isCompatible := true
+		for _, container := range deployment.Spec.Template.Spec.Containers {
+			if strings.Contains(container.Image, "podmon") {
+				for _, arg := range container.Args {
+					if strings.Contains(arg, "skipArrayConnectionValidation") {
+						split := strings.Split(arg, "=")
+						if split[1] == "false" && failure == "kubeletdown" {
+							log.Info("For running kubeletdown test on PowerStore, skipArrayConnectionValidation should be set to true")
+							isCompatible = false
+						}
+
+						break
+					}
+				}
+
+				break
+			}
+		}
+
+		if !isCompatible {
+			log.Warnf("Skipping this scenario. Test is not compatible with %s environment", driverType)
+			return godog.ErrSkip
+		}
+	}
+	return nil
+}
+
+func (i *integration) iSetTheCorrectDriverTypeTo(driverType string) error {
+	log.Infof("Setting driver type to: %s", driverType)
+	i.setDriverType(driverType)
+	return nil
+}
+
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	i := &integration{}
 	pollK8sEnabled := false
@@ -2779,4 +2910,6 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^the connection fails between the preferred metro array and the nodes "([^"]*)" label$`, i.failPreferredMetroConnection)
 	context.Step(`^the connection is restored between the preferred metro array and the nodes "([^"]*)" label$`, i.restorePreferredMetroConnection)
 	context.Step(`^nodes with pods and "([^"]*)" label have taint "([^"]*)" within (\d+) seconds$`, i.labeledNodesWithPodsAreTainted)
+	context.Step(`^skip if "([^"]*)" is not compatible with "([^"]*)"$`, i.skipIfIsNotCompatibleWith)
+	context.Step(`^I set the correct driver type to "([^"]*)"$`, i.iSetTheCorrectDriverTypeTo)
 }
