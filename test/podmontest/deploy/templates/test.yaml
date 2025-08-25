@@ -60,7 +60,7 @@ spec:
                   - podmontest-{{ .Release.Namespace }}
               topologyKey: "kubernetes.io/hostname"
 {{end}}
-{{- if ne .Values.podmonTest.podPreferred ""}}
+{{- if not (empty .Values.podmonTest.podPreferred) }}
         affinity:
           nodeAffinity:
             preferredDuringSchedulingIgnoredDuringExecution:
