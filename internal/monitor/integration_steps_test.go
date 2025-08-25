@@ -1137,16 +1137,10 @@ func (i *integration) cliToolIsInstalledOnThisMachine(cliToolName string) error 
 }
 
 // failPreferredMetroConnection utilizes iptables entries to simulate network failure between
-// a storage array and select worker nodes. If matchLabel is set to "true", nodes that possess
-// the labelValue will be failed. If matchLabel is set to "false", all other nodes
-// (excluding the control plane) will be failed.
-func (i *integration) failPreferredMetroConnection(matchLabel, labelValue string) error {
-	withMatchingLabel, err := strconv.ParseBool(matchLabel)
-	if err != nil {
-		return fmt.Errorf("error parsing expected boolean %s: %s", matchLabel, err.Error())
-	}
-
-	opts := getPreferredNodeOpts(withMatchingLabel, labelValue)
+// the preferred storage array in a metro configuration and select worker nodes with the
+// preferred=`labelValue` label.
+func (i *integration) failPreferredMetroConnection(labelValue string) error {
+	opts := getPreferredNodeOpts(true, labelValue)
 
 	getNodes := func() (*corev1.NodeList, error) {
 		return i.getNodes(context.Background(), opts)
@@ -1155,15 +1149,11 @@ func (i *integration) failPreferredMetroConnection(matchLabel, labelValue string
 	return i.setPreferredMetroConnection(MetroConnectionFail, getNodes)
 }
 
-// restorePreferredMetroConnection restores nodes that have the provided labelValue if matchLabel
-// is set to "true", and fails all other nodes (excluding the control plane) if set to "false".
-func (i *integration) restorePreferredMetroConnection(matchLabel, labelValue string) error {
-	withMatchingLabel, err := strconv.ParseBool(matchLabel)
-	if err != nil {
-		return fmt.Errorf("error parsing expected boolean %s: %s", matchLabel, err.Error())
-	}
-
-	opts := getPreferredNodeOpts(withMatchingLabel, labelValue)
+// restorePreferredMetroConnection removes iptables entries added by failPreferredMetroConnection
+// for worker nodes with preferred=`labelValue` label, restoring the network connection between the
+// worker node and the preferred storage array in a metro configuration.
+func (i *integration) restorePreferredMetroConnection(labelValue string) error {
+	opts := getPreferredNodeOpts(true, labelValue)
 
 	getNodes := func() (*corev1.NodeList, error) {
 		return i.getNodes(context.Background(), opts)
@@ -1278,19 +1268,14 @@ func (i *integration) setDriverSecretName(driverSecretName string) error {
 	return nil
 }
 
-// labeledNodesWithPodsAreTainted periodically checks nodes for the given taints, `taints`.
-// It checks nodes that have a resiliency-monitored pod and do or do not have a label with value `labelValue`
-// based on the truthiness of `matchLabel`. If taints are found within the given wait time, `waitTime`, it returns
+// labeledNodesWithPodsAreTainted periodically checks nodes for the given taints, `taints` provided
+// the node has a pod scheduled to it with the "podmon.dellemc.com/driver" label.
+// If taints are found within the given wait time, `waitTimeSeconds`, it returns
 // a nil error. If the timeout is reached, it returns an error.
-func (i *integration) labeledNodesWithPodsAreTainted(matchLabel, labelValue, taints string, waitTimeSeconds int) error {
-	withLabel, err := strconv.ParseBool(matchLabel)
-	if err != nil {
-		return fmt.Errorf("error parsing expected boolean %s: %s", matchLabel, err.Error())
-	}
-
+func (i *integration) labeledNodesWithPodsAreTainted(labelValue, taints string, waitTimeSeconds int) error {
 	// get nodes that either have or do not have the labelValue based on
 	// the truthiness of `withLabel`
-	opts := getPreferredNodeOpts(withLabel, labelValue)
+	opts := getPreferredNodeOpts(true, labelValue)
 
 	timeout, ticker, stop := newTimerWithTicker(waitTimeSeconds)
 	defer stop()
@@ -2791,7 +2776,7 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^"([^"]*)" is installed on this machine$`, i.cliToolIsInstalledOnThisMachine)
 	context.Step(`^a driver namespace name "([^"]*)"$`, i.setDriverNamespaceName)
 	context.Step(`^a driver secret name "([^"]*)"$`, i.setDriverSecretName)
-	context.Step(`^the connection fails between the preferred metro array and the nodes "([^"]*)" "([^"]*)" label$`, i.failPreferredMetroConnection)
-	context.Step(`^the connection is restored between the preferred metro array and the nodes "([^"]*)" "([^"]*)" label$`, i.restorePreferredMetroConnection)
-	context.Step(`^nodes with pods and "([^"]*)" "([^"]*)" label have taint "([^"]*)" within (\d+) seconds$`, i.labeledNodesWithPodsAreTainted)
+	context.Step(`^the connection fails between the preferred metro array and the nodes "([^"]*)" label$`, i.failPreferredMetroConnection)
+	context.Step(`^the connection is restored between the preferred metro array and the nodes "([^"]*)" label$`, i.restorePreferredMetroConnection)
+	context.Step(`^nodes with pods and "([^"]*)" label have taint "([^"]*)" within (\d+) seconds$`, i.labeledNodesWithPodsAreTainted)
 }
