@@ -23,14 +23,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"podmon/internal/k8sapi"
+	"podmon/test/ssh"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"podmon/internal/k8sapi"
-	"podmon/test/ssh"
 
 	"github.com/cucumber/godog"
 	pstoreArray "github.com/dell/csi-powerstore/v2/pkg/array"
