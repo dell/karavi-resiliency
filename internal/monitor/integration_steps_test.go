@@ -2630,7 +2630,8 @@ func (i *integration) allPodsOnNodesWithPreferredLabel(preferred string) error {
 					return err
 				}
 				if nodeObj.ObjectMeta.Labels["preferred"] != preferred {
-					return fmt.Errorf("Pod '%s' is not on preferred node '%s'", pod.Name, pod.Spec.NodeName)
+					return fmt.Errorf("expected pod to be scheduled to a node with the preferred=%s label. Pod %q is on node %q",
+						preferred, pod.Name, pod.Spec.NodeName)
 				}
 			}
 		}
