@@ -2910,9 +2910,9 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^"([^"]*)" is installed on this machine$`, i.cliToolIsInstalledOnThisMachine)
 	context.Step(`^a driver namespace name "([^"]*)"$`, i.setDriverNamespaceName)
 	context.Step(`^a driver secret name "([^"]*)"$`, i.setDriverSecretName)
-	context.Step(`^the connection fails between the preferred metro array and the nodes "([^"]*)" label$`, i.failPreferredMetroConnection)
-	context.Step(`^the connection is restored between the preferred metro array and the nodes "([^"]*)" label$`, i.restorePreferredMetroConnection)
-	context.Step(`^nodes with pods and "([^"]*)" label have taint "([^"]*)" within (\d+) seconds$`, i.labeledNodesWithPodsAreTainted)
+	context.Step(`^the connection fails between the preferred metro array and the nodes with "([^"]*)" label$`, i.failPreferredMetroConnection)
+	context.Step(`^the connection is restored between the preferred metro array and the nodes with "([^"]*)" label$`, i.restorePreferredMetroConnection)
+	context.Step(`^nodes with pods and with "([^"]*)" label have taint "([^"]*)" within (\d+) seconds$`, i.labeledNodesWithPodsAreTainted)
 	context.Step(`^skip if "([^"]*)" is not compatible with "([^"]*)"$`, i.skipIfIsNotCompatibleWith)
 	context.Step(`^I set the correct driver type to "([^"]*)"$`, i.iSetTheCorrectDriverTypeTo)
 }
