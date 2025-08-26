@@ -46,17 +46,18 @@ import (
 )
 
 type integration struct {
-	configPath            string
-	k8s                   k8sapi.K8sAPI
-	driverType            string
-	podCount              int
-	devCount              int
-	volCount              int
-	storageClass          *storagev1.StorageClass
-	driverNamespaceName   string
-	driverSecretName      string
-	testNamespacePrefix   map[string]bool
-	scriptsDir            string
+	configPath          string
+	k8s                 k8sapi.K8sAPI
+	driverType          string
+	podCount            int
+	devCount            int
+	volCount            int
+	storageClass        *storagev1.StorageClass
+	driverNamespaceName string
+	driverSecretName    string
+	testNamespacePrefix map[string]bool
+	scriptsDir          string
+	// map using pod names as keys to the node name on which they are scheduled
 	labeledPodsToNodes    map[string]string
 	nodesToTaints         map[string]string
 	isOpenshift           bool
@@ -1722,8 +1723,6 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 
 	if len(i.preferredLabeledNodes) > 0 {
 		// Add the preferred labeled nodes to the candidate list for the failure
-		candidates = make([]string, 0)
-		tracker = make(map[string]bool)
 		for _, name := range i.preferredLabeledNodes {
 			if !tracker[name] {
 				tracker[name] = true
@@ -1781,7 +1780,11 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 		}
 
 		if failed < numberToFail {
-			ip := nameToIP[name]
+			ip, ok := nameToIP[name]
+			if !ok {
+				log.Warnf("the IP address for node %q is unknown; skipping node failure", name)
+				continue
+			}
 			if err = i.induceFailureOn(name, ip, failureType, wait); err != nil {
 				return failedNodes, err
 			}
