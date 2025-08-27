@@ -16,11 +16,11 @@ require (
 	github.com/kubernetes-csi/csi-lib-utils v0.11.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.20.1
+	github.com/stretchr/testify v1.11.0
 	golang.org/x/crypto v0.41.0
+	google.golang.org/grpc v1.75.0
 	k8s.io/api v0.33.4
 	k8s.io/apimachinery v0.33.4
-	github.com/stretchr/testify v1.11.0
-	google.golang.org/grpc v1.75.0
 	k8s.io/client-go v0.33.0
 	k8s.io/cri-api v0.33.0
 )
