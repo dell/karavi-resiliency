@@ -63,10 +63,11 @@ Feature: Integration Test
     And these storageClasses <storageClasses> exist in the cluster
     And there is a <namespace> in the cluster
     And there are driver pods in <namespace> with this <name> prefix
+    And <cliTool> is installed on this machine
     And can logon to nodes and drop test scripts
     Examples:
-      | kubeConfig | driverNames                  | namespace      | name         | storageClasses     |
-      | ""         | "csi-powerstore.dellemc.com" | "powerstore"   | "powerstore" | "powerstore-metro" |
+      | kubeConfig | driverNames                  | namespace      | name         | storageClasses     | cliTool  |
+      | ""         | "csi-powerstore.dellemc.com" | "powerstore"   | "powerstore" | "powerstore-metro" | "pstcli" |
 
   @powermax-int-setup-check
   Scenario Outline: Validate that we have a valid k8s configuration for the integration tests
@@ -275,6 +276,31 @@ Feature: Integration Test
       | kubeConfig | podsPerNode | nVol  | nDev  | driverType   | storageClass       | workers     | primary | failure         | failSecs | deploySecs | nodeCleanSecs | preferred | migrateSecs |
       | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-metro" | "one-third" | "zero"  | "interfacedown" | 300      | 600        | 600           | "site"    | 150         |
 
+  @powerstore-integration @powerstore-metro-integration
+  Scenario Outline: Recovery of preferred metro array on preferred node testing using test StatefulSet pods (iptables drop iscsi)
+    Given a kubernetes <kubeConfig>
+    And a driver namespace name <driverNamespaceName>
+    And a driver secret name <driverSecretName>
+    And cluster is clean of test pods
+    And wait <nodeCleanSecs> to see there are no taints
+    And label <workers> node as <preferred> site
+    And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs> with <preferred> affinity
+    Then validate that all pods are running within <deploySecs> seconds
+    And all pods are running on <preferred> node
+    Then the connection fails between the preferred metro array and the nodes with <preferred> label
+    And nodes with pods and with <preferred> label have taint <taint> within <failSecs> seconds
+    Then verify pods do not migrate for <migrateSecs> seconds
+    When the connection is restored between the preferred metro array and the nodes with <preferred> label
+    And validate that all pods are running within <runSecs> seconds
+    And all pods are running on <preferred> node
+    And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
+    And verify pods do not migrate for <migrateSecs> seconds
+    Then finally cleanup everything
+
+    Examples:
+      | kubeConfig  | podsPerNode | nVol  | nDev  | driverNamespaceName | driverSecretName      | driverType    | storageClass        | workers     | migrateSecs | failSecs  | deploySecs  | nodeCleanSecs | runSecs | preferred | taint                                 |
+      | ""          | "1-1"       | "1-1" | "0-0" | "powerstore"        | "powerstore-config"   | "powerstore"  | "powerstore-metro"  | "one-third" | 300         | 300       | 300         | 300           | 300     | "site"    | "powerstore.podmon.storage.dell.com"  |
+  
   @unity-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
     Given a kubernetes <kubeConfig>
