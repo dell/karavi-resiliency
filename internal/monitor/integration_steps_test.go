@@ -66,6 +66,11 @@ type integration struct {
 	shouldNotFailNode     string
 }
 
+// Used for determining whether to disable or re-enable network connection
+// between a Kubernetes worker node and a PowerStore metro server.
+//
+//	MetroConnectionRestore: re-enable the metro connection
+//	MetroConnectionFail: disable the metro connection
 type MetroConnection string
 
 const (
@@ -124,6 +129,11 @@ const (
 	PowerMaxNS          = "pmtpm"
 	VM                  = "vm"
 	preferredLabelKey   = "preferred"
+	// The name of the PowerStore secret as queried by Kubernetes
+	powerstoreSecretName = "powerstore-config"
+	// The name of the parent key under which the array config is
+	// listed in the powerstore secret
+	powerstoreSecretDataKeyName = "config"
 )
 
 // Used for stopping the test from continuing
@@ -1215,42 +1225,13 @@ func (i *integration) restorePreferredMetroConnection(labelValue string) error {
 // for nodes returned by getNodes to either drop or accept (determined by operation) incoming packets from
 // the iSCSI IPs.
 func (i *integration) setPreferredMetroConnection(operation MetroConnection, getNodes func() (*corev1.NodeList, error)) error {
-	ctx := context.Background()
-
-	// get the secret info using the powerstore array info from the storageclass
-	secretObj, err := i.k8s.GetClient().CoreV1().Secrets(i.driverNamespaceName).Get(ctx, "powerstore-config", metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("unable to fail the preferred metro connection. error encountered while getting driver secret: %s", err.Error())
-	}
-
-	// unmarshal
-	viper.SetConfigType("yaml")
-	if err := viper.ReadConfig(bytes.NewBuffer(secretObj.Data["config"])); err != nil {
-		return fmt.Errorf("viper was unable to read the Kubernetes secret: %s", err.Error())
-	}
-
-	var Secrets struct {
-		Arrays []pstoreArray.PowerStoreArray `yaml:"arrays"`
-	}
-	if err := viper.Unmarshal(&Secrets); err != nil {
-		return fmt.Errorf("viper was unable to unmarshal Kubernetes secret: %s", err.Error())
-	}
-
-	// use the global ID from the storageclass to determine the preferred array of the metro volume
-	arrayGlobalID := i.storageClass.Parameters[pstoreID.KeyArrayID]
-
-	var secret pstoreArray.PowerStoreArray
-	for _, secret = range Secrets.Arrays {
-		if secret.GlobalID == arrayGlobalID {
-			break
-		}
-	}
-	if reflect.DeepEqual(secret, pstoreArray.PowerStoreArray{}) {
-		return fmt.Errorf("unable to determine the PowerStore API endpoint from the provided StorageClass %q, and Secret %q", i.storageClass.Name, i.driverSecretName)
+	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[pstoreID.KeyArrayID])
+	if err != nil || preferredArray == nil {
+		return fmt.Errorf("unable to get PowerStore secret: %s", err.Error())
 	}
 
 	// get the iSCSI IPs via pstcli so we know which IPs to fail
-	iscsiIPs, err := getIscsiIPs(secret.Endpoint, secret.Username, secret.Password)
+	iscsiIPs, err := getIscsiIPs(preferredArray.Endpoint, preferredArray.Username, preferredArray.Password)
 	if err != nil {
 		return fmt.Errorf("unable to get iSCSI IPs: %s", err.Error())
 	}
@@ -1376,6 +1357,44 @@ func (i *integration) labeledNodesWithPodsAreTainted(labelValue, taints string, 
 }
 
 /* -- Helper functions -- */
+
+// getPowerStoreArrayInfo reads the "powerstore-config" secret from the i.driverNamespaceName and returns
+// a pointer to the PowerStoreArray that contains the provided globalID. If the array with the provided
+// globalID is not found, an error and a nil pointer are returned.
+func (i *integration) getPowerStoreArrayInfo(globalID string) (secret *pstoreArray.PowerStoreArray, err error) {
+	// get the secret info using the powerstore array info from the storageclass
+	secretObj, err := i.k8s.GetClient().CoreV1().Secrets(i.driverNamespaceName).Get(context.Background(), powerstoreSecretName, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("unable to fail the preferred metro connection. error encountered while getting driver secret: %s", err.Error())
+	}
+
+	// ingest the secret from the secretObj and unmarshal into the appropriate struct
+	viper.SetConfigType("yaml")
+	if err := viper.ReadConfig(bytes.NewBuffer(secretObj.Data[powerstoreSecretDataKeyName])); err != nil {
+		return nil, fmt.Errorf("unable to ingest the \"powerstore-config\" Kubernetes secret: %s", err.Error())
+	}
+
+	var Secrets struct {
+		Arrays []pstoreArray.PowerStoreArray `yaml:"arrays"`
+	}
+	if err := viper.Unmarshal(&Secrets); err != nil {
+		return nil, fmt.Errorf("unable to unmarshal Kubernetes secret into PowerStoreArrays struct: %s", err.Error())
+	}
+
+	// use the provided globalID to look up the desired array secret
+	for _, array := range Secrets.Arrays {
+		if array.GlobalID == globalID {
+			secret = &array
+			break
+		}
+	}
+
+	if reflect.DeepEqual(secret, pstoreArray.PowerStoreArray{}) {
+		return nil, fmt.Errorf("unable to find the PowerStore array info from the provided StorageClass %q, and Secret %q", i.storageClass.Name, i.driverSecretName)
+	}
+
+	return secret, nil
+}
 
 // getPreferredNodeOpts returns a set of options used to query the Kubernetes API
 // for nodes. If matchLabel is true, the returned options will select nodes that
