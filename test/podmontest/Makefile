@@ -15,8 +15,19 @@
 MAJOR=0
 MINOR=0
 PATCH=58
-VERSION?="v$(MAJOR).$(MINOR).$(PATCH)"
-REGISTRY?="${REGISTRY_HOST}:${REGISTRY_PORT}/podmontest"
+IMAGENAME?="podmontest"
+REGISTRY?="${REGISTRY_HOST}:${REGISTRY_PORT}"
+
+ifeq ($(IMAGETAG),)
+IMAGETAG="v$(MAJOR).$(MINOR).$(PATCH)"
+endif
+
+# figure out if podman or docker should be used (use podman if found)
+ifneq (, $(shell which podman 2>/dev/null))
+BUILDER=podman
+else
+BUILDER=docker
+endif
 
 clean:
 	go clean ./...
@@ -25,11 +36,8 @@ build:
 	rm -f podmontest
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -tags podmontest -ldflags '-w' -o podmontest *.go
 
-docker:  build
-	 docker build -t podmontest  -f Dockerfile  --network host .
-
-podman:
-	podman build -t "$(REGISTRY):$(VERSION)" --label commit=$(shell git log --max-count 1 --format="%H") .
+docker:
+	$(BUILDER) build -t "$(REGISTRY)/$(IMAGENAME):$(IMAGETAG)" --label commit=$(shell git log --max-count 1 --format="%H") .
 
 push:
-	podman push "$(REGISTRY):$(VERSION)"
+	$(BUILDER) push "$(REGISTRY)/$(IMAGENAME):$(IMAGETAG)"

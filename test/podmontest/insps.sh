@@ -31,6 +31,7 @@ driverLabel="csi-powerstore"
 podAffinity="false"
 unreachableTolerationSeconds=300
 workloadType=${workloadType:-"pod"}
+preferred=""
 
 if [ "$DEBUG"x != "x" ]; then
    DEBUG="--dry-run --debug"
@@ -92,6 +93,11 @@ do
      workloadType=$1
      shift
      ;;
+   "--podPreferred")
+     shift
+     preferred=$1
+     shift
+     ;;
  esac
 
 done
@@ -116,7 +122,8 @@ while [ $i -le $instances ]; do
               --set podmonTest.unreachableTolerationSeconds=$unreachableTolerationSeconds \
               --set podmonTest.image="$image" \
               --set podmonTest.zone="$zone" \
-              --set podmonTest.driverLabel="$driverLabel"
+              --set podmonTest.driverLabel="$driverLabel" \
+              --set podmonTest.podPreferred="$preferred"
  else
    helm install -n "${prefix}${i}" "${prefix}${i}" "${SCRIPTDIR}"/deploy \
      ${DEBUG} \

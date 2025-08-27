@@ -15,6 +15,7 @@ package monitor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -30,25 +31,28 @@ import (
 	"github.com/cucumber/godog"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 )
 
 type integration struct {
-	configPath          string
-	k8s                 k8sapi.K8sAPI
-	driverType          string
-	podCount            int
-	devCount            int
-	volCount            int
-	testNamespacePrefix map[string]bool
-	scriptsDir          string
-	labeledPodsToNodes  map[string]string
-	nodesToTaints       map[string]string
-	isOpenshift         bool
-	bastionNode         string
-	customTaints        string
+	configPath            string
+	k8s                   k8sapi.K8sAPI
+	driverType            string
+	podCount              int
+	devCount              int
+	volCount              int
+	testNamespacePrefix   map[string]bool
+	scriptsDir            string
+	labeledPodsToNodes    map[string]string
+	nodesToTaints         map[string]string
+	isOpenshift           bool
+	bastionNode           string
+	customTaints          string
+	preferredLabeledNodes []string
+	shouldNotFailNode     string
 }
 
 // Used for keeping of track of the last test that was
@@ -268,6 +272,79 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 	return i.internalFailWorkerAndPrimaryNodes(numNodes, numPrimary, failure, "", wait)
 }
 
+func (i *integration) failLabeledNodes(preferred, failure string, wait int) error {
+	failedWorkers, err := i.failNodes(func(node corev1.Node) bool {
+		return node.Labels["preferred"] == preferred
+	}, -1, failure, wait)
+	if err != nil {
+		return err
+	}
+
+	err = i.verifyExpectedNodesFailed(failedWorkers, wait)
+	if err != nil {
+		return fmt.Errorf("[failLabeledNodes] failed to verify expected nodes failed: %v", err)
+	}
+
+	return nil
+}
+
+func (i *integration) verifyExpectedNodesFailed(failedWorkers []string, wait int) error {
+	// Allow a little extra for node failure to be detected than just the node downtime.
+	// This proved necessary for the really short failure times (45 sec.) to be reliable.
+	wait = wait + wait
+	log.Infof("Requested nodes to fail. Waiting up to %d seconds to see if they show up as failed.", wait)
+	timeoutDuration := time.Duration(wait) * time.Second
+	timeout := time.NewTimer(timeoutDuration)
+	ticker := time.NewTicker(checkTickerInterval * time.Second)
+	done := make(chan bool)
+	start := time.Now()
+
+	log.Infof("Waiting for failed nodes...")
+
+	requestedWorkersAndFailed := func(node corev1.Node) bool {
+		found := false
+		for _, worker := range failedWorkers {
+			if node.Name == worker && i.isNodeFailed(node, "") {
+				found = true
+				break
+			}
+		}
+		return found
+	}
+
+	foundFailedWorkers, err := i.searchForNodes(requestedWorkersAndFailed)
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-timeout.C:
+				log.Info("Timed out, but doing last check if requested nodes show up as failed")
+				foundFailedWorkers, err = i.searchForNodes(requestedWorkersAndFailed)
+				return
+			case <-ticker.C:
+				log.Infof("Checking if requested nodes show up as failed (time left %v)", timeoutDuration-time.Since(start))
+				foundFailedWorkers, err = i.searchForNodes(requestedWorkersAndFailed)
+				if len(foundFailedWorkers) == len(failedWorkers) {
+					return
+				}
+			}
+		}
+	}()
+
+	<-done
+	timeout.Stop()
+	ticker.Stop()
+
+	log.Infof("Completed checks for failed nodes after %v", time.Since(start))
+	err = AssertExpectedAndActual(assert.Equal, true, len(foundFailedWorkers) == len(failedWorkers),
+		fmt.Sprintf("Expected %d worker node(s) to be failed, but was %d. %v", len(failedWorkers), len(foundFailedWorkers), foundFailedWorkers))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (i *integration) failAndExpectingTaints(numNodes, numPrimary, failure string, wait int, expectedTaints string) error {
 	return i.internalFailWorkerAndPrimaryNodes(numNodes, numPrimary, failure, expectedTaints, wait)
 }
@@ -337,7 +414,14 @@ func (i *integration) internalFailWorkerAndPrimaryNodes(numNodes, numPrimary, fa
 	}
 
 	foundFailedWorkers, err := i.searchForNodes(requestedWorkersAndFailed)
+	if err != nil {
+		return err
+	}
+
 	foundFailedPrimary, err := i.searchForNodes(requestedPrimaryAndFailed)
+	if err != nil {
+		return err
+	}
 
 	go func() {
 		defer close(done)
@@ -380,7 +464,7 @@ func (i *integration) internalFailWorkerAndPrimaryNodes(numNodes, numPrimary, fa
 	return nil
 }
 
-func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, driverType, storageClass string, wait int) error {
+func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, driverType, storageClass string, wait int, preferred string) error {
 	podCount, err := i.selectFromRange(podsPerNode)
 	if err != nil {
 		return err
@@ -452,6 +536,10 @@ func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, 
 		"--ndevices", strconv.Itoa(devCount),
 		"--prefix", prefix,
 		"--storage-class", storageClass,
+	}
+
+	if preferred != "" {
+		args = append(args, "--podPreferred", preferred)
 	}
 
 	if !protected {
@@ -680,7 +768,7 @@ func (i *integration) deployVMs(protected bool, vmsPerNode, numVols, numDevs, dr
 }
 
 func (i *integration) deployProtectedPods(podsPerNode, numVols, numDevs, driverType, storageClass string, wait int) error {
-	return i.deployPods(true, podsPerNode, numVols, numDevs, driverType, storageClass, wait)
+	return i.deployPods(true, podsPerNode, numVols, numDevs, driverType, storageClass, wait, "")
 }
 
 func (i *integration) deployProtectedVMs(vmsPerNode, numVols, numDevs, driverType, storageClass string, wait int) error {
@@ -688,7 +776,7 @@ func (i *integration) deployProtectedVMs(vmsPerNode, numVols, numDevs, driverTyp
 }
 
 func (i *integration) deployUnprotectedPods(podsPerNode, numVols, numDevs, driverType, storageClass string, wait int) error {
-	return i.deployPods(false, podsPerNode, numVols, numDevs, driverType, storageClass, wait)
+	return i.deployPods(false, podsPerNode, numVols, numDevs, driverType, storageClass, wait, "")
 }
 
 func (i *integration) theTaintsForTheFailedNodesAreRemovedWithinSeconds(wait int) error {
@@ -726,6 +814,10 @@ func (i *integration) thereAreDriverPodsWithThisPrefix(namespace, prefix string)
 	}
 
 	nodes, err := i.searchForNodes(isWorkerNode)
+	if err != nil {
+		return err
+	}
+
 	nWorkerNodes := len(nodes)
 
 	// Look for controller and node driver pods running in the cluster
@@ -775,8 +867,35 @@ func (i *integration) thereAreDriverPodsWithThisPrefix(namespace, prefix string)
 			prefix, nRunningControllerPodmons, nRunningNodePodmons))
 }
 
+func (i *integration) removePreferredLabels() error {
+	log.Println("Removing preferred labels from nodes")
+
+	// Clean up nodes with the label
+	labelKey := "preferred"
+	nodes, err := i.k8s.GetClient().CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+		LabelSelector: labelKey,
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, node := range nodes.Items {
+		if _, exists := node.Labels[labelKey]; exists {
+			delete(node.Labels, labelKey)
+			_, err := i.k8s.GetClient().CoreV1().Nodes().Update(context.TODO(), &node, metav1.UpdateOptions{})
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func (i *integration) finallyCleanupEverything() error {
 	uninstallScript := "uns.sh"
+
+	defer i.removePreferredLabels()
 
 	if lastTestDriverType == "" {
 		// Nothing to clean up
@@ -812,27 +931,28 @@ func (i *integration) finallyCleanupEverything() error {
 
 	// Cleaned up, so zero the podCount
 	i.podCount = 0
+
 	return nil
 }
 
 func (i *integration) expectedEnvVariablesAreSet() error {
 	nodeUser := os.Getenv("NODE_USER")
 	err := AssertExpectedAndActual(assert.Equal, true, nodeUser != "",
-		fmt.Sprintf("Expected NODE_USER env variable. Try export NODE_USER=nodeUser before running tests."))
+		"Expected NODE_USER env variable. Try export NODE_USER=nodeUser before running tests.")
 	if err != nil {
 		return err
 	}
 
 	password := os.Getenv("PASSWORD")
 	err = AssertExpectedAndActual(assert.Equal, true, password != "",
-		fmt.Sprintf("Expected PASSWORD env variable. Try export PASSWORD=password before running tests."))
+		"Expected PASSWORD env variable. Try export PASSWORD=password before running tests.")
 	if err != nil {
 		return err
 	}
 
 	i.scriptsDir = os.Getenv("SCRIPTS_DIR")
 	err = AssertExpectedAndActual(assert.Equal, true, i.scriptsDir != "",
-		fmt.Sprintf("Expected SCRIPTS_DIR env variable. Try export SCRIPTS_DIR=scriptsDir before running tests."))
+		"Expected SCRIPTS_DIR env variable. Try export SCRIPTS_DIR=scriptsDir before running tests.")
 	if err != nil {
 		return err
 	}
@@ -924,10 +1044,114 @@ func (i *integration) theseStorageClassesExistInTheCluster(storageClassList stri
 	return nil
 }
 
+// waitForPodsToSwitchNodes periodically checks labeled pods to see if the node they are
+// currently scheduled on is different from the node they were initially scheduled on.
+// If the pod(s) has not migrated after 'waitTimeSec' seconds, a non-nil error is returned.
+func (i *integration) waitForPodsToSwitchNodes(waitTimeSec int) error {
+	timeout, ticker, stop := newTimerWithTicker(waitTimeSec)
+	defer stop()
+
+	log.Infof("waiting for %d seconds for pods to switch nodes", waitTimeSec)
+	for {
+		select {
+		case <-timeout.C:
+			log.Errorf("timed out after %d seconds while waiting for pods to switch nodes", waitTimeSec)
+			return errors.New("timed out waiting for pods to switch nodes")
+		case <-ticker.C:
+			err := i.labeledPodsChangedNodes()
+			if err == nil {
+				log.Info("pods successfully changed nodes")
+				return nil
+			}
+			log.Warn("pods have not yet change nodes")
+		}
+	}
+}
+
+// havePodsMigrated checks if pods have migrated to new nodes.
+//
+// This function takes no parameters and returns a boolean indicating if pods have migrated,
+// a string indicating which pod has migrated, and an error if there was an issue checking pods.
+func (i *integration) havePodsMigrated() (bool, string, error) {
+	currentPodToNodeMap := make(map[string]string)
+	pods, err := i.listPodsByLabel(fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", i.driverType))
+	if err != nil {
+		return false, "", err
+	}
+
+	for _, pod := range pods.Items {
+		nsPodName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+		currentPodToNodeMap[nsPodName] = pod.Spec.NodeName
+	}
+
+	// Search through the labeled pod map and verify node change
+	for podName, orginalNode := range i.labeledPodsToNodes {
+		currentNode, ok := currentPodToNodeMap[podName]
+		if !ok {
+			return false, "", fmt.Errorf("expected %s pod to be assigned to a node, but no association was found", podName)
+		}
+
+		if currentNode != orginalNode {
+			return true, podName, nil
+		}
+	}
+
+	return false, "", nil
+}
+
+// verifyPodsDoNotMigrate periodically checks the labeled pods to see if any have migrated
+// and returns false if migration is detected. At the end of waitTimeSec seconds, a nil error
+// is returned if the pods have not migrated.
+func (i *integration) verifyPodsDoNotMigrate(waitTimeSec int) error {
+	log.Info("validating pods have not and will not migrate")
+
+	// update the list of pods and the node they are on
+	err := i.populateLabeledPodsToNodes()
+	if err != nil {
+		return fmt.Errorf("encountered an error while validating pods will not migrate: %s", err)
+	}
+
+	timeoutDuration := time.Duration(waitTimeSec) * time.Second
+	timeout, ticker, stop := newTimerWithTicker(waitTimeSec)
+	defer stop()
+
+	start := time.Now()
+
+	for {
+		select {
+		case <-timeout.C:
+			// if the timeout is reached, the test passes
+			log.Infof("success: pods did not migrate in %d seconds", waitTimeSec)
+			return nil
+		case <-ticker.C:
+			log.Infof("validating pods have not migrated (time left %v)", timeoutDuration-time.Since(start))
+
+			migrated, podName, err := i.havePodsMigrated()
+			if err != nil {
+				return fmt.Errorf("encountered an error while validating pods have not migrated: %s", err)
+			}
+
+			if migrated {
+				return fmt.Errorf("pod %s has migrated when it should not have", podName)
+			}
+		}
+	}
+}
+
 // labeledPodsChangedNodes examines the current assignment of labeled pods to nodes and compares it
 // with what was populated upon initial deployment in i.labeledPodsToNodes. Expectation is that the
 // nodes will have changed (assuming that the failure condition was detected and handled).
 func (i *integration) labeledPodsChangedNodes() error {
+	return i.arePodsProperlyChanged(func(_ string) bool {
+		// Since this step does not care what node it is on and assumes all nodes are valid, just return true.
+		// Previous step should have already verified that all nodes are valid and pods are ready.
+		return true
+	})
+}
+
+/* -- Helper functions -- */
+
+func (i *integration) arePodsProperlyChanged(isOnValidNode func(nodeName string) bool) error {
 	currentPodToNodeMap := make(map[string]string)
 	pods, getPodsErr := i.listPodsByLabel(fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", i.driverType))
 	if getPodsErr == nil {
@@ -949,8 +1173,22 @@ func (i *integration) labeledPodsChangedNodes() error {
 		if !ok {
 			return fmt.Errorf("expected %s pod to be assigned to a node, but no association was found", iPodName)
 		}
+
+		if !isOnValidNode(currentNode) {
+			return AssertExpectedAndActual(assert.Equal, true, currentNode != initialNode,
+				fmt.Sprintf("Expected %s pod to be migrated to a healthy node. Currently '%s', initially '%s'",
+					iPodName, currentNode, initialNode))
+		}
+
+		// Check to see if the node was failed, if it wasn't then the pods would not have migrated.
+		_, ok = i.nodesToTaints[initialNode]
+		if !ok {
+			log.Infof("node %s is not tainted so it was not a failed node", currentNode)
+			continue
+		}
+
 		if currentNode == initialNode {
-			return AssertExpectedAndActual(assert.Equal, true, currentNode == initialNode,
+			return AssertExpectedAndActual(assert.Equal, false, currentNode == initialNode,
 				fmt.Sprintf("Expected %s pod to be migrated to a healthy node. Currently '%s', initially '%s'",
 					iPodName, currentNode, initialNode))
 		}
@@ -958,8 +1196,6 @@ func (i *integration) labeledPodsChangedNodes() error {
 
 	return nil
 }
-
-/* -- Helper functions -- */
 
 func (i *integration) dumpNodeInfo() error {
 	list, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
@@ -989,26 +1225,6 @@ func (i *integration) dumpNodeInfo() error {
 	}
 
 	return nil
-}
-
-func (i *integration) checkIfAllNodesReady() (bool, error) {
-	list, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
-	if err != nil {
-		message := fmt.Sprintf("listing nodes error: %s", err)
-		return false, fmt.Errorf("%s", message)
-	}
-
-	readyCount := 0
-	for _, node := range list.Items {
-		for _, status := range node.Status.Conditions {
-			if status.Reason == "KubeletReady" {
-				readyCount++
-				break
-			}
-		}
-	}
-
-	return readyCount == len(list.Items), nil
 }
 
 func (i *integration) checkIfAllPodsRunning(namespace string) (bool, error) {
@@ -1165,12 +1381,48 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 		}
 	}
 
+	if len(i.preferredLabeledNodes) > 0 {
+		// Add the preferred labeled nodes to the candidate list for the failure
+		candidates = make([]string, 0)
+		tracker = make(map[string]bool)
+		for _, name := range i.preferredLabeledNodes {
+			if !tracker[name] {
+				tracker[name] = true
+				candidates = append(candidates, name)
+			}
+		}
+	}
+
+	log.Infof("All the candidate nodes to fail are %v", candidates)
+
+	if i.driverType == "" {
+		return nil, fmt.Errorf("driver type not specified")
+	}
+
+	// Get deployment and see how many replicas for the controller there are.
+	deployment, err := i.getDriverControllerDeployment(i.driverType)
+	if err != nil {
+		return failedNodes, err
+	}
+
+	if int(*deployment.Spec.Replicas) == 1 {
+		// If there is only one replica, get node that the controller pod is running on and ensure that we don't fail it.
+		controllerPod, err := i.k8s.GetClient().CoreV1().Pods(i.driverType).List(context.Background(), metav1.ListOptions{
+			LabelSelector: "name=" + i.driverType + "-controller",
+		})
+		if err != nil {
+			return failedNodes, err
+		}
+
+		log.Infof("Controller pod is running on node %s", controllerPod.Items[0].Spec.NodeName)
+		i.shouldNotFailNode = controllerPod.Items[0].Spec.NodeName
+	}
+
 	failed := 0
 	for _, name := range candidates {
 		// For CSI driver pod run the script from test host not worker node
 		if failureType == "driverpod" {
-			var cmd *exec.Cmd
-			cmd = exec.Command( // #nosec G204
+			cmd := exec.Command( // #nosec G204
 				"/bin/sh", fmt.Sprintf("%s/failpods.sh", i.scriptsDir),
 				"--ns", i.driverType,
 				"--timeoutseconds", fmt.Sprintf("%d", wait),
@@ -1183,6 +1435,12 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 			}
 			return failedNodes, nil
 		}
+
+		if name == i.shouldNotFailNode {
+			log.Infof("Detected only a single controller replica running on a worker node; skipping failing this node %s", name)
+			continue
+		}
+
 		if failed < numberToFail {
 			ip := nameToIP[name]
 			if err = i.induceFailureOn(name, ip, failureType, wait); err != nil {
@@ -1890,6 +2148,7 @@ func (i *integration) iFailDriverPodsTaints(numNodes, failure string, wait int, 
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -1910,6 +2169,350 @@ func (i *integration) verifyKubeVirtIPAMControllerPodExists() error {
 	}
 
 	return fmt.Errorf("No pod with prefix '%s' found in namespace '%s'. OpenShift Virtualization might not be installed", podPrefix, namespace)
+}
+
+func (i *integration) createNodeNameMap(numNodes string, filter func(node corev1.Node) bool) (map[string]string, int, error) {
+	count, err := i.parseRatioOrCount(numNodes)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	nodes, err := i.searchForNodes(filter)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	numberToLabel := 0
+	if count < 0.0 {
+		numberToLabel = len(nodes)
+	} else if count < 1.0 {
+		temp := float64(len(nodes))
+		numberToLabel = int(math.Ceil(temp * count))
+	} else { // count >= 1.0, so use the value
+		numberToLabel = int(count)
+	}
+
+	// Create a mapping of the node name to IP address
+	nameToIP := make(map[string]string)
+	for _, node := range nodes {
+		for _, addr := range node.Status.Addresses {
+			if addr.Type == "InternalIP" {
+				nameToIP[node.Name] = addr.Address
+				break
+			}
+		}
+	}
+
+	return nameToIP, numberToLabel, nil
+}
+
+func (i *integration) labelNodeAsPreferredSite(numNodes, preferred string) error {
+	nameToIP, numberToLabel, err := i.createNodeNameMap(numNodes, isWorkerNode)
+	if err != nil {
+		return err
+	}
+
+	// Create a list of candidates. Prepend with the nodes that have labeled pods on them.
+	// This way, we will always have a chance to test fail over scenario.
+	candidates := make([]string, 0)
+	tracker := make(map[string]bool) // Used to prevent duplicates in 'candidate' list.
+	for _, name := range i.labeledPodsToNodes {
+		if !tracker[name] {
+			if len(candidates) >= numberToLabel {
+				break
+			}
+			tracker[name] = true
+			candidates = append(candidates, name)
+		}
+	}
+
+	// Check if we have enough candidates to match the requested number to fail.
+	if len(candidates) < numberToLabel {
+		// Need to add more to list of candidates, so add the remaining node names to the candidate list.
+		for name := range nameToIP {
+			if !tracker[name] {
+				if len(candidates) >= numberToLabel {
+					break
+				}
+				tracker[name] = true
+				candidates = append(candidates, name)
+			}
+		}
+	}
+
+	i.preferredLabeledNodes = []string{}
+	labeled := 0
+	for _, name := range candidates {
+		if labeled < numberToLabel {
+			log.Infof("Labeling node %s as %s", name, preferred)
+
+			nodeObj, err := i.k8s.GetClient().CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("Failed to get node '%s': %v", name, err)
+			}
+
+			// Add or update the label
+			if nodeObj.ObjectMeta.Labels == nil {
+				nodeObj.ObjectMeta.Labels = make(map[string]string)
+			}
+			nodeObj.ObjectMeta.Labels["preferred"] = preferred
+			i.preferredLabeledNodes = append(i.preferredLabeledNodes, name)
+
+			// Update the node
+			_, err = i.k8s.GetClient().CoreV1().Nodes().Update(context.TODO(), nodeObj, metav1.UpdateOptions{})
+			if err != nil {
+				return fmt.Errorf("Failed to label node '%s': %v", name, err)
+			}
+			labeled++
+		}
+	}
+	return nil
+}
+
+func (i *integration) deployProtectedPreferredPods(podsPerNode, numVols, numDevs, driverType, storageClass string, wait int, preferred string) error {
+	return i.deployPods(true, podsPerNode, numVols, numDevs, driverType, storageClass, wait, preferred)
+}
+
+func (i *integration) allPodsOnNodesWithPreferredLabel(preferred string) error {
+	for podIdx := 1; podIdx <= i.podCount; podIdx++ {
+		for prefix := range i.testNamespacePrefix {
+			namespace := fmt.Sprintf("%s%d", prefix, podIdx)
+			pods, err := i.k8s.GetClient().CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{})
+			if err != nil {
+				return err
+			}
+
+			for _, pod := range pods.Items {
+				nodeObj, err := i.k8s.GetClient().CoreV1().Nodes().Get(context.TODO(), pod.Spec.NodeName, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if nodeObj.ObjectMeta.Labels["preferred"] != preferred {
+					return fmt.Errorf("Pod '%s' is not on preferred node '%s'", pod.Name, pod.Spec.NodeName)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (i *integration) verifyPodsOnNonPreferredNodes() error {
+	for count := 1; count <= i.podCount; count++ {
+		namespace := fmt.Sprintf("%s%d", PowerStoreNS, count)
+		podList, err := i.k8s.GetClient().CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			log.Errorf("Failed to list pods in namespace '%s': %v", namespace, err)
+			return err
+		}
+		log.Infof("Pods in namespace '%s': %v", namespace, podList.Items)
+
+		for _, pod := range podList.Items {
+			nodeName := pod.Spec.NodeName
+			log.Infof("Checking pod %s on node %s", pod.Name, nodeName)
+			for _, labeledNode := range i.preferredLabeledNodes {
+				if nodeName == i.shouldNotFailNode {
+					log.Warnf("Due to single replica and controller pod running on a preferred node, pod %s is still running on a preferred node", pod.Name)
+					continue
+				}
+
+				if nodeName == labeledNode {
+					return fmt.Errorf("Pod '%s' is on preferred node '%s'", pod.Name, nodeName)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (i *integration) thereAreAtLeastWorkerNodesWhichAreReady(count int) error {
+	list, err := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		message := fmt.Sprintf("listing nodes error: %s", err)
+		return fmt.Errorf("%s", message)
+	}
+
+	workerNodesCount := 0
+	for _, node := range list.Items {
+		isControlPlane := false
+		for label := range node.Labels {
+			if label == "node-role.kubernetes.io/control-plane" {
+				log.Infof("Node %s is a control plane node", node.Name)
+				isControlPlane = true
+				break
+			}
+		}
+
+		if isControlPlane {
+			continue
+		}
+
+		nodeReady := nodeHasCondition(node, "Ready")
+		if nodeReady {
+			workerNodesCount++
+		}
+	}
+
+	if workerNodesCount < count {
+		log.Warnln("Skipping this scenario. Expected at least", count, "but found", workerNodesCount)
+		return godog.ErrSkip
+	}
+
+	return nil
+}
+
+func (i *integration) iFailNodesWithLabelWithFailureForSeconds(numNodes, label, failure string, wait int) error {
+	filter := func(node corev1.Node) bool {
+		if isWorkerNode(node) && node.ObjectMeta.Labels["preferred"] == label {
+			return true
+		}
+
+		return false
+	}
+
+	nameToIP, numberToLabel, err := i.createNodeNameMap(numNodes, filter)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Labeling %d nodes with preferred=%s", numberToLabel, label)
+
+	// Get application pods that were deployed by podmontest.
+	nodeToFail := ""
+	for podIdx := 1; podIdx <= i.podCount; podIdx++ {
+		for prefix := range i.testNamespacePrefix {
+			namespace := fmt.Sprintf("%s%d", prefix, podIdx)
+			podList, err := i.k8s.GetClient().CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to list pods in namespace '%s': %v", namespace, err)
+			}
+
+			if len(podList.Items) == 0 {
+				return fmt.Errorf("no pods found in namespace '%s'", namespace)
+			}
+
+			for _, pod := range podList.Items {
+				if _, ok := nameToIP[pod.Spec.NodeName]; ok {
+					nodeToFail = pod.Spec.NodeName
+					break
+				}
+			}
+		}
+	}
+
+	log.Info("Node to fail: ", nodeToFail)
+
+	failedWorkers, err := i.failNodes(func(node corev1.Node) bool {
+		return node.Name == nodeToFail
+	}, -1, failure, wait)
+	if err != nil {
+		return err
+	}
+
+	err = i.verifyExpectedNodesFailed(failedWorkers, wait)
+	if err != nil {
+		return fmt.Errorf("[iFailNodesWithLabelWithFailureForSeconds] failed to verify expected nodes failed: %v", err)
+	}
+
+	return nil
+}
+
+func (i *integration) labeledPodsAreOnANode(label string) error {
+	labelKey := "preferred=" + label
+	nodes, err := i.k8s.GetClient().CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+		LabelSelector: labelKey,
+	})
+	if err != nil {
+		return err
+	}
+
+	// Creates preferredNodeMap for quick search
+	preferredNodeMap := make(map[string]bool)
+	for _, node := range nodes.Items {
+		preferredNodeMap[node.Name] = true
+	}
+
+	return i.arePodsProperlyChanged(func(nodeName string) bool {
+		// Ensure that the node that the pod is running on is within the preferred nodes.
+		_, ok := preferredNodeMap[nodeName]
+		return ok
+	})
+}
+
+// newTimerWithTicker takes a wait time in seconds and returns a timer, a ticker and a stop function.
+// These can be used to periodically execute an action over a set period of time.
+// Users should call the stop() function as a best practice.
+func newTimerWithTicker(waitTimeSec int) (timeout *time.Timer, ticker *time.Ticker, stop func()) {
+	timeoutDuration := time.Duration(waitTimeSec) * time.Second
+	timeout = time.NewTimer(timeoutDuration)
+	ticker = time.NewTicker(checkTickerInterval * time.Second)
+
+	stop = func() {
+		timeout.Stop()
+		ticker.Stop()
+	}
+
+	return
+}
+
+func (i *integration) getDriverControllerDeployment(driverType string) (*v1.Deployment, error) {
+	log.Infof("Getting deployment for driver: %s", driverType)
+	deployments, err := i.k8s.GetClient().AppsV1().Deployments(driverType).List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		log.Errorln("Deployment list error: ", err)
+		return nil, err
+	}
+
+	for _, deployment := range deployments.Items {
+		log.Info("Found deployment: ", deployment.Name)
+		if deployment.Name == driverType+"-controller" {
+			return &deployment, nil
+		}
+	}
+
+	return nil, errors.New("deployment not found")
+}
+
+func (i *integration) skipIfIsNotCompatibleWith(failure, driverType string) error {
+	if driverType == "powerstore" {
+		log.Infoln("Checking if the follwing test is compatible with PowerStore environment")
+
+		deployment, err := i.getDriverControllerDeployment(driverType)
+		if err != nil {
+			return err
+		}
+
+		isCompatible := true
+		for _, container := range deployment.Spec.Template.Spec.Containers {
+			if strings.Contains(container.Image, "podmon") {
+				for _, arg := range container.Args {
+					if strings.Contains(arg, "skipArrayConnectionValidation") {
+						split := strings.Split(arg, "=")
+						if split[1] == "false" && failure == "kubeletdown" {
+							log.Info("For running kubeletdown test on PowerStore, skipArrayConnectionValidation should be set to true")
+							isCompatible = false
+						}
+
+						break
+					}
+				}
+
+				break
+			}
+		}
+
+		if !isCompatible {
+			log.Warnf("Skipping this scenario. Test is not compatible with %s environment", driverType)
+			return godog.ErrSkip
+		}
+	}
+	return nil
+}
+
+func (i *integration) iSetTheCorrectDriverTypeTo(driverType string) error {
+	log.Infof("Setting driver type to: %s", driverType)
+	i.setDriverType(driverType)
+	return nil
 }
 
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
@@ -1933,6 +2536,7 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^validate that all pods are running within (\d+) seconds$`, i.allPodsAreRunningWithinSeconds)
 	context.Step(`^I fail "([^"]*)" worker nodes and "([^"]*)" primary nodes with "([^"]*)" failure for (\d+) seconds$`, i.failWorkerAndPrimaryNodes)
 	context.Step(`^I fail "([^"]*)" worker nodes and "([^"]*)" primary nodes with "([^"]*)" failure for (\d+) and I expect these taints "([^"]*)"$`, i.failAndExpectingTaints)
+	context.Step(`I fail labeled "([^"]*)" nodes with "([^"]*)" failure for (\d+) seconds`, i.failLabeledNodes)
 	context.Step(`^"([^"]*)" pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployProtectedPods)
 	context.Step(`^"([^"]*)" vms per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployProtectedVMs)
 	context.Step(`^"([^"]*)" unprotected pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployUnprotectedPods)
@@ -1952,4 +2556,15 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^I fail "([^"]*)" worker driver pod with "([^"]*)" failure for (\d+) and I expect these taints "([^"]*)"$`, i.iFailDriverPodsTaints)
 	context.Step(`^initial disk write and verify on all VMs succeeds$`, i.initialDiskWriteAndVerifyAllVMs)
 	context.Step(`^post failover disk content verification on all VMs succeeds$`, i.postFailoverVerifyAllVMs)
+	context.Step(`^label "([^"]*)" node as "([^"]*)" site$`, i.labelNodeAsPreferredSite)
+	context.Step(`^"([^"]*)" pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+) with "([^"]*)" affinity$`, i.deployProtectedPreferredPods)
+	context.Step(`^pods are scheduled on the non preferred nodes$`, i.verifyPodsOnNonPreferredNodes)
+	context.Step(`^all pods are running on "([^"]*)" node$`, i.allPodsOnNodesWithPreferredLabel)
+	context.Step(`^there are at least (\d+) worker nodes which are ready$`, i.thereAreAtLeastWorkerNodesWhichAreReady)
+	context.Step(`^I fail "([^"]*)" nodes with label "([^"]*)" with "([^"]*)" failure for (\d+) seconds$`, i.iFailNodesWithLabelWithFailureForSeconds)
+	context.Step(`^labeled pods are on a "([^"]*)" node$`, i.labeledPodsAreOnANode)
+	context.Step(`wait up to (\d+) seconds for pods to switch nodes$`, i.waitForPodsToSwitchNodes)
+	context.Step(`verify pods do not migrate for (\d+) seconds$`, i.verifyPodsDoNotMigrate)
+	context.Step(`^skip if "([^"]*)" is not compatible with "([^"]*)"$`, i.skipIfIsNotCompatibleWith)
+	context.Step(`^I set the correct driver type to "([^"]*)"$`, i.iSetTheCorrectDriverTypeTo)
 }

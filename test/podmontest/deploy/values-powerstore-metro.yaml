@@ -2,7 +2,7 @@ podmonTest:
   image: "$REGISTRY_HOST:$REGISTRY_PORT//podmontest:v0.0.54"
   namespace: "podmontest"
   driverLabel: csi-powerstore
-  storageClassName: powerstore-nvmetcp
+  storageClassName: powerstore-metro
   nvolumes: 1
   ndevices: 1
   # deploymentType can be "statefulset" or "deployment"
