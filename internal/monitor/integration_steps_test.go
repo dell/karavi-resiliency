@@ -1254,7 +1254,6 @@ func (i *integration) restoreNonPreferredMetroConnection(labelValue string) erro
 // for nodes returned by getNodes to either drop or accept (determined by operation) incoming packets from
 // the iSCSI IPs.
 func (i *integration) setNonPreferredMetroConnection(operation MetroConnection, getNodes func() (*corev1.NodeList, error)) error {
-
 	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[pstoreID.KeyArrayID])
 	if err != nil || preferredArray == nil {
 		return fmt.Errorf("unable to get PowerStore secret: %s", err.Error())
@@ -1303,7 +1302,6 @@ func (i *integration) setNonPreferredMetroConnection(operation MetroConnection, 
 // for nodes returned by getNodes to either drop or accept (determined by operation) incoming packets from
 // the iSCSI IPs.
 func (i *integration) setPreferredMetroConnection(operation MetroConnection, getNodes func() (*corev1.NodeList, error)) error {
-
 	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[pstoreID.KeyArrayID])
 	if err != nil || preferredArray == nil {
 		return fmt.Errorf("unable to get PowerStore secret: %s", err.Error())
