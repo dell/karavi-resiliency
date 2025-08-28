@@ -321,6 +321,33 @@ func (i *integration) failLabeledNodes(preferred, failure string, wait int) erro
 	return nil
 }
 
+// failNonpreferredNodesWithFailureForSeconds fails non-preferred nodes with a specified failure for a given number of seconds.
+func (i *integration) failNonpreferredNodesWithFailureForSeconds(failure string, wait int) error {
+	failedWorkers, err := i.failNodes(func(node corev1.Node) bool {
+		// check for only worker nodes
+		if isPrimaryNode(node) {
+			return false
+		}
+
+		// Check if the node's label indicates it's not a preferred site
+		val, ok := node.Labels["preferred"]
+		if !ok || val != "site" {
+			return true
+		}
+		return false
+	}, -1, failure, wait)
+	if err != nil {
+		return err
+	}
+
+	err = i.verifyExpectedNodesFailed(failedWorkers, wait)
+	if err != nil {
+		return fmt.Errorf("[failNonpreferredNodesWithFailureForSeconds] failed to verify expected nodes failed: %v", err)
+	}
+
+	return nil
+}
+
 func (i *integration) verifyExpectedNodesFailed(failedWorkers []string, wait int) error {
 	// Allow a little extra for node failure to be detected than just the node downtime.
 	// This proved necessary for the really short failure times (45 sec.) to be reliable.
@@ -3045,4 +3072,5 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^nodes with pods and with "([^"]*)" label have taint "([^"]*)" within (\d+) seconds$`, i.labeledNodesWithPodsAreTainted)
 	context.Step(`^skip if "([^"]*)" is not compatible with "([^"]*)"$`, i.skipIfIsNotCompatibleWith)
 	context.Step(`^I set the correct driver type to "([^"]*)"$`, i.iSetTheCorrectDriverTypeTo)
+	context.Step(`^I fail non-preferred nodes with "([^"]*)" failure for (\d+) seconds$`, i.failNonpreferredNodesWithFailureForSeconds)
 }
