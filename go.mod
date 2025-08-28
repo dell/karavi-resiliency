@@ -11,6 +11,7 @@ require (
 	github.com/dell/csi-powerstore/v2 v2.14.1-0.20250818152723-adb67faa6011
 	github.com/dell/dell-csi-extensions/podmon v1.8.1-0.20250811191959-eb2cab02fb75
 	github.com/dell/gofsutil v1.19.1-0.20250812102612-38ce511bc840
+	github.com/dell/gopowerstore v1.19.1-0.20250814134855-cb4deab67a3e
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/golang/mock v1.6.0
 	github.com/kubernetes-csi/csi-lib-utils v0.11.0
@@ -35,7 +36,6 @@ require (
 	github.com/dell/gocsi v1.14.1-0.20250814142855-75596c20cbec // indirect
 	github.com/dell/goiscsi v1.12.0 // indirect
 	github.com/dell/gonvme v1.11.1-0.20250812153009-7dca68734c51 // indirect
-	github.com/dell/gopowerstore v1.19.1-0.20250814134855-cb4deab67a3e // indirect
 	github.com/emicklei/go-restful/v3 v3.12.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
