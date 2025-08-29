@@ -2026,15 +2026,15 @@ func (i *integration) writeAndVerifyDiskOnVM(vmName, namespace string) error {
 	retryDelay := 30 * time.Second
 
 	for attempt := 0; attempt <= retries; attempt++ {
-		log.Printf("Running (attempt %d/%d): %s", attempt+1, retries+1, writeCmd)
+		log.Printf("Running (attempt %d/%d): %s", attempt+1, retries, writeCmd)
 		writeOut, writeErr := exec.Command("bash", "-c", writeCmd).CombinedOutput()
 		if writeErr != nil {
-			log.Printf("Write failed on %s (attempt %d/%d): %s", vmName, attempt+1, retries+1, string(writeOut))
+			log.Printf("Write failed on %s (attempt %d/%d): %s", vmName, attempt+1, retries, string(writeOut))
 			if attempt < retries {
 				time.Sleep(retryDelay)
 			}
 		} else {
-			log.Printf("Write output for %s (attempt %d/%d): %s", vmName, attempt+1, retries+1, string(writeOut))
+			log.Printf("Write output for %s (attempt %d/%d): %s", vmName, attempt+1, retries, string(writeOut))
 			break
 		}
 	}
@@ -2060,15 +2060,15 @@ func (i *integration) verifyDiskContentOnVM(vmName, namespace string) error {
 	var readErr error
 
 	for attempt := 0; attempt <= retries; attempt++ {
-		log.Printf("Running (attempt %d/%d): %s", attempt+1, retries+1, readCmd)
+		log.Printf("Running (attempt %d/%d): %s", attempt+1, retries, readCmd)
 		readOut, readErr := exec.Command("bash", "-c", readCmd).CombinedOutput()
 		if readErr != nil {
-			log.Printf("Read failed on %s (attempt %d/%d): %s", vmName, attempt+1, retries+1, string(readOut))
+			log.Printf("Read failed on %s (attempt %d/%d): %s", vmName, attempt+1, retries, string(readOut))
 			if attempt < retries {
 				time.Sleep(retryDelay)
 			}
 		} else {
-			log.Printf("Read output for %s (attempt %d/%d): %s", vmName, attempt+1, retries+1, string(readOut))
+			log.Printf("Read output for %s (attempt %d/%d): %s", vmName, attempt+1, retries, string(readOut))
 			break
 		}
 	}
