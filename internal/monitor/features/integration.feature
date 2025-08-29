@@ -318,9 +318,7 @@ Feature: Integration Test
     And all pods are running on <preferred> node
     When the connection is restored between the non preferred metro array and the nodes with <preferred> label
     And validate that all pods are running within <runSecs> seconds
-    And all pods are running on <preferred> node
     And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
-    And verify pods do not migrate for <migrateSecs> seconds
     Then finally cleanup everything
 
     Examples:

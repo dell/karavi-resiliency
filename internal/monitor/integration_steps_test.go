@@ -35,6 +35,7 @@ import (
 	"github.com/cucumber/godog"
 	"github.com/dell/csi-powerstore/v2/core"
 	pstoreArray "github.com/dell/csi-powerstore/v2/pkg/array"
+	pstoreController "github.com/dell/csi-powerstore/v2/pkg/controller"
 	pstoreID "github.com/dell/csi-powerstore/v2/pkg/identifiers"
 	"github.com/dell/gopowerstore"
 	log "github.com/sirupsen/logrus"
@@ -79,7 +80,6 @@ type MetroConnection string
 const (
 	MetroConnectionRestore MetroConnection = "ALLOW"
 	MetroConnectionFail    MetroConnection = "BLOCK"
-	RemoteSystem           string          = "replication.storage.dell.com/remoteSystem"
 )
 
 // Used for keeping of track of the last test that was
@@ -1199,16 +1199,20 @@ func (i *integration) cliToolIsInstalledOnThisMachine(cliToolName string) error 
 	return nil
 }
 
-// failPreferredMetroConnection utilizes iptables entries to simulate network failure between
-// the preferred storage array in a metro configuration and select worker nodes with the
-// preferred=`labelValue` label.
-func (i *integration) failPreferredMetroConnection(labelValue string) error {
+func (i *integration) findNodes(labelValue string) func() (*corev1.NodeList, error) {
 	opts := getPreferredNodeOpts(true, labelValue)
 
 	getNodes := func() (*corev1.NodeList, error) {
 		return i.getNodes(context.Background(), opts)
 	}
+	return getNodes
+}
 
+// failPreferredMetroConnection utilizes iptables entries to simulate network failure between
+// the preferred storage array in a metro configuration and select worker nodes with the
+// preferred=`labelValue` label.
+func (i *integration) failPreferredMetroConnection(labelValue string) error {
+	getNodes := i.findNodes(labelValue)
 	return i.setPreferredMetroConnection(MetroConnectionFail, getNodes)
 }
 
@@ -1216,12 +1220,7 @@ func (i *integration) failPreferredMetroConnection(labelValue string) error {
 // the non preferred storage array in a metro configuration and select worker nodes with the
 // preferred=`labelValue` label.
 func (i *integration) failNonPreferredMetroConnection(labelValue string) error {
-	opts := getPreferredNodeOpts(true, labelValue)
-
-	getNodes := func() (*corev1.NodeList, error) {
-		return i.getNodes(context.Background(), opts)
-	}
-
+	getNodes := i.findNodes(labelValue)
 	return i.setNonPreferredMetroConnection(MetroConnectionFail, getNodes)
 }
 
@@ -1229,11 +1228,7 @@ func (i *integration) failNonPreferredMetroConnection(labelValue string) error {
 // for worker nodes with preferred=`labelValue` label, restoring the network connection between the
 // worker node and the preferred storage array in a metro configuration.
 func (i *integration) restorePreferredMetroConnection(labelValue string) error {
-	opts := getPreferredNodeOpts(true, labelValue)
-
-	getNodes := func() (*corev1.NodeList, error) {
-		return i.getNodes(context.Background(), opts)
-	}
+	getNodes := i.findNodes(labelValue)
 	return i.setPreferredMetroConnection(MetroConnectionRestore, getNodes)
 }
 
@@ -1241,11 +1236,7 @@ func (i *integration) restorePreferredMetroConnection(labelValue string) error {
 // for worker nodes with preferred=`labelValue` label, restoring the network connection between the
 // worker node and the non preferred storage array in a metro configuration.
 func (i *integration) restoreNonPreferredMetroConnection(labelValue string) error {
-	opts := getPreferredNodeOpts(true, labelValue)
-
-	getNodes := func() (*corev1.NodeList, error) {
-		return i.getNodes(context.Background(), opts)
-	}
+	getNodes := i.findNodes(labelValue)
 	return i.setNonPreferredMetroConnection(MetroConnectionRestore, getNodes)
 }
 
@@ -1276,7 +1267,7 @@ func (i *integration) setNonPreferredMetroConnection(operation MetroConnection, 
 
 	var nonPreferredKeyArrayID string
 	// Filter the remote systems to find the arrayID of the non preferred array using the remote system mentioned in the storage class
-	remoteSystemID := i.storageClass.Parameters[RemoteSystem]
+	remoteSystemID := i.storageClass.Parameters[pstoreController.ReplicationPrefix+"/"+pstoreController.KeyReplicationRemoteSystem]
 	for _, remoteSystem := range remoteSystems {
 		if remoteSystem.Name == remoteSystemID {
 			nonPreferredKeyArrayID = remoteSystem.SerialNumber
