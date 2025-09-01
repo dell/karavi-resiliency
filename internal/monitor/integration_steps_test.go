@@ -2020,13 +2020,28 @@ func (i *integration) writeAndVerifyDiskOnVM(vmName, namespace string) error {
 			"--local-ssh=true --local-ssh-opts='-o StrictHostKeyChecking=no' --local-ssh-opts='-o UserKnownHostsFile=/dev/null' "+
 			"--command \"printf '%s' | sudo dd of=/dev/vdc bs=1 count=150 conv=notrunc\"",
 		vmName, namespace, expectedData)
-	log.Printf("Running: %s", writeCmd)
-	writeOut, err := exec.Command("bash", "-c", writeCmd).CombinedOutput()
-	if err != nil {
-		log.Printf("Write failed on %s: %s", vmName, string(writeOut))
-		return err
+
+	var writeErr error
+	retries := 3
+	retryDelay := 30 * time.Second
+
+	for attempt := 0; attempt <= retries; attempt++ {
+		log.Printf("Running (attempt %d/%d): %s", attempt+1, retries, writeCmd)
+		writeOut, writeErr := exec.Command("bash", "-c", writeCmd).CombinedOutput()
+		if writeErr != nil {
+			log.Printf("Write failed on %s (attempt %d/%d): %s", vmName, attempt+1, retries, string(writeOut))
+			if attempt < retries {
+				time.Sleep(retryDelay)
+			}
+		} else {
+			log.Printf("Write output for %s (attempt %d/%d): %s", vmName, attempt+1, retries, string(writeOut))
+			break
+		}
 	}
-	log.Printf("Write output for %s: %s", vmName, string(writeOut))
+
+	if writeErr != nil {
+		return writeErr
+	}
 
 	// Read and verify
 	return i.verifyDiskContentOnVM(vmName, namespace)
@@ -2038,14 +2053,29 @@ func (i *integration) verifyDiskContentOnVM(vmName, namespace string) error {
 			"--local-ssh=true --local-ssh-opts='-o StrictHostKeyChecking=no'  --local-ssh-opts='-o UserKnownHostsFile=/dev/null' "+
 			"--command \"sudo dd if=/dev/vdc bs=1 count=150\"",
 		vmName, namespace)
-	log.Printf("Running: %s", readCmd)
-	readOut, err := exec.Command("bash", "-c", readCmd).CombinedOutput()
-	if err != nil {
-		log.Printf("Read failed on %s: %s", vmName, string(readOut))
-		return err
+
+	retries := 3
+	retryDelay := 30 * time.Second
+	var readOut []byte
+	var readErr error
+
+	for attempt := 0; attempt <= retries; attempt++ {
+		log.Printf("Running (attempt %d/%d): %s", attempt+1, retries, readCmd)
+		readOut, readErr := exec.Command("bash", "-c", readCmd).CombinedOutput()
+		if readErr != nil {
+			log.Printf("Read failed on %s (attempt %d/%d): %s", vmName, attempt+1, retries, string(readOut))
+			if attempt < retries {
+				time.Sleep(retryDelay)
+			}
+		} else {
+			log.Printf("Read output for %s (attempt %d/%d): %s", vmName, attempt+1, retries, string(readOut))
+			break
+		}
 	}
 
-	log.Printf("Read output for %s: %s", vmName, string(readOut))
+	if readErr != nil {
+		return readErr
+	}
 
 	if strings.Contains(string(readOut), expectedData) {
 		log.Printf("Disk content verified for %s", vmName)
