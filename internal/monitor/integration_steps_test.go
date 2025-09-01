@@ -1199,7 +1199,9 @@ func (i *integration) cliToolIsInstalledOnThisMachine(cliToolName string) error 
 	return nil
 }
 
-func (i *integration) findNodes(labelValue string) func() (*corev1.NodeList, error) {
+// getNodesWithPreferredLabelValue returns another function getNodes()
+// that selects the nodes that are labeled with the provided labelValue
+func (i *integration) getNodesWithPreferredLabelValue(labelValue string) func() (*corev1.NodeList, error) {
 	opts := getPreferredNodeOpts(true, labelValue)
 
 	getNodes := func() (*corev1.NodeList, error) {
@@ -1212,7 +1214,7 @@ func (i *integration) findNodes(labelValue string) func() (*corev1.NodeList, err
 // the preferred storage array in a metro configuration and select worker nodes with the
 // preferred=`labelValue` label.
 func (i *integration) failPreferredMetroConnection(labelValue string) error {
-	getNodes := i.findNodes(labelValue)
+	getNodes := i.getNodesWithPreferredLabelValue(labelValue)
 	return i.setPreferredMetroConnection(MetroConnectionFail, getNodes)
 }
 
@@ -1220,7 +1222,7 @@ func (i *integration) failPreferredMetroConnection(labelValue string) error {
 // the non preferred storage array in a metro configuration and select worker nodes with the
 // preferred=`labelValue` label.
 func (i *integration) failNonPreferredMetroConnection(labelValue string) error {
-	getNodes := i.findNodes(labelValue)
+	getNodes := i.getNodesWithPreferredLabelValue(labelValue)
 	return i.setNonPreferredMetroConnection(MetroConnectionFail, getNodes)
 }
 
@@ -1228,7 +1230,7 @@ func (i *integration) failNonPreferredMetroConnection(labelValue string) error {
 // for worker nodes with preferred=`labelValue` label, restoring the network connection between the
 // worker node and the preferred storage array in a metro configuration.
 func (i *integration) restorePreferredMetroConnection(labelValue string) error {
-	getNodes := i.findNodes(labelValue)
+	getNodes := i.getNodesWithPreferredLabelValue(labelValue)
 	return i.setPreferredMetroConnection(MetroConnectionRestore, getNodes)
 }
 
@@ -1236,7 +1238,7 @@ func (i *integration) restorePreferredMetroConnection(labelValue string) error {
 // for worker nodes with preferred=`labelValue` label, restoring the network connection between the
 // worker node and the non preferred storage array in a metro configuration.
 func (i *integration) restoreNonPreferredMetroConnection(labelValue string) error {
-	getNodes := i.findNodes(labelValue)
+	getNodes := i.getNodesWithPreferredLabelValue(labelValue)
 	return i.setNonPreferredMetroConnection(MetroConnectionRestore, getNodes)
 }
 
