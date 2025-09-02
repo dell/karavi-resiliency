@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,8 +33,11 @@ import (
 	"time"
 
 	"github.com/cucumber/godog"
+	"github.com/dell/csi-powerstore/v2/core"
 	pstoreArray "github.com/dell/csi-powerstore/v2/pkg/array"
+	pstoreController "github.com/dell/csi-powerstore/v2/pkg/controller"
 	pstoreID "github.com/dell/csi-powerstore/v2/pkg/identifiers"
+	"github.com/dell/gopowerstore"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -1195,29 +1199,95 @@ func (i *integration) cliToolIsInstalledOnThisMachine(cliToolName string) error 
 	return nil
 }
 
-// failPreferredMetroConnection utilizes iptables entries to simulate network failure between
-// the preferred storage array in a metro configuration and select worker nodes with the
-// preferred=`labelValue` label.
-func (i *integration) failPreferredMetroConnection(labelValue string) error {
+// getNodesWithPreferredLabelValue returns another function getNodes()
+// that selects the nodes that are labeled with the provided labelValue
+func (i *integration) getNodesWithPreferredLabelValue(labelValue string) func() (*corev1.NodeList, error) {
 	opts := getPreferredNodeOpts(true, labelValue)
 
 	getNodes := func() (*corev1.NodeList, error) {
 		return i.getNodes(context.Background(), opts)
 	}
+	return getNodes
+}
 
+// failPreferredMetroConnection utilizes iptables entries to simulate network failure between
+// the preferred storage array in a metro configuration and select worker nodes with the
+// preferred=`labelValue` label.
+func (i *integration) failPreferredMetroConnection(labelValue string) error {
+	getNodes := i.getNodesWithPreferredLabelValue(labelValue)
 	return i.setPreferredMetroConnection(MetroConnectionFail, getNodes)
+}
+
+// failNonPreferredMetroConnection utilizes iptables entries to simulate network failure between
+// the non preferred storage array in a metro configuration and select worker nodes with the
+// preferred=`labelValue` label.
+func (i *integration) failNonPreferredMetroConnection(labelValue string) error {
+	getNodes := i.getNodesWithPreferredLabelValue(labelValue)
+	return i.setNonPreferredMetroConnection(MetroConnectionFail, getNodes)
 }
 
 // restorePreferredMetroConnection removes iptables entries added by failPreferredMetroConnection
 // for worker nodes with preferred=`labelValue` label, restoring the network connection between the
 // worker node and the preferred storage array in a metro configuration.
 func (i *integration) restorePreferredMetroConnection(labelValue string) error {
-	opts := getPreferredNodeOpts(true, labelValue)
-
-	getNodes := func() (*corev1.NodeList, error) {
-		return i.getNodes(context.Background(), opts)
-	}
+	getNodes := i.getNodesWithPreferredLabelValue(labelValue)
 	return i.setPreferredMetroConnection(MetroConnectionRestore, getNodes)
+}
+
+// restoreNonPreferredMetroConnection removes iptables entries added by failNonPreferredMetroConnection
+// for worker nodes with preferred=`labelValue` label, restoring the network connection between the
+// worker node and the non preferred storage array in a metro configuration.
+func (i *integration) restoreNonPreferredMetroConnection(labelValue string) error {
+	getNodes := i.getNodesWithPreferredLabelValue(labelValue)
+	return i.setNonPreferredMetroConnection(MetroConnectionRestore, getNodes)
+}
+
+// setNonPreferredMetroConnection uses the gopowerstore client to determine the non preferred array for a
+// metro volume, and pstcli to get the iSCSI IPs for the storage array, then updates the iptable entries
+// for nodes returned by getNodes to either drop or accept (determined by operation) incoming packets from
+// the iSCSI IPs.
+func (i *integration) setNonPreferredMetroConnection(operation MetroConnection, getNodes func() (*corev1.NodeList, error)) error {
+	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[pstoreID.KeyArrayID])
+	if err != nil || preferredArray == nil {
+		return fmt.Errorf("unable to get PowerStore secret: %s", err.Error())
+	}
+
+	// Initializing the gopowerstore client
+	clientOptions := gopowerstore.NewClientOptions()
+	clientOptions.SetInsecure(true)
+	pstoreClient, err := gopowerstore.NewClientWithArgs(preferredArray.Endpoint, preferredArray.Username, preferredArray.Password, clientOptions)
+	pstoreClient.SetCustomHTTPHeaders(http.Header{
+		"Application-Type": {fmt.Sprintf("%s/%s", pstoreID.VerboseName, core.SemVer)},
+	})
+	pstoreClient.SetLogger(&pstoreID.CustomLogger{})
+
+	// Get the list of remote systems for the preferred array
+	remoteSystems, err := pstoreClient.GetAllRemoteSystems(context.Background())
+	if err != nil {
+		log.Infof("unable to get the remote systems: %s", err.Error())
+	}
+
+	var nonPreferredKeyArrayID string
+	// Filter the remote systems to find the arrayID of the non preferred array using the remote system mentioned in the storage class
+	remoteSystemID := i.storageClass.Parameters[pstoreController.ReplicationPrefix+"/"+pstoreController.KeyReplicationRemoteSystem]
+	for _, remoteSystem := range remoteSystems {
+		if remoteSystem.Name == remoteSystemID {
+			nonPreferredKeyArrayID = remoteSystem.SerialNumber
+			break
+		}
+	}
+
+	nonPreferredArray, err := i.getPowerStoreArrayInfo(nonPreferredKeyArrayID)
+	if err != nil || nonPreferredArray == nil {
+		return fmt.Errorf("unable to get PowerStore secret: %s", err.Error())
+	}
+	log.Infof("Non Preferred Array: %v", nonPreferredArray)
+
+	err = i.dropIncomingPackets(operation, nonPreferredArray, getNodes)
+	if err != nil {
+		return fmt.Errorf("unable to drop incoming packets: %s", err.Error())
+	}
+	return nil
 }
 
 // setPreferredMetroConnection uses the configured storage class to determine the preferred array for a
@@ -1230,11 +1300,21 @@ func (i *integration) setPreferredMetroConnection(operation MetroConnection, get
 		return fmt.Errorf("unable to get PowerStore secret: %s", err.Error())
 	}
 
+	err = i.dropIncomingPackets(operation, preferredArray, getNodes)
+	if err != nil {
+		return fmt.Errorf("unable to drop incoming packets: %s", err.Error())
+	}
+
+	return nil
+}
+
+func (i *integration) dropIncomingPackets(operation MetroConnection, array *pstoreArray.PowerStoreArray, getNodes func() (*corev1.NodeList, error)) error {
 	// get the iSCSI IPs via pstcli so we know which IPs to fail
-	iscsiIPs, err := getIscsiIPs(preferredArray.Endpoint, preferredArray.Username, preferredArray.Password)
+	iscsiIPs, err := getIscsiIPs(array.Endpoint, array.Username, array.Password)
 	if err != nil {
 		return fmt.Errorf("unable to get iSCSI IPs: %s", err.Error())
 	}
+	log.Infof("iSCSI IPs for the Array %s: %v", array.Endpoint, iscsiIPs)
 
 	// create a list of nodes to fail using the preferred label
 	nodesToFail, err := getNodes()
@@ -1266,7 +1346,7 @@ func (i *integration) setPreferredMetroConnection(operation MetroConnection, get
 			op = "-D" // delete previously added rule
 		}
 		for _, iscsiIP := range iscsiIPs {
-			dropPacketsCmd = dropPacketsCmd + fmt.Sprintf("iptables %s INPUT -j DROP -s %s; ", op, iscsiIP)
+			dropPacketsCmd = dropPacketsCmd + fmt.Sprintf("iptables %s INPUT -j DROP -s %s -m comment --comment %q; ", op, iscsiIP, "resiliency testing; delete me")
 		}
 
 		client := i.getSSHClient(nodeIP)
@@ -1274,7 +1354,6 @@ func (i *integration) setPreferredMetroConnection(operation MetroConnection, get
 			return fmt.Errorf("encountered an error while attempting to drop incoming iSCSI packets on preferred nodes: %s", err.Error())
 		}
 	}
-
 	return nil
 }
 
@@ -2960,7 +3039,9 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^a driver namespace name "([^"]*)"$`, i.setDriverNamespaceName)
 	context.Step(`^a driver secret name "([^"]*)"$`, i.setDriverSecretName)
 	context.Step(`^the connection fails between the preferred metro array and the nodes with "([^"]*)" label$`, i.failPreferredMetroConnection)
+	context.Step(`^the connection fails between the non preferred metro array and the nodes with "([^"]*)" label$`, i.failNonPreferredMetroConnection)
 	context.Step(`^the connection is restored between the preferred metro array and the nodes with "([^"]*)" label$`, i.restorePreferredMetroConnection)
+	context.Step(`^the connection is restored between the non preferred metro array and the nodes with "([^"]*)" label$`, i.restoreNonPreferredMetroConnection)
 	context.Step(`^nodes with pods and with "([^"]*)" label have taint "([^"]*)" within (\d+) seconds$`, i.labeledNodesWithPodsAreTainted)
 	context.Step(`^skip if "([^"]*)" is not compatible with "([^"]*)"$`, i.skipIfIsNotCompatibleWith)
 	context.Step(`^I set the correct driver type to "([^"]*)"$`, i.iSetTheCorrectDriverTypeTo)
