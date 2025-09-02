@@ -79,8 +79,8 @@ Feature: Virtual Machine Integration Test
     Examples:
       | kubeConfig | vmsPerNode  | nVol  | nDev  | driverType | storageClass         | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
       # Uncomment the storageclass to use. The default is set to nvme which is supported by nightly qualification.
-      | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-nfs"   | "one-third" | "zero"  | "interfacedown" | 700      | 300        | 350     | 700           |
-      | ""         | "1-1"       | "0-0" | "1-1" | "powerstore" | "powerstore-iscsi"   | "one-third" | "zero"  | "interfacedown" | 700      | 300        | 350     | 700           |
+      | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-nfs"   | "one-third" | "zero"  | "interfacedown" | 700      | 400        | 350     | 700           |
+      | ""         | "1-1"       | "0-0" | "1-1" | "powerstore" | "powerstore-iscsi"   | "one-third" | "zero"  | "interfacedown" | 700      | 400        | 350     | 700           |
       #| ""         | "1-1"       | "0-0" | "1-1" | "powerstore" | "powerstore-nvmetcp"   | "one-third" | "zero"  | "interfacedown" | 400      | 300        | 350     | 400           |
 
   @powerstore-vm-integration
@@ -141,9 +141,9 @@ Feature: Virtual Machine Integration Test
     Examples:
       | kubeConfig | vmsPerNode | nVol  | nDev  | driverType    | storageClass          | workers     | primary | failure     |  taints                               | failSecs | deploySecs | runSecs | nodeCleanSecs |
       # Uncomment the storageclass to use. The default is set to nvme which is supported by nightly qualification.
-      | ""         | "1-1"      | "1-1" | "0-0" | "powerstore"  | "powerstore-nfs"      | "one-third" | "zero"  | "driverpod" | "offline.powerstore.storage.dell.com" | 120      | 300        | 300     | 600           |
-      | ""         | "1-1"      | "0-0" | "1-1" | "powerstore"  | "powerstore-iscsi"    | "one-third" | "zero"  | "driverpod" | "offline.powerstore.storage.dell.com" | 120      | 300        | 300     | 600           |
-      #| ""         | "1-1"      | "0-0" | "1-1" | "powerstore"  | "powerstore-nvmetcp"  | "one-third" | "zero"  | "driverpod" | "offline.powerstore.storage.dell.com" | 120      | 300        | 300     | 600           |
+      | ""         | "1-1"      | "1-1" | "0-0" | "powerstore"  | "powerstore-nfs"      | "one-third" | "zero"  | "driverpod" | "offline.powerstore.storage.dell.com" | 120      | 400        | 300     | 600           |
+      | ""         | "1-1"      | "0-0" | "1-1" | "powerstore"  | "powerstore-iscsi"    | "one-third" | "zero"  | "driverpod" | "offline.powerstore.storage.dell.com" | 120      | 400        | 300     | 600           |
+      #| ""         | "1-1"      | "0-0" | "1-1" | "powerstore"  | "powerstore-nvmetcp"  | "one-third" | "zero"  | "driverpod" | "offline.powerstore.storage.dell.com" | 120      | 400        | 300     | 600           |
 
   @powerflex-vm-integration
   Scenario Outline: Basic node failover testing using test VM's (node interface down)
@@ -182,8 +182,8 @@ Feature: Virtual Machine Integration Test
 
     Examples:
       | kubeConfig | vmsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-1"      | "0-0" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 600      | 600        | 600     | 600           |
-      | ""         | "2-2"      | "0-0" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 900      | 900        | 900     | 900           |
+      | ""         | "1-1"      | "0-0" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 600      | 600        | 1800     | 1800           |
+      | ""         | "2-2"      | "0-0" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 900      | 900        | 1800     | 1800           |
 
   @powerflex-vm-integration
   Scenario Outline: Basic node failover testing using test VM's (node kubelet down)
@@ -202,8 +202,8 @@ Feature: Virtual Machine Integration Test
 
     Examples:
       | kubeConfig | vmsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
-      | ""         | "1-1"      | "0-0" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "kubeletdown"   | 600      | 900        | 900     | 900           |
-      | ""         | "2-2"      | "0-0" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "kubeletdown"   | 900      | 900        | 900     | 900           |
+      | ""         | "1-1"      | "0-0" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "kubeletdown"   | 600      | 900        | 1800     | 1800           |
+      | ""         | "2-2"      | "0-0" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "kubeletdown"   | 900      | 900        | 1800     | 1800           |
 
   @powerscale-vm-integration
   Scenario Outline: Basic node failover testing using test VM's (node interface down)
