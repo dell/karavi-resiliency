@@ -1868,9 +1868,14 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 	}
 
 	if int(*deployment.Spec.Replicas) == 1 {
+
+		label := "name=" + i.driverType + "-controller"
+		if i.driverType == "isilon" {
+			label = "app=" + i.driverType + "-controller"
+		}
 		// If there is only one replica, get node that the controller pod is running on and ensure that we don't fail it.
 		controllerPod, err := i.k8s.GetClient().CoreV1().Pods(i.driverType).List(context.Background(), metav1.ListOptions{
-			LabelSelector: "name=" + i.driverType + "-controller",
+			LabelSelector: label,
 		})
 		if err != nil {
 			return failedNodes, err
