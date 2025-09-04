@@ -1283,6 +1283,10 @@ func (i *integration) setNonPreferredMetroConnection(operation MetroConnection, 
 	clientOptions := gopowerstore.NewClientOptions()
 	clientOptions.SetInsecure(true)
 	pstoreClient, err := gopowerstore.NewClientWithArgs(preferredArray.Endpoint, preferredArray.Username, preferredArray.Password, clientOptions)
+	if err != nil {
+		return fmt.Errorf("unable to create PowerStore client: %s", err.Error())
+	}
+
 	pstoreClient.SetCustomHTTPHeaders(http.Header{
 		"Application-Type": {fmt.Sprintf("%s/%s", pstoreID.VerboseName, core.SemVer)},
 	})
@@ -1868,21 +1872,21 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 	}
 
 	if int(*deployment.Spec.Replicas) == 1 {
+		expectedControllerPodName := i.driverType + "-controller"
 
-		label := "name=" + i.driverType + "-controller"
-		if i.driverType == "isilon" {
-			label = "app=" + i.driverType + "-controller"
-		}
 		// If there is only one replica, get node that the controller pod is running on and ensure that we don't fail it.
-		controllerPod, err := i.k8s.GetClient().CoreV1().Pods(i.driverType).List(context.Background(), metav1.ListOptions{
-			LabelSelector: label,
-		})
+		driverPods, err := i.k8s.GetClient().CoreV1().Pods(i.driverType).List(context.Background(), metav1.ListOptions{})
 		if err != nil {
 			return failedNodes, err
 		}
 
-		log.Infof("Controller pod is running on node %s", controllerPod.Items[0].Spec.NodeName)
-		i.shouldNotFailNode = controllerPod.Items[0].Spec.NodeName
+		for _, pod := range driverPods.Items {
+			if strings.Contains(pod.Name, expectedControllerPodName) {
+				log.Infof("[FERNANDO] Controller pod is running on node %s", pod.Spec.NodeName)
+				i.shouldNotFailNode = pod.Spec.NodeName
+				break
+			}
+		}
 	}
 
 	failed := 0
@@ -2133,12 +2137,13 @@ func (i *integration) writeAndVerifyDiskOnVM(vmName, namespace string) error {
 		vmName, namespace, expectedData)
 
 	var writeErr error
+	var writeOut []byte
 	retries := 3
 	retryDelay := 30 * time.Second
 
 	for attempt := 0; attempt <= retries; attempt++ {
 		log.Printf("Running (attempt %d/%d): %s", attempt+1, retries, writeCmd)
-		writeOut, writeErr := exec.Command("bash", "-c", writeCmd).CombinedOutput()
+		writeOut, writeErr = exec.Command("bash", "-c", writeCmd).CombinedOutput()
 		if writeErr != nil {
 			log.Printf("Write failed on %s (attempt %d/%d): %s", vmName, attempt+1, retries, string(writeOut))
 			if attempt < retries {
@@ -2172,7 +2177,7 @@ func (i *integration) verifyDiskContentOnVM(vmName, namespace string) error {
 
 	for attempt := 0; attempt <= retries; attempt++ {
 		log.Printf("Running (attempt %d/%d): %s", attempt+1, retries, readCmd)
-		readOut, readErr := exec.Command("bash", "-c", readCmd).CombinedOutput()
+		readOut, readErr = exec.Command("bash", "-c", readCmd).CombinedOutput()
 		if readErr != nil {
 			log.Printf("Read failed on %s (attempt %d/%d): %s", vmName, attempt+1, retries, string(readOut))
 			if attempt < retries {
@@ -2364,6 +2369,8 @@ func (i *integration) startK8sPoller() {
 		select {
 		case <-pollTick.C:
 			i.k8sPoll()
+		default:
+			continue
 		}
 	}
 }
