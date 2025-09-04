@@ -1882,7 +1882,7 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 
 		for _, pod := range driverPods.Items {
 			if strings.Contains(pod.Name, expectedControllerPodName) {
-				log.Infof("[FERNANDO] Controller pod is running on node %s", pod.Spec.NodeName)
+				log.Infof("Controller pod is running on node %s", pod.Spec.NodeName)
 				i.shouldNotFailNode = pod.Spec.NodeName
 				break
 			}
