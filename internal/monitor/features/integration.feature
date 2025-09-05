@@ -182,10 +182,10 @@ Feature: Integration Test
     Then finally cleanup everything
 
     Examples:
-      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
+      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
      # Small number of pods, increasing number of vols and devs
-      | ""         | "1-2"       | "1-1" | "0-0" | "isilon"    | "isilon" | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
-      | ""         | "3-5"       | "2-2" | "0-0" | "isilon"    | "isilon" | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
+      | ""         | "1-2"       | "1-1" | "0-0" | "isilon"   | "isilon"     | "one-third" | "zero"  | "interfacedown" | 120      | 900        | 900     | 900           |
+      | ""         | "3-5"       | "2-2" | "0-0" | "isilon"   | "isilon"     | "one-third" | "zero"  | "interfacedown" | 240      | 900        | 900     | 900           |
   
   @powerstore-integration @powerstore-sanity-test
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
