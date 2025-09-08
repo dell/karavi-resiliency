@@ -182,10 +182,10 @@ Feature: Integration Test
     Then finally cleanup everything
 
     Examples:
-      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass  | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
+      | kubeConfig | podsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
      # Small number of pods, increasing number of vols and devs
-      | ""         | "1-2"       | "1-1" | "0-0" | "isilon"    | "isilon" | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
-      | ""         | "3-5"       | "2-2" | "0-0" | "isilon"    | "isilon" | "one-third" | "zero"  | "interfacedown" | 900      | 900        | 900     | 900           |
+      | ""         | "1-2"       | "1-1" | "0-0" | "isilon"   | "isilon"     | "one-third" | "zero"  | "interfacedown" | 120      | 900        | 900     | 900           |
+      | ""         | "3-5"       | "2-2" | "0-0" | "isilon"   | "isilon"     | "one-third" | "zero"  | "interfacedown" | 240      | 900        | 900     | 900           |
   
   @powerstore-integration @powerstore-sanity-test
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
@@ -301,6 +301,50 @@ Feature: Integration Test
       | kubeConfig  | podsPerNode | nVol  | nDev  | driverNamespaceName | driverSecretName      | driverType    | storageClass        | workers     | migrateSecs | failSecs  | deploySecs  | nodeCleanSecs | runSecs | preferred | taint                                 |
       | ""          | "1-1"       | "1-1" | "0-0" | "powerstore"        | "powerstore-config"   | "powerstore"  | "powerstore-metro"  | "one-third" | 300         | 300       | 300         | 300           | 300     | "site"    | "powerstore.podmon.storage.dell.com"  |
   
+  @powerstore-integration @powerstore-metro-integration
+  Scenario Outline: Non-Preferred array failure from the preferred node testing using test StatefulSet pods (iptables drop iscsi)
+    Given a kubernetes <kubeConfig>
+    And a driver namespace name <driverNamespaceName>
+    And a driver secret name <driverSecretName>
+    And cluster is clean of test pods
+    And wait <nodeCleanSecs> to see there are no taints
+    And label <workers> node as <preferred> site
+    And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs> with <preferred> affinity
+    Then validate that all pods are running within <deploySecs> seconds
+    And all pods are running on <preferred> node
+    Then the connection fails between the non preferred metro array and the nodes with <preferred> label
+    Then verify pods do not migrate for <migrateSecs> seconds
+    And validate that all pods are running within <runSecs> seconds
+    And all pods are running on <preferred> node
+    When the connection is restored between the non preferred metro array and the nodes with <preferred> label
+    And validate that all pods are running within <runSecs> seconds
+    And all pods are running on <preferred> node
+    And the taints for the failed nodes are removed within <nodeCleanSecs> seconds
+    And verify pods do not migrate for <migrateSecs> seconds
+    Then finally cleanup everything
+
+    Examples:
+      | kubeConfig  | podsPerNode | nVol  | nDev  | driverNamespaceName | driverSecretName      | driverType    | storageClass        | workers     | migrateSecs | failSecs  | deploySecs  | nodeCleanSecs | runSecs | preferred | taint                                 |
+      | ""          | "1-1"       | "1-1" | "0-0" | "powerstore"        | "powerstore-config"   | "powerstore"  | "powerstore-metro"  | "one-third" | 300         | 300       | 300         | 300           | 300     | "site"    | "powerstore.podmon.storage.dell.com"  |
+
+  @powerstore-integration @powerstore-metro-integration
+  Scenario Outline: All Non-Preferred-site Node Failure - Few nodes having preferred node labels not set
+    Given a kubernetes <kubeConfig>
+    And cluster is clean of test pods
+    And wait <nodeCleanSecs> to see there are no taints
+    And label <workers> node as <preferred> site
+    And <podsPerNode> pods per node with <nVol> volumes and <nDev> devices using <driverType> and <storageClass> in <deploySecs> with <preferred> affinity
+    Then validate that all pods are running within <deploySecs> seconds
+    And all pods are running on <preferred> node
+    When I fail non <preferred> nodes with <failure> failure for <failSecs> seconds
+    Then validate that all pods are running within <deploySecs> seconds
+    And all pods are running on <preferred> node
+    Then finally cleanup everything
+
+    Examples:
+      | kubeConfig | podsPerNode | nVol  | nDev  | driverType   | storageClass         | workers      | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs | preferred |
+      | ""         | "1-1"       | "1-1" | "0-0" | "powerstore" | "powerstore-metro"   | "one-half"   | "interfacedown" | 120      | 600        | 600     | 600           | "site"|
+
   @unity-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
     Given a kubernetes <kubeConfig>
