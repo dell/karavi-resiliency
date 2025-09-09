@@ -2138,10 +2138,10 @@ func (i *integration) writeAndVerifyDiskOnVM(vmName, namespace string) error {
 
 	var writeErr error
 	var writeOut []byte
-	retries := 3
+	retries := 10
 	retryDelay := 30 * time.Second
 
-	for attempt := 0; attempt <= retries; attempt++ {
+	for attempt := 0; attempt < retries; attempt++ {
 		log.Printf("Running (attempt %d/%d): %s", attempt+1, retries, writeCmd)
 		writeOut, writeErr = exec.Command("bash", "-c", writeCmd).CombinedOutput()
 		if writeErr != nil {
@@ -2170,12 +2170,12 @@ func (i *integration) verifyDiskContentOnVM(vmName, namespace string) error {
 			"--command \"sudo dd if=/dev/vdc bs=1 count=150\"",
 		vmName, namespace)
 
-	retries := 3
+	retries := 10
 	retryDelay := 30 * time.Second
 	var readOut []byte
 	var readErr error
 
-	for attempt := 0; attempt <= retries; attempt++ {
+	for attempt := 0; attempt < retries; attempt++ {
 		log.Printf("Running (attempt %d/%d): %s", attempt+1, retries, readCmd)
 		readOut, readErr = exec.Command("bash", "-c", readCmd).CombinedOutput()
 		if readErr != nil {
