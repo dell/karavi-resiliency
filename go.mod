@@ -1,6 +1,7 @@
 module podmon
 
 go 1.25
+toolchain go1.25.1
 
 require (
 	github.com/bramvdbogaerde/go-scp v1.5.0
