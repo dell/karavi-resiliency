@@ -21,17 +21,17 @@ import (
 	"sync"
 	"time"
 
-	"podmon/internal/csiapi"
-	"podmon/internal/k8sapi"
-	"podmon/internal/mocks"
-	"podmon/internal/monitor"
-
 	"github.com/cucumber/godog"
 	"github.com/dell/gofsutil"
 	logtest "github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"k8s.io/client-go/kubernetes"
+
+	"podmon/internal/csiapi"
+	"podmon/internal/k8sapi"
+	"podmon/internal/mocks"
+	"podmon/internal/monitor"
 )
 
 type mainFeature struct {

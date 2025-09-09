@@ -2962,7 +2962,7 @@ func newTimerWithTicker(waitTimeSec int) (timeout *time.Timer, ticker *time.Tick
 		ticker.Stop()
 	}
 
-	return
+	return timeout, ticker, stop
 }
 
 func (i *integration) getDriverControllerDeployment(driverType string) (*v1.Deployment, error) {

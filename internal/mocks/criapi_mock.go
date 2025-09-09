@@ -20,9 +20,8 @@ import (
 	"context"
 	"errors"
 
-	"podmon/internal/criapi"
-
 	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
+	"podmon/internal/criapi"
 )
 
 // MockClient is a mock client supporting the criapi.

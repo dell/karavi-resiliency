@@ -21,16 +21,16 @@ import (
 	"sync"
 	"time"
 
-	"podmon/internal/csiapi"
-	"podmon/internal/k8sapi"
-	"podmon/internal/monitor"
-
 	csiext "github.com/dell/dell-csi-extensions/podmon"
 	"github.com/fsnotify/fsnotify"
 	"github.com/kubernetes-csi/csi-lib-utils/leaderelection"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
+
+	"podmon/internal/csiapi"
+	"podmon/internal/k8sapi"
+	"podmon/internal/monitor"
 )
 
 type leaderElection interface {
