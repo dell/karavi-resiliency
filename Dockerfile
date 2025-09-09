@@ -30,8 +30,8 @@ LABEL vendor="Dell Technologies" \
       name="csm-resiliency" \
       summary="Dell Container Storage Modules (CSM) for Resiliency" \
       description="Makes Kubernetes applications, including those that utilize persistent storage, more resilient to various failures" \
-      release="1.14.0" \
-      version="1.13.0" \
+      release="1.15.0" \
+      version="1.14.0" \
       license="Apache-2.0"
 
 COPY licenses licenses/
