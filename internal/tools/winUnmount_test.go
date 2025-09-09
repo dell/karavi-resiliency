@@ -1,3 +1,6 @@
+//go:build test || windows
+// +build test windows
+
 /*
  *
  * Copyright © 2021-2024 Dell Inc. or its subsidiaries. All Rights Reserved.
@@ -15,9 +18,6 @@
  * limitations under the License.
  *
  */
-
-//go:build test || windows
-// +build test windows
 
 package tools
 

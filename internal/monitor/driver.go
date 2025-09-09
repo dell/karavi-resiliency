@@ -17,8 +17,9 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
-	"podmon/internal/tools"
 	"strings"
+
+	"podmon/internal/tools"
 
 	log "github.com/sirupsen/logrus"
 )

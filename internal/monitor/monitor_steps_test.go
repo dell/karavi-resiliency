@@ -21,13 +21,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"podmon/internal/criapi"
-	"podmon/internal/mocks"
-	"podmon/internal/tools"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"podmon/internal/criapi"
+	"podmon/internal/mocks"
+	"podmon/internal/tools"
 
 	"github.com/cucumber/godog"
 	"github.com/dell/gofsutil"
