@@ -80,7 +80,7 @@ Feature: Integration Test
     And can logon to nodes and drop test scripts
     Examples:
       | kubeConfig | driverNames                  | namespace    | name       | storageClasses                |
-      | ""         | "csi-powermax.dellemc.com"   | "powermax"   | "powermax" | "powermax-iscsi, powermax-fc" |
+      | ""         | "csi-powermax.dellemc.com"   | "powermax"   | "powermax" | "powermax-iscsi, powermax-nfs" |
 
   @powerflex-integration
   Scenario Outline: Basic node failover testing using test StatefulSet pods (node interface down)
