@@ -339,7 +339,7 @@ func TestPowerStoreSanityTest(t *testing.T) {
 	log.Printf("Integration test finished")
 }
 
-func TestPowerMaxSanitytest(t *testing.T) {
+func TestPowerMaxSanityTest(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableSanityTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
 		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableSanityTestVar)
