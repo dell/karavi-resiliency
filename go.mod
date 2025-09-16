@@ -7,9 +7,9 @@ require (
 	github.com/container-storage-interface/spec v1.6.0
 	github.com/cucumber/godog v0.15.0
 	github.com/dell/csi-powerstore/v2 v2.14.1-0.20250818152723-adb67faa6011
-	github.com/dell/dell-csi-extensions/podmon v1.8.1-0.20250905054742-ad01c425487b
-	github.com/dell/gofsutil v1.19.1-0.20250905055737-9760342d7345
-	github.com/dell/gopowerstore v1.19.1-0.20250905060817-c5edb45ef196
+	github.com/dell/dell-csi-extensions/podmon v1.9.0
+	github.com/dell/gofsutil v1.20.0
+	github.com/dell/gopowerstore v1.20.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/golang/mock v1.6.0
 	github.com/kubernetes-csi/csi-lib-utils v0.11.0
@@ -34,13 +34,13 @@ require (
 	github.com/cucumber/messages/go/v21 v21.0.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dell/csm-sharednfs v1.0.0 // indirect
-	github.com/dell/dell-csi-extensions/common v1.8.1-0.20250905054742-ad01c425487b // indirect
-	github.com/dell/dell-csi-extensions/replication v1.11.1-0.20250905054742-ad01c425487b // indirect
+	github.com/dell/dell-csi-extensions/common v1.9.0 // indirect
+	github.com/dell/dell-csi-extensions/replication v1.12.0 // indirect
 	github.com/dell/dell-csi-extensions/volumeGroupSnapshot v1.8.1 // indirect
-	github.com/dell/gobrick v1.14.1-0.20250905070950-cfc6233bb65d // indirect
-	github.com/dell/gocsi v1.14.1-0.20250905061753-91bcfb5340eb // indirect
-	github.com/dell/goiscsi v1.12.1-0.20250905060008-55acbdc24de2 // indirect
-	github.com/dell/gonvme v1.11.1-0.20250905062246-29901c861fe6 // indirect
+	github.com/dell/gobrick v1.15.0 // indirect
+	github.com/dell/gocsi v1.15.0 // indirect
+	github.com/dell/goiscsi v1.13.0 // indirect
+	github.com/dell/gonvme v1.12.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.12.2 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
@@ -75,7 +75,7 @@ require (
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
-	github.com/spf13/pflag v1.0.6 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.etcd.io/etcd/api/v3 v3.6.1 // indirect
@@ -88,8 +88,8 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sync v0.16.0 // indirect
-	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/sync v0.17.0 // indirect
+	golang.org/x/sys v0.36.0 // indirect
 	golang.org/x/term v0.34.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.9.0 // indirect
