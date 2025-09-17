@@ -6,7 +6,7 @@ require (
 	github.com/bramvdbogaerde/go-scp v1.5.0
 	github.com/container-storage-interface/spec v1.6.0
 	github.com/cucumber/godog v0.15.0
-	github.com/dell/csi-powerstore/v2 v2.14.1-0.20250818152723-adb67faa6011
+	github.com/dell/csi-powerstore/v2 v2.15.0
 	github.com/dell/dell-csi-extensions/podmon v1.9.0
 	github.com/dell/gofsutil v1.20.0
 	github.com/dell/gopowerstore v1.20.0
