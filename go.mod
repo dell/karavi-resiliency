@@ -34,7 +34,7 @@ require (
 	github.com/cucumber/messages/go/v21 v21.0.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dell/csm-sharednfs v1.0.0 // indirect
-	github.com/dell/dell-csi-extensions/common v1.9.0 // indirect
+	github.com/dell/dell-csi-extensions/common v1.9.1-0.20250916113526-fe78a563d94f // indirect
 	github.com/dell/dell-csi-extensions/replication v1.12.0 // indirect
 	github.com/dell/dell-csi-extensions/volumeGroupSnapshot v1.8.1 // indirect
 	github.com/dell/gobrick v1.15.0 // indirect
