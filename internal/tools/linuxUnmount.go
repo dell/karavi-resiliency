@@ -1,5 +1,4 @@
 //go:build test || linux
-// +build test linux
 
 /*
 * Copyright (c) 2021-2022 Dell Inc., or its subsidiaries. All Rights Reserved.
