@@ -42,6 +42,7 @@ Certain configuration information is passed via environment variables. The tests
 - `NODE_USER`: the user of the Kubernetes worker node.
 - `PASSWORD`: the password for the user of the Kubernetes worker node.
 - `REGISTRY_HOST`: the registry from which a Kubernetes node can pull the `podmontest` test image. Should be the same as `REGISTRY` provided when building `podmontest`.
+- `PODMONTEST_VERSION`: the version of `podmontest` to pull with association to `REGISTRY_HOST`. Note: This is only necessary when dynamically deploying pods through integration tests.
 
 > Test execution example:
 > ```bash

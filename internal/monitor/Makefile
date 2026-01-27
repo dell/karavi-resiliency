@@ -93,6 +93,29 @@ powerstore-metro-integration-test:
 	POWERSTORE_METRO="true" \
 	go test -timeout 6h -test.v -test.run "^\QTestPowerStoreFirstCheck\E|\QTestPowerStoreMetroIntegration\E"
 
+pstcli-integration-validation:
+	RESILIENCY_INT_TEST="true" \
+	POLL_K8S="false" \
+	SCRIPTS_DIR="../../test/sh" \
+	POWERSTORE_METRO="true" \
+	go test -timeout 6h -test.v -test.run "^\QTestPowerStoreFirstCheck\E|\QTestPstcliIntegrationValidation\E"
+
+powerstore-metro-nonuniform-integration-test:
+	RESILIENCY_INT_TEST="true" \
+	RESILIENCY_TEST_CLEANUP="true" \
+	POLL_K8S="true" \
+	SCRIPTS_DIR="../../test/sh" \
+	POWERSTORE_METRO_NONUNIFORM="true" \
+	go test -timeout 6h -test.v -test.run "^\QTestPowerStoreFirstCheck\E|\QTestPowerStoreMetroNonUniformIntegration\E"
+
+powerstore-metro-uniform-integration-test:
+	RESILIENCY_INT_TEST="true" \
+	RESILIENCY_TEST_CLEANUP="true" \
+	POLL_K8S="true" \
+	SCRIPTS_DIR="../../test/sh" \
+	POWERSTORE_METRO="true" \
+	go test -timeout 6h -test.v -test.run "^\QTestPowerStoreFirstCheck\E|\QTestPowerStoreMetroUniformIntegration\E"
+
 powermax-integration-test:
 	RESILIENCY_INT_TEST="true" \
 	RESILIENCY_TEST_CLEANUP="true" \

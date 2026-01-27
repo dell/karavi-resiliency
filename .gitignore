@@ -1,2 +1,7 @@
 /internal/monitor/*.json
 /internal/monitor/*.xml
+vendor/
+
+# Support make files
+semver.mk
+csm-common.mk

@@ -1,5 +1,6 @@
 // File: linuxUnmount_test.go
 //go:build test || linux
+// +build test linux
 
 package tools
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2024 Dell Inc., or its subsidiaries. All Rights Reserved.
+# Copyright (c) 2021-2026 Dell Inc., or its subsidiaries. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,30 +11,33 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 ARG GOIMAGE
 ARG BASEIMAGE
+ARG VERSION="1.15.0"
 
 # Build the module binary
 FROM $GOIMAGE as builder
 
 WORKDIR /workspace
-COPY . .
+COPY . /workspace
 
 # Build the binary
-RUN GOOS=linux CGO_ENABLED=0 go build -o podmon ./cmd/podmon/
+RUN make build
 
 # Stage to build the module image
 FROM $BASEIMAGE AS final
+ARG VERSION
 LABEL vendor="Dell Technologies" \
       maintainer="Dell Technologies" \
       name="csm-resiliency" \
       summary="Dell Container Storage Modules (CSM) for Resiliency" \
       description="Makes Kubernetes applications, including those that utilize persistent storage, more resilient to various failures" \
-      release="1.15.0" \
-      version="1.14.0" \
+      release="1.16.0" \
+      version=$VERSION \
       license="Apache-2.0"
 
-COPY licenses licenses/
+COPY licenses /licenses
 COPY --from=builder /workspace/podmon /
 
 ENTRYPOINT [ "/podmon" ]

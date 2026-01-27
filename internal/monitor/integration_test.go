@@ -26,9 +26,10 @@ import (
 )
 
 const (
-	enableIntTestVar      = "RESILIENCY_INT_TEST"
-	enableStopOnFailure   = "RESILIENCY_INT_TEST_STOP_ON_FAILURE"
-	enablePowerstoreMetro = "POWERSTORE_METRO"
+	enableIntTestVar                = "RESILIENCY_INT_TEST"
+	enableStopOnFailure             = "RESILIENCY_INT_TEST_STOP_ON_FAILURE"
+	enablePowerstoreMetro           = "POWERSTORE_METRO"
+	enablePowerstoreNonUniformMetro = "POWERSTORE_METRO_NONUNIFORM"
 )
 
 var setupIsGood = false
@@ -148,6 +149,9 @@ func TestPowerStoreFirstCheck(t *testing.T) {
 	tag := "powerstore-int-setup-check"
 	if isMetro := os.Getenv(enablePowerstoreMetro); isMetro == "true" {
 		tag = "powerstore-metro-int-setup-check"
+	}
+	if isNonUniformMetro := os.Getenv(enablePowerstoreNonUniformMetro); isNonUniformMetro == "true" {
+		tag = "powerstore-metro-int-nonuniform-setup-check"
 	}
 
 	godogOptions := godog.Options{
@@ -389,6 +393,113 @@ func TestPowerStoreMetroIntegration(t *testing.T) {
 		t.Error("There were failed metro integration tests")
 	}
 	log.Printf("Metro Integration test finished")
+}
+
+func TestPowerStoreMetroUniformIntegration(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableIntTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableIntTestVar)
+		return
+	}
+
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
+	log.Printf("Starting PowerStore Metro Uniform integration test")
+	godogOptions := godog.Options{
+		Format:        "pretty,junit:powerstore-metro-uniform-integration-junit-report.xml,cucumber:powerstore-metro-uniform-integration-cucumber-report.json",
+		Paths:         []string{"features"},
+		Tags:          "powerstore-metro-integration-uniform",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "powerstore-metro-integration-uniform",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Error("There were failed uniform metro integration tests")
+	}
+	log.Printf("Metro Integration Uniform test finished")
+}
+
+func TestPowerStoreMetroNonUniformIntegration(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableIntTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableIntTestVar)
+		return
+	}
+
+	if !setupIsGood {
+		message := "The setup check failed. Tests skipped"
+		log.Print(message)
+		t.Error(message)
+		return
+	}
+
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
+	log.Printf("Starting PowerStore Metro Non-Uniform integration test")
+	godogOptions := godog.Options{
+		Format:        "pretty,junit:powerstore-metro-nonuniform-integration-junit-report.xml,cucumber:powerstore-metro-nonuniform-integration-cucumber-report.json",
+		Paths:         []string{"features"},
+		Tags:          "powerstore-metro-integration-nonuniform",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "metro-integration-nonuniform",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Error("There were failed non-uniform metro integration tests")
+	}
+	log.Printf("Metro Integration Non-Uniform test finished")
+}
+
+func TestPstcliIntegrationValidation(t *testing.T) {
+	intTestEnvVarStr := os.Getenv(enableIntTestVar)
+	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
+		log.Printf("Skipping integration test. To enable integration test: export %s=true", enableIntTestVar)
+		return
+	}
+
+	if !setupIsGood {
+		message := "The setup check failed. Tests skipped"
+		log.Print(message)
+		t.Error(message)
+		return
+	}
+
+	stopOnFailureStr := os.Getenv(enableStopOnFailure)
+	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
+		stopOnFailure = false
+	}
+	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+
+	log.Printf("Starting Pstcli Validation Test")
+	godogOptions := godog.Options{
+		Format:        "pretty,junit:pstcli-integration-validation-junit-report.xml,cucumber:pstcli-integration-validation-cucumber-report.json",
+		Paths:         []string{"features"},
+		Tags:          "pstcli-integration-validation",
+		StopOnFailure: stopOnFailure,
+	}
+	status := godog.TestSuite{
+		Name:                "pstcli-integration-validation",
+		ScenarioInitializer: IntegrationTestScenarioInit,
+		Options:             &godogOptions,
+	}.Run()
+	if status != 0 {
+		t.Error("There were failed pstcli integration validation")
+	}
+	log.Printf("Pstcli integration validation finished")
 }
 
 func TestPowerMaxIntegration(t *testing.T) {

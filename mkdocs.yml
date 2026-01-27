@@ -1,0 +1,7 @@
+site_name: 'karavi-resiliency'
+site_description: 'karavi-resiliency Documentation.'
+docs_dir: docs
+plugins:
+  - techdocs-core
+theme:
+  name: material

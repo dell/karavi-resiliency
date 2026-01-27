@@ -29,8 +29,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cucumber/godog"
 	"github.com/dell/gofsutil"
+	"github.com/cucumber/godog"
 	log "github.com/sirupsen/logrus"
 	logtest "github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
@@ -200,6 +200,7 @@ func (f *feature) iHaveAPodsForNodeWithVolumesDevicesCondition(nPods int, nodeNa
 		dir := os.TempDir()
 		CSIVolumePathFormat = filepath.Join(dir, "node-mode-testPath-%s")
 		mockCSIVolumePath := fmt.Sprintf(CSIVolumePathFormat, pod.UID)
+		CSIDevicePathFormat = filepath.Join(dir, "node-mode-devicePath-%s")
 		mockCSIDevicePath := fmt.Sprintf(CSIDevicePathFormat, pod.UID)
 
 		err = os.Mkdir(mockCSIVolumePath, 0o700)
