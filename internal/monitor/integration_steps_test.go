@@ -32,21 +32,28 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cucumber/godog"
 	"github.com/dell/csi-powerstore/v2/core"
 	pstoreArray "github.com/dell/csi-powerstore/v2/pkg/array"
 	pstoreController "github.com/dell/csi-powerstore/v2/pkg/controller"
 	pstoreID "github.com/dell/csi-powerstore/v2/pkg/identifiers"
 	"github.com/dell/gopowerstore"
+	"github.com/cucumber/godog"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 )
+
+type customResource struct {
+	APIVersion string        `json:"apiVersion"`
+	Items      []interface{} `json:"items"`
+	Kind       string        `json:"kind"`
+}
 
 type integration struct {
 	configPath          string
@@ -61,13 +68,15 @@ type integration struct {
 	testNamespacePrefix map[string]bool
 	scriptsDir          string
 	// map using pod names as keys to the node name on which they are scheduled
-	labeledPodsToNodes    map[string]string
-	nodesToTaints         map[string]string
-	isOpenshift           bool
-	bastionNode           string
-	customTaints          string
-	preferredLabeledNodes []string
-	shouldNotFailNode     string
+	labeledPodsToNodes     map[string]string
+	nodesToTaints          map[string]string
+	isOpenshift            bool
+	bastionNode            string
+	customTaints           string
+	preferredLabeledNodes  []string
+	shouldNotFailNode      string
+	isLabelCleanupRequired bool
+	metroVolInfo           map[string]volumeInformation
 }
 
 // Used for determining whether to disable or re-enable network connection
@@ -81,6 +90,15 @@ const (
 	MetroConnectionRestore MetroConnection = "ALLOW"
 	MetroConnectionFail    MetroConnection = "BLOCK"
 )
+
+type volumeInformation struct {
+	ID                  string `json:"id"`
+	Name                string `json:"name"`
+	ReplicationSessions []struct {
+		ID    string `json:"id"`
+		State string `json:"state"`
+	} `json:"replication_sessions"`
+}
 
 // Used for keeping of track of the last test that was
 // run, so that we can clean up in case of failure
@@ -132,12 +150,14 @@ const (
 	PowerStoreNS        = "pmtps"
 	PowerMaxNS          = "pmtpm"
 	VM                  = "vm"
-	preferredLabelKey   = "preferred"
+	preferredLabelKey   = "topology.kubernetes.io/zone"
 	// The name of the PowerStore secret as queried by Kubernetes
 	powerstoreSecretName = "powerstore-config"
 	// The name of the parent key under which the array config is
 	// listed in the powerstore secret
 	powerstoreSecretDataKeyName = "config"
+	blockTrafficScriptName      = "block-traffic.sh"
+	customResourceDR            = "/apis/dr.storage.dell.com/v1"
 )
 
 // Used for stopping the test from continuing
@@ -229,6 +249,8 @@ func (i *integration) givenKubernetes(configPath string) error {
 		return err
 	}
 
+	i.isLabelCleanupRequired = true
+
 	if i.isOpenshift {
 		// Expecting env var pointing to the Bastion node hostname/IP
 		i.bastionNode = os.Getenv(OpenshiftBastion)
@@ -248,6 +270,56 @@ func (i *integration) givenKubernetes(configPath string) error {
 	i.testNamespacePrefix = make(map[string]bool)
 
 	return nil
+}
+
+func (i *integration) allPodsAreNotRunningWithinSeconds(wait int) error {
+	// Check each of the test namespaces for running pods
+	allRunning, err := i.allPodsInTestNamespacesAreRunning()
+	if err != nil {
+		return err
+	}
+
+	if allRunning {
+		return fmt.Errorf("All test pods are in the 'Running' state")
+	}
+
+	log.Infof("Test pods are not all running. Waiting up to %d seconds.", wait)
+	timeoutDuration := time.Duration(wait) * time.Second
+	timeout := time.NewTimer(timeoutDuration)
+	ticker := time.NewTicker(checkTickerInterval * time.Second)
+	done := make(chan bool)
+	start := time.Now()
+
+	go func() {
+		for {
+			select {
+			case <-timeout.C:
+				log.Info("Timed out, but doing a last check to see if all test pods are running")
+				// Check each of the test namespaces for running pods (final check)
+				allRunning, err = i.allPodsInTestNamespacesAreRunning()
+				done <- true
+			case <-ticker.C:
+				log.Infof("Checking if all test pods are running (time left %v)", timeoutDuration-time.Since(start))
+				// Check each of the test namespaces for running pods (final check)
+				allRunning, err = i.allPodsInTestNamespacesAreRunning()
+				if allRunning {
+					done <- true
+				}
+			}
+		}
+	}()
+
+	<-done
+	timeout.Stop()
+	ticker.Stop()
+
+	if err != nil {
+		return err
+	}
+	log.Infof("Completed pod running check after %v (allRunning=%v)", time.Since(start), allRunning)
+
+	return AssertExpectedAndActual(assert.Equal, false, allRunning,
+		fmt.Sprintf("Expected all pods to be not in running state after %d seconds", wait))
 }
 
 func (i *integration) allPodsAreRunningWithinSeconds(wait int) error {
@@ -307,7 +379,7 @@ func (i *integration) failWorkerAndPrimaryNodes(numNodes, numPrimary, failure st
 
 func (i *integration) failLabeledNodes(preferred, failure string, wait int) error {
 	failedWorkers, err := i.failNodes(func(node corev1.Node) bool {
-		return node.Labels["preferred"] == preferred
+		return node.Labels[preferredLabelKey] == preferred
 	}, -1, failure, wait)
 	if err != nil {
 		return err
@@ -330,7 +402,7 @@ func (i *integration) failNonpreferredNodesWithFailureForSeconds(preferred strin
 		}
 
 		// Check if the node's label indicates it's not a preferred site
-		val, ok := node.Labels["preferred"]
+		val, ok := node.Labels[preferredLabelKey]
 		if !ok || val != preferred {
 			return true
 		}
@@ -914,7 +986,7 @@ func (i *integration) thereAreDriverPodsWithThisPrefix(namespace, prefix string)
 	//  - There is a controller podmon container running
 	//  - There are node podmon containers running
 	controllersRunning := nRunningControllers != 0
-	allNodesRunning := nRunningNode == nWorkerNodes
+	allNodesRunning := nRunningNode >= nWorkerNodes
 
 	// First, check if we have the expected pods running
 	err = AssertExpectedAndActual(assert.Equal, true, controllersRunning && allNodesRunning,
@@ -936,7 +1008,7 @@ func (i *integration) removePreferredLabels() error {
 	log.Println("Removing preferred labels from nodes")
 
 	// Clean up nodes with the label
-	labelKey := "preferred"
+	labelKey := preferredLabelKey
 	nodes, err := i.k8s.GetClient().CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
 		LabelSelector: labelKey,
 	})
@@ -960,7 +1032,9 @@ func (i *integration) removePreferredLabels() error {
 func (i *integration) finallyCleanupEverything() error {
 	uninstallScript := "uns.sh"
 
-	defer i.removePreferredLabels()
+	if i.isLabelCleanupRequired {
+		defer i.removePreferredLabels()
+	}
 
 	if lastTestDriverType == "" {
 		// Nothing to clean up
@@ -998,6 +1072,28 @@ func (i *integration) finallyCleanupEverything() error {
 	i.podCount = 0
 
 	return nil
+}
+
+func (i *integration) finallyCleanupEverythingButLabels() error {
+	i.isLabelCleanupRequired = false
+	return i.finallyCleanupEverything()
+}
+
+func (i *integration) expectedMetroEnvVariablesAreSet() error {
+	pstoreNodeUser := os.Getenv("POWERSTORE_NODE_USER")
+	err := AssertExpectedAndActual(assert.Equal, true, pstoreNodeUser != "",
+		"Expected POWERSTORE_NODE_USER env variable. Try export POWERSTORE_NODE_USER=nodeUser before running tests.")
+	if err != nil {
+		return err
+	}
+
+	password := os.Getenv("POWERSTORE_NODE_PASSWORD")
+	err = AssertExpectedAndActual(assert.Equal, true, password != "",
+		"Expected POWERSTORE_NODE_PASSWORD env variable. Try export POWERSTORE_NODE_PASSWORD=password before running tests.")
+	if err != nil {
+		return err
+	}
+	return i.expectedEnvVariablesAreSet()
 }
 
 func (i *integration) expectedEnvVariablesAreSet() error {
@@ -1282,6 +1378,7 @@ func (i *integration) setNonPreferredMetroConnection(operation MetroConnection, 
 	// Initializing the gopowerstore client
 	clientOptions := gopowerstore.NewClientOptions()
 	clientOptions.SetInsecure(true)
+	clientOptions.SetDefaultTimeout(2 * time.Second)
 	pstoreClient, err := gopowerstore.NewClientWithArgs(preferredArray.Endpoint, preferredArray.Username, preferredArray.Password, clientOptions)
 	if err != nil {
 		return fmt.Errorf("unable to create PowerStore client: %s", err.Error())
@@ -1319,6 +1416,45 @@ func (i *integration) setNonPreferredMetroConnection(operation MetroConnection, 
 		return fmt.Errorf("unable to drop incoming packets: %s", err.Error())
 	}
 	return nil
+}
+
+func (i *integration) getNonPreferredArray(storageClass *storagev1.StorageClass) (*pstoreArray.PowerStoreArray, error) {
+	preferredArray, err := i.getPowerStoreArrayInfo(storageClass.Parameters[pstoreID.KeyArrayID])
+	if err != nil || preferredArray == nil {
+		return nil, fmt.Errorf("unable to get PowerStore secret: %s", err.Error())
+	}
+
+	// Initializing the gopowerstore client
+	clientOptions := gopowerstore.NewClientOptions()
+	clientOptions.SetInsecure(true)
+	clientOptions.SetDefaultTimeout(2 * time.Second)
+	pstoreClient, err := gopowerstore.NewClientWithArgs(preferredArray.Endpoint, preferredArray.Username, preferredArray.Password, clientOptions)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create PowerStore client: %s", err.Error())
+	}
+
+	pstoreClient.SetCustomHTTPHeaders(http.Header{
+		"Application-Type": {fmt.Sprintf("%s/%s", pstoreID.VerboseName, core.SemVer)},
+	})
+	pstoreClient.SetLogger(&pstoreID.CustomLogger{})
+
+	// Get the list of remote systems for the preferred array
+	remoteSystems, err := pstoreClient.GetAllRemoteSystems(context.Background())
+	if err != nil {
+		log.Infof("unable to get the remote systems: %s", err.Error())
+	}
+
+	var nonPreferredKeyArrayID string
+	// Filter the remote systems to find the arrayID of the non preferred array using the remote system mentioned in the storage class
+	remoteSystemID := storageClass.Parameters[pstoreController.ReplicationPrefix+"/"+pstoreController.KeyReplicationRemoteSystem]
+	for _, remoteSystem := range remoteSystems {
+		if remoteSystem.Name == remoteSystemID {
+			nonPreferredKeyArrayID = remoteSystem.SerialNumber
+			break
+		}
+	}
+
+	return i.getPowerStoreArrayInfo(nonPreferredKeyArrayID)
 }
 
 // setPreferredMetroConnection uses the configured storage class to determine the preferred array for a
@@ -1385,6 +1521,165 @@ func (i *integration) dropIncomingPackets(operation MetroConnection, array *psto
 			return fmt.Errorf("encountered an error while attempting to drop incoming iSCSI packets on preferred nodes: %s", err.Error())
 		}
 	}
+	return nil
+}
+
+func (i *integration) setStorageClass(storageClassParam string) error {
+	storageClass, err := i.k8s.GetClient().StorageV1().StorageClasses().Get(context.Background(), storageClassParam, metav1.GetOptions{})
+	if err != nil {
+		message := fmt.Sprintf("getting storage class %s, error: %s", storageClassParam, err)
+		return fmt.Errorf("%s", message)
+	}
+
+	if storageClass == nil {
+		message := fmt.Sprintf("storage class %s not found", storageClassParam)
+		return fmt.Errorf("%s", message)
+	}
+	i.storageClass = storageClass
+	return nil
+}
+
+func (i *integration) disruptConnectivityBetweenMetroArrays(storageClassParam string) error {
+	err := i.setStorageClass(storageClassParam)
+	if err != nil {
+		return err
+	}
+	return i.manageConnectivityBetweenMetroArrays(MetroConnectionFail)
+}
+
+func (i *integration) restoreConnectivityBetweenMetroArrays(storageClassParam string) error {
+	err := i.setStorageClass(storageClassParam)
+	if err != nil {
+		return err
+	}
+	return i.manageConnectivityBetweenMetroArrays(MetroConnectionRestore)
+}
+
+func (i *integration) manageConnectivityBetweenMetroArrays(operation MetroConnection) error {
+	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[pstoreID.KeyArrayID])
+	if err != nil {
+		return fmt.Errorf("unable to get PowerStore secret: %w", err)
+	}
+	if preferredArray == nil {
+		return fmt.Errorf("unable to get PowerStore secret: array info is nil")
+	}
+
+	// Initializing the gopowerstore client
+	clientOptions := gopowerstore.NewClientOptions()
+	clientOptions.SetInsecure(true)
+	clientOptions.SetDefaultTimeout(30 * time.Second)
+	pstoreClient, err := gopowerstore.NewClientWithArgs(preferredArray.Endpoint, preferredArray.Username, preferredArray.Password, clientOptions)
+	if err != nil {
+		return fmt.Errorf("unable to get PowerStore client: %s", err.Error())
+	}
+
+	pstoreClient.SetCustomHTTPHeaders(http.Header{
+		"Application-Type": {fmt.Sprintf("%s/%s", pstoreID.VerboseName, core.SemVer)},
+	})
+	pstoreClient.SetLogger(&pstoreID.CustomLogger{})
+
+	// Get the list of remote systems for the preferred array
+	remoteSystems, err := pstoreClient.GetAllRemoteSystems(context.Background())
+	if err != nil {
+		log.Infof("unable to get the remote systems: %s", err.Error())
+	}
+
+	var nonPreferredKeyArrayID string
+	// Filter the remote systems to find the arrayID of the non preferred array using the remote system mentioned in the storage class
+	remoteSystemID := i.storageClass.Parameters[pstoreController.ReplicationPrefix+"/"+pstoreController.KeyReplicationRemoteSystem]
+	for _, remoteSystem := range remoteSystems {
+		if remoteSystem.Name == remoteSystemID {
+			nonPreferredKeyArrayID = remoteSystem.SerialNumber
+			break
+		}
+	}
+
+	nonPreferredArray, err := i.getPowerStoreArrayInfo(nonPreferredKeyArrayID)
+	if err != nil {
+		return fmt.Errorf("unable to get PowerStore secret: %w", err)
+	}
+	if nonPreferredArray == nil {
+		return fmt.Errorf("unable to get PowerStore secret: array info is nil")
+	}
+	log.Infof("Non Preferred Array: %v", nonPreferredArray)
+
+	err = i.blockUnblockReplicationTraffic(operation, preferredArray, nonPreferredArray)
+	if err != nil {
+		return fmt.Errorf("unable to drop incoming packets: %s", err.Error())
+	}
+
+	return nil
+}
+
+func (i *integration) blockUnblockReplicationTraffic(
+	operation MetroConnection,
+	array *pstoreArray.PowerStoreArray,
+	remoteArray *pstoreArray.PowerStoreArray,
+) error {
+	// Discover local & remote iSCSI IPs
+	localIPs, err := getIscsiIPs(array.Endpoint, array.Username, array.Password)
+	if err != nil {
+		return fmt.Errorf("get local iSCSI IPs: %w", err)
+	}
+	if len(localIPs) == 0 {
+		return fmt.Errorf("no local iSCSI IPs discovered for array %s", array.Endpoint)
+	}
+	log.Infof("Local array %s iSCSI IPs: %v", array.Endpoint, localIPs)
+
+	remoteIPs, err := getIscsiIPs(remoteArray.Endpoint, remoteArray.Username, remoteArray.Password)
+	if err != nil {
+		return fmt.Errorf("get remote iSCSI IPs: %w", err)
+	}
+	if len(remoteIPs) == 0 {
+		return fmt.Errorf("no remote iSCSI IPs discovered for array %s", remoteArray.Endpoint)
+	}
+	log.Infof("Remote array %s iSCSI IPs: %v", remoteArray.Endpoint, remoteIPs)
+
+	scriptsDir := os.Getenv("SCRIPTS_DIR")
+	scriptPath := fmt.Sprintf("%s/%s", scriptsDir, blockTrafficScriptName)
+
+	// Auth for SSH performed by the script; prefer keys. If using passwords, set SSHPASS.
+	sshUser := os.Getenv("POWERSTORE_NODE_USER")
+	if sshUser == "" {
+		return fmt.Errorf("POWERSTORE_NODE_USER env must be set for SSH to local powerstore nodes")
+	}
+
+	sshPassword := os.Getenv("POWERSTORE_NODE_PASSWORD")
+	os.Setenv("SSHPASS", sshPassword)
+
+	// Decide action
+	action := "block"
+	if operation == MetroConnectionRestore {
+		action = "unblock"
+	}
+
+	// Build block-traffic.sh command
+
+	args := []string{
+		scriptPath, // the script path passed to bash
+		"--local-ips", strings.Join(localIPs, " "),
+		"--remote-ips", strings.Join(remoteIPs, " "),
+		"--action", action,
+		"--ssh-user", sshUser,
+		"--parallel", "4",
+	}
+
+	// Execute locally
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "bash", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	env := os.Environ()
+	env = append(env, "SSHPASS="+sshPassword)
+	cmd.Env = env
+
+	log.Infof("Running block-traffic.sh: %s %s", scriptPath, strings.Join(args, " "))
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("block-traffic.sh failed: %w", err)
+	}
+
 	return nil
 }
 
@@ -1535,7 +1830,6 @@ func getPreferredNodeOpts(matchLabel bool, labelValue string) metav1.ListOptions
 func (i *integration) getSSHClient(targetIP string) ssh.CommandExecution {
 	username := os.Getenv("NODE_USER")
 	password := os.Getenv("PASSWORD")
-
 	hostname := targetIP
 	if i.isOpenshift {
 		hostname = i.bastionNode
@@ -1866,7 +2160,7 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 	}
 
 	// Get deployment and see how many replicas for the controller there are.
-	deployment, err := i.getDriverControllerDeployment(i.driverType)
+	deployment, err := i.getDriverControllerDeployment(i.driverType, i.driverNamespaceName)
 	if err != nil {
 		return failedNodes, err
 	}
@@ -2131,7 +2425,7 @@ const (
 
 func (i *integration) writeAndVerifyDiskOnVM(vmName, namespace string) error {
 	writeCmd := fmt.Sprintf(
-		"sshpass -p 'fedora' virtctl ssh %s --namespace=%s --username=fedora "+
+		"sshpass -p 'fedora' virtctl ssh vm/%s --namespace=%s --username=fedora "+
 			"--local-ssh=true --local-ssh-opts='-o StrictHostKeyChecking=no' --local-ssh-opts='-o UserKnownHostsFile=/dev/null' "+
 			"--command \"printf '%s' | sudo dd of=/dev/vdc bs=1 count=150 conv=notrunc\"",
 		vmName, namespace, expectedData)
@@ -2165,7 +2459,7 @@ func (i *integration) writeAndVerifyDiskOnVM(vmName, namespace string) error {
 
 func (i *integration) verifyDiskContentOnVM(vmName, namespace string) error {
 	readCmd := fmt.Sprintf(
-		"sshpass -p 'fedora' virtctl ssh %s --namespace=%s --username=fedora "+
+		"sshpass -p 'fedora' virtctl ssh vm/%s --namespace=%s --username=fedora "+
 			"--local-ssh=true --local-ssh-opts='-o StrictHostKeyChecking=no'  --local-ssh-opts='-o UserKnownHostsFile=/dev/null' "+
 			"--command \"sudo dd if=/dev/vdc bs=1 count=150\"",
 		vmName, namespace)
@@ -2763,7 +3057,7 @@ func (i *integration) labelNodeAsPreferredSite(numNodes, preferred string) error
 			if nodeObj.ObjectMeta.Labels == nil {
 				nodeObj.ObjectMeta.Labels = make(map[string]string)
 			}
-			nodeObj.ObjectMeta.Labels["preferred"] = preferred
+			nodeObj.ObjectMeta.Labels[preferredLabelKey] = preferred
 			i.preferredLabeledNodes = append(i.preferredLabeledNodes, name)
 
 			// Update the node
@@ -2795,7 +3089,7 @@ func (i *integration) allPodsOnNodesWithPreferredLabel(preferred string) error {
 				if err != nil {
 					return err
 				}
-				if nodeObj.ObjectMeta.Labels["preferred"] != preferred {
+				if nodeObj.ObjectMeta.Labels[preferredLabelKey] != preferred {
 					return fmt.Errorf("expected pod to be scheduled to a node with the preferred=%s label. Pod %q is on node %q",
 						preferred, pod.Name, pod.Spec.NodeName)
 				}
@@ -2830,6 +3124,95 @@ func (i *integration) verifyPodsOnNonPreferredNodes() error {
 				}
 			}
 		}
+	}
+	return nil
+}
+
+func (i *integration) checkArrayConnectivity(storageClassName string, checkFunc func(*pstoreArray.PowerStoreArray) error) error {
+	storageClass, err := i.k8s.GetClient().StorageV1().StorageClasses().Get(context.Background(), storageClassName, metav1.GetOptions{})
+	if err != nil {
+		log.Errorf("Encountered an error while querying for the StorageClass: %s", err.Error())
+		return err
+	}
+
+	preferredArray, err := i.getPowerStoreArrayInfo(storageClass.Parameters[pstoreID.KeyArrayID])
+	if err != nil || preferredArray == nil {
+		return fmt.Errorf("unable to get PowerStore details from secret: %s", err.Error())
+	}
+	if err := checkFunc(preferredArray); err != nil {
+		return err
+	}
+
+	// Initializing the gopowerstore client
+	clientOptions := gopowerstore.NewClientOptions()
+	clientOptions.SetInsecure(true)
+	clientOptions.SetDefaultTimeout(30 * time.Second)
+	pstoreClient, err := gopowerstore.NewClientWithArgs(preferredArray.Endpoint, preferredArray.Username, preferredArray.Password, clientOptions)
+	if err != nil {
+		return fmt.Errorf("unable to create PowerStore client: %s", err.Error())
+	}
+
+	pstoreClient.SetCustomHTTPHeaders(http.Header{
+		"Application-Type": {fmt.Sprintf("%s/%s", pstoreID.VerboseName, core.SemVer)},
+	})
+	pstoreClient.SetLogger(&pstoreID.CustomLogger{})
+
+	// Get the list of remote systems for the preferred array
+	remoteSystems, err := pstoreClient.GetAllRemoteSystems(context.Background())
+	if err != nil {
+		return fmt.Errorf("unable to get the remote systems: %s", err.Error())
+	}
+
+	var nonPreferredKeyArrayID string
+	// Filter the remote systems to find the arrayID of the non preferred array using the remote system mentioned in the storage class
+	remoteSystemID := storageClass.Parameters[pstoreController.ReplicationPrefix+"/"+pstoreController.KeyReplicationRemoteSystem]
+	for _, remoteSystem := range remoteSystems {
+		if remoteSystem.Name == remoteSystemID {
+			nonPreferredKeyArrayID = remoteSystem.SerialNumber
+			break
+		}
+	}
+
+	nonPreferredArray, err := i.getPowerStoreArrayInfo(nonPreferredKeyArrayID)
+	if err != nil || nonPreferredArray == nil {
+		return fmt.Errorf("unable to get PowerStore details from secret: %s", err.Error())
+	}
+	log.Infof("Non Preferred Array: %v", nonPreferredArray)
+
+	return checkFunc(nonPreferredArray)
+}
+
+func (i *integration) checkUniformConnectivity(array *pstoreArray.PowerStoreArray) error {
+	if array.HostConnectivity == nil || array.HostConnectivity.Metro.ColocatedLocal.Size() == 0 || array.HostConnectivity.Metro.ColocatedRemote.Size() == 0 {
+		return fmt.Errorf("Array %s not configured for metro connectivity", array.GlobalID)
+	}
+	return nil
+}
+
+func (i *integration) checkNonUniformConnectivity(array *pstoreArray.PowerStoreArray) error {
+	if array.HostConnectivity == nil || array.HostConnectivity.Local.Size() == 0 {
+		return fmt.Errorf("Array %s not configured for local connectivity", array.GlobalID)
+	}
+	return nil
+}
+
+func (i *integration) theArraysInStorageclassAreInUniformConfiguration(storageClassName string) error {
+	return i.checkArrayConnectivity(storageClassName, i.checkUniformConnectivity)
+}
+
+func (i *integration) theArraysInStorageclassAreInNonUniformConfiguration(storageClassName string) error {
+	return i.checkArrayConnectivity(storageClassName, i.checkNonUniformConnectivity)
+}
+
+func (i *integration) thereAreNodesLabelled(labelValue string) error {
+	getNodes := i.getNodesWithPreferredLabelValue(labelValue)
+	nodes, err := getNodes()
+	if err != nil {
+		return fmt.Errorf("No nodes found with label %s : %s", labelValue, err.Error())
+	}
+
+	if len(nodes.Items) == 0 {
+		return fmt.Errorf("No nodes found with label %s", labelValue)
 	}
 	return nil
 }
@@ -2872,7 +3255,7 @@ func (i *integration) thereAreAtLeastWorkerNodesWhichAreReady(count int) error {
 
 func (i *integration) iFailNodesWithLabelWithFailureForSeconds(numNodes, label, failure string, wait int) error {
 	filter := func(node corev1.Node) bool {
-		if isWorkerNode(node) && node.ObjectMeta.Labels["preferred"] == label {
+		if isWorkerNode(node) && node.ObjectMeta.Labels[preferredLabelKey] == label {
 			return true
 		}
 
@@ -2884,7 +3267,7 @@ func (i *integration) iFailNodesWithLabelWithFailureForSeconds(numNodes, label, 
 		return err
 	}
 
-	log.Printf("Labeling %d nodes with preferred=%s", numberToLabel, label)
+	log.Printf("Labeling %d nodes with label %s=%s", numberToLabel, preferredLabelKey, label)
 
 	// Get application pods that were deployed by podmontest.
 	nodeToFail := ""
@@ -2927,7 +3310,7 @@ func (i *integration) iFailNodesWithLabelWithFailureForSeconds(numNodes, label, 
 }
 
 func (i *integration) labeledPodsAreOnANode(label string) error {
-	labelKey := "preferred=" + label
+	labelKey := preferredLabelKey + "=" + label // Get nodes with the "preferred" label
 	nodes, err := i.k8s.GetClient().CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
 		LabelSelector: labelKey,
 	})
@@ -2961,12 +3344,12 @@ func newTimerWithTicker(waitTimeSec int) (timeout *time.Timer, ticker *time.Tick
 		ticker.Stop()
 	}
 
-	return
+	return timeout, ticker, stop
 }
 
-func (i *integration) getDriverControllerDeployment(driverType string) (*v1.Deployment, error) {
+func (i *integration) getDriverControllerDeployment(driverType string, driverNamespace string) (*v1.Deployment, error) {
 	log.Infof("Getting deployment for driver: %s", driverType)
-	deployments, err := i.k8s.GetClient().AppsV1().Deployments(driverType).List(context.Background(), metav1.ListOptions{})
+	deployments, err := i.k8s.GetClient().AppsV1().Deployments(driverNamespace).List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		log.Errorln("Deployment list error: ", err)
 		return nil, err
@@ -2986,7 +3369,7 @@ func (i *integration) skipIfIsNotCompatibleWith(failure, driverType string) erro
 	if driverType == "powerstore" {
 		log.Infoln("Checking if the follwing test is compatible with PowerStore environment")
 
-		deployment, err := i.getDriverControllerDeployment(driverType)
+		deployment, err := i.getDriverControllerDeployment(driverType, driverType)
 		if err != nil {
 			return err
 		}
@@ -3024,6 +3407,854 @@ func (i *integration) iSetTheCorrectDriverTypeTo(driverType string) error {
 	return nil
 }
 
+func (i *integration) iVerifyThatIsImmediateBinding(storageClassParam string) error {
+	var err error
+	i.storageClass, err = i.k8s.GetClient().StorageV1().StorageClasses().Get(context.Background(), storageClassParam, metav1.GetOptions{})
+	if err != nil {
+		message := fmt.Sprintf("getting storage class %s, error: %s", storageClassParam, err)
+		return fmt.Errorf("%s", message)
+	}
+
+	if i.storageClass == nil || i.storageClass.VolumeBindingMode == nil {
+		message := fmt.Sprintf("storage class %s not found", storageClassParam)
+		return fmt.Errorf("%s", message)
+	}
+
+	if *i.storageClass.VolumeBindingMode != storagev1.VolumeBindingImmediate {
+		message := fmt.Sprintf("storage class %s should have VolumeBindingMode set to Immediate", storageClassParam)
+		return fmt.Errorf("%s", message)
+	}
+
+	return nil
+}
+
+func (i *integration) getTestNamespacePrefix(driverType string) string {
+	var prefix string
+	switch driverType {
+	case "vxflexos":
+		i.testNamespacePrefix[PowerflexNS] = true
+		prefix = PowerflexNS
+	case "unity":
+		i.testNamespacePrefix[UnityNS] = true
+		prefix = UnityNS
+	case "isilon":
+		i.testNamespacePrefix[PowerScaleNS] = true
+		prefix = PowerScaleNS
+	case "powerstore":
+		i.testNamespacePrefix[PowerStoreNS] = true
+		prefix = PowerStoreNS
+	case "powermax":
+		i.testNamespacePrefix[PowerMaxNS] = true
+		prefix = PowerMaxNS
+	}
+
+	return prefix
+}
+
+func (i *integration) iDeployPvcOn(nVols int, _, driverType string) error {
+	if i.storageClass == nil {
+		return fmt.Errorf("[iDeployPvcOn] storage class not set; run step to verify binding first")
+	}
+
+	nsPrefix := i.getTestNamespacePrefix(driverType)
+
+	// Check if the namespace exists
+	_, err := i.k8s.GetClient().CoreV1().Namespaces().Get(context.Background(), nsPrefix, metav1.GetOptions{})
+	if err != nil {
+		log.Infof("Creating namespace: %s", nsPrefix)
+		_, err := i.k8s.GetClient().CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: nsPrefix,
+			},
+		}, metav1.CreateOptions{})
+		if err != nil {
+			log.Errorf("Failed to create namespace: %s", err)
+		}
+	}
+
+	volumeMode := corev1.PersistentVolumeFilesystem
+
+	for j := 0; j < nVols; j++ {
+		name := fmt.Sprintf("pvc-%d", j)
+
+		_, err := i.k8s.GetClient().CoreV1().PersistentVolumeClaims(nsPrefix).Create(context.Background(), &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: name,
+			},
+			Spec: corev1.PersistentVolumeClaimSpec{
+				StorageClassName: &i.storageClass.Name,
+				AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+				Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: resource.MustParse("8Gi"),
+					},
+				},
+				VolumeMode: &volumeMode,
+			},
+		}, metav1.CreateOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to create pvc %s: %w", name, err)
+		}
+	}
+
+	return nil
+}
+
+func (i *integration) iEnsureAllVolumesOnForAreBound(storageClassParam, driverType string) error {
+	maxAttempts := 5
+	for j := 0; j < maxAttempts; j++ {
+		err := i.allVolumesAreBound(storageClassParam, driverType)
+		if err == nil {
+			return nil
+		}
+
+		log.Warnf("Failed to verify all volumes are bound. Retrying...")
+		time.Sleep(5 * time.Second)
+	}
+
+	return fmt.Errorf("Failed to verify all volumes are bound after %d attempts", maxAttempts)
+}
+
+func (i *integration) getAllPVCsInNamespace(storageClassParam, _, namespace string) ([]*corev1.PersistentVolumeClaim, error) {
+	pvcList, err := i.k8s.GetClient().CoreV1().PersistentVolumeClaims(namespace).List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		message := fmt.Sprintf("getting storage class %s, error: %s", storageClassParam, err)
+		return nil, fmt.Errorf("%s", message)
+	}
+
+	var pvcs []*corev1.PersistentVolumeClaim
+	for _, pvc := range pvcList.Items {
+		if pvc.Spec.StorageClassName != nil && *pvc.Spec.StorageClassName == storageClassParam {
+			pvcs = append(pvcs, &pvc)
+		}
+	}
+
+	return pvcs, nil
+}
+
+func (i *integration) iEnsureThatAllMetroVolumesInNamespaceAreStable(storageClassParam, driverType string, namespace string) error {
+	pvcList, err := i.getAllPVCsInNamespace(storageClassParam, driverType, namespace)
+	if err != nil {
+		return err
+	}
+	if len(pvcList) == 0 {
+		return fmt.Errorf("no pvc found for storage class %s in namespace %s", storageClassParam, namespace)
+	}
+
+	maxAttempts := 20
+	for j := 0; j < maxAttempts; j++ {
+		var err error
+		// Set the metroVolInfo to be used in other metro action execution.
+		i.metroVolInfo, err = i.allMetroVolumeSessionsAreStable(pvcList)
+		if err == nil {
+			for name, data := range i.metroVolInfo {
+				log.Infof("metro vol %s replication ID: %s", name, data.ReplicationSessions[0].ID)
+			}
+			return nil
+		}
+
+		log.Warnf("Array Metro sessions are not stable. Received error: %s. Retrying...", err.Error())
+		time.Sleep(10 * time.Second)
+	}
+
+	return fmt.Errorf("Failed to verify all Metro volumes in namespace %s are stable after %d attempts", namespace, maxAttempts)
+}
+
+func (i *integration) iEnsureMetroVolumesStableInTestNamespaces(storageClassParam, driverType string) error {
+	// i.podCount is actually the number of test namespaces. Because it maps to --instances when invoking the deploy script
+	if i.storageClass == nil {
+		err := i.setStorageClass(storageClassParam)
+		if err != nil {
+			return err
+		}
+	}
+	nsPrefix := i.getTestNamespacePrefix(driverType)
+	for podIdx := 1; podIdx <= i.podCount; podIdx++ {
+		namespace := fmt.Sprintf("%s%d", nsPrefix, podIdx)
+		log.Infof("Ensuring Metro volumes in namespace are stable: %s ", namespace)
+		err := i.iEnsureThatAllMetroVolumesInNamespaceAreStable(storageClassParam, driverType, namespace)
+		if err != nil {
+			return err
+		}
+
+	}
+	return nil
+}
+
+func (i *integration) getAllVolumesOfStorageClass(storageClassParam, driverType string) ([]*corev1.PersistentVolumeClaim, error) {
+	nsPrefix := i.getTestNamespacePrefix(driverType)
+
+	pvcList, err := i.k8s.GetClient().CoreV1().PersistentVolumeClaims(nsPrefix).List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		message := fmt.Sprintf("getting storage class %s, error: %s", storageClassParam, err)
+		return nil, fmt.Errorf("%s", message)
+	}
+
+	var pvcs []*corev1.PersistentVolumeClaim
+	for _, pvc := range pvcList.Items {
+		if pvc.Spec.StorageClassName != nil && *pvc.Spec.StorageClassName == storageClassParam {
+			pvcs = append(pvcs, &pvc)
+		}
+	}
+
+	return pvcs, nil
+}
+
+func (i *integration) allVolumesAreBound(storageClassParam, driverType string) error {
+	pvcList, err := i.getAllVolumesOfStorageClass(storageClassParam, driverType)
+	if err != nil {
+		return err
+	}
+
+	for _, pvc := range pvcList {
+		if pvc.Status.Phase != corev1.ClaimBound {
+			return fmt.Errorf("pvc %s is not bound", pvc.Name)
+		}
+	}
+
+	return nil
+}
+
+func (i *integration) iEnsureThatAllMetroVolumesOnForAreStable(storageClassParam, driverType string) error {
+	pvcList, err := i.getAllVolumesOfStorageClass(storageClassParam, driverType)
+	if err != nil {
+		return err
+	}
+	if len(pvcList) == 0 {
+		return fmt.Errorf("no pvc found for storage class %s", storageClassParam)
+	}
+
+	maxAttempts := 20
+	for j := 0; j < maxAttempts; j++ {
+		var err error
+		// Set the metroVolInfo to be used in other metro action execution.
+		i.metroVolInfo, err = i.allMetroVolumeSessionsAreStable(pvcList)
+		if err == nil {
+			return nil
+		}
+
+		log.Warnf("Array Metro sessions are not stable. Received error: %s. Retrying...", err.Error())
+		time.Sleep(10 * time.Second)
+	}
+
+	return fmt.Errorf("Failed to verify all Metro volumes are stable after %d attempts", maxAttempts)
+}
+
+func (i *integration) allMetroVolumeSessionsAreStable(pvcList []*corev1.PersistentVolumeClaim) (map[string]volumeInformation, error) {
+	log.Infof("checking if all metro Volume sessions are stable")
+	result := make(map[string]volumeInformation)
+
+	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[pstoreID.KeyArrayID])
+	if err != nil || preferredArray == nil {
+		return nil, fmt.Errorf("unable to get PowerStore secret: %s", err.Error())
+	}
+
+	endpoint := isolateIPAddress(preferredArray.Endpoint)
+
+	for _, pvc := range pvcList {
+		// Get the PV for further information.
+		pv, err := i.k8s.GetClient().CoreV1().PersistentVolumes().Get(context.Background(), pvc.Spec.VolumeName, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+
+		pstcli := exec.Command("pstcli", "-d", endpoint, "-u", preferredArray.Username, "-p", preferredArray.Password, "-ssl", "accept",
+			"volume", "-name", pv.Name, "show", "-output", "json", "-raw")
+		log.Infof("attempting to get PowerStore volume information: %v", pstcli.Args)
+
+		// execute the command and get the results
+		response, err := pstcli.CombinedOutput()
+		if err != nil {
+			return nil, fmt.Errorf("unable to get volume information: %s", err.Error())
+		}
+
+		// unmarshal the json response into something we can more easily parse
+		volumeInformation := volumeInformation{}
+		err = json.Unmarshal(response, &volumeInformation)
+		if err != nil {
+			return nil, fmt.Errorf("unable to unmarshal the response returned by pstcli when querying for iSCSI IPs: %s", err.Error())
+		}
+
+		if len(volumeInformation.ReplicationSessions) == 0 {
+			return nil, fmt.Errorf("volume %s has no metro sessions", pv.Name)
+		}
+
+		if volumeInformation.ReplicationSessions[0].State != "OK" {
+			return nil, fmt.Errorf("volume metro session %s is not stable, state: %s", volumeInformation.Name, volumeInformation.ReplicationSessions[0].State)
+		}
+
+		result[pv.Name] = volumeInformation
+	}
+
+	for name, data := range result {
+		log.Infof("Metro volume %s has state: %s", name, data.ReplicationSessions[0].State)
+	}
+
+	return result, nil
+}
+
+func (i *integration) executeMetroAction(endpoint string, array *pstoreArray.PowerStoreArray, action string) error {
+	for name, data := range i.metroVolInfo {
+		pstcli := exec.Command("pstcli", "-d", endpoint, "-u", array.Username, "-p", array.Password, "-ssl", "accept",
+			"replication_session", "-id", data.ReplicationSessions[0].ID, action) // #nosec G204
+
+		// execute the command and get the results
+		response, err := pstcli.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("unable to execute metro action [%s] on replication session for volume %s: %s", action, name, err.Error())
+		}
+
+		log.Infof("Executed %s on Metro volume: %s. Response %s", action, name, response)
+	}
+
+	return nil
+}
+
+func (i *integration) iExecuteMetroActionOnNonPreferredMetroVolumes(action, _, _ string) error {
+	if i.storageClass == nil {
+		return fmt.Errorf("[iExecuteMetroActionOnNonPreferredMetroVolumes] storage class not set; run step to verify binding first")
+	}
+	log.Infof("Executing action %s on nonPreferred Metro volume:", action)
+	nonPreferredArray, err := i.getNonPreferredArray(i.storageClass)
+	if err != nil {
+		return err
+	}
+
+	endpoint := isolateIPAddress(nonPreferredArray.Endpoint)
+	maxAttempts := 20
+	for j := 0; j < maxAttempts; j++ {
+		err = i.executeMetroAction(endpoint, nonPreferredArray, action)
+		if err != nil {
+			log.Warnf("[Metro Action] Received error: %s.", err.Error())
+			time.Sleep(10 * time.Second)
+			continue
+		}
+
+		return nil
+	}
+
+	return fmt.Errorf("[Metro Action] Failed to execute metro action on nonPreferred Array %s after %d attempts", action, maxAttempts)
+}
+
+func (i *integration) iExecuteMetroActionOnForForMetroVolumes(action, _, _ string) error {
+	if i.storageClass == nil {
+		return fmt.Errorf("[iExecuteMetroActionOnForForMetroVolumes] storage class not set; run step to verify binding first")
+	}
+
+	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[pstoreID.KeyArrayID])
+	if err != nil || preferredArray == nil {
+		return fmt.Errorf("unable to get PowerStore secret: %s", err.Error())
+	}
+
+	endpoint := isolateIPAddress(preferredArray.Endpoint)
+	maxAttempts := 20
+	for j := 0; j < maxAttempts; j++ {
+		err = i.executeMetroAction(endpoint, preferredArray, action)
+		if err != nil {
+			log.Warnf("[Metro Action] Received error: %s.", err.Error())
+			time.Sleep(10 * time.Second)
+			continue
+		}
+
+		return nil
+	}
+
+	return fmt.Errorf("[Metro Action] Failed to execute metro action %s after %d attempts", action, maxAttempts)
+}
+
+// Waits for whatever is passed in amount of seconds
+func (i integration) wait(seconds int) {
+	log.Infof("Waiting %d seconds", seconds)
+	time.Sleep(time.Duration(seconds) * time.Second)
+}
+
+func (i *integration) iSoftFractureTheMetroVolumesOnFor(_, _ string) error {
+	var err error
+	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[pstoreID.KeyArrayID])
+	if err != nil || preferredArray == nil {
+		return fmt.Errorf("unable to get PowerStore secret: %s", err.Error())
+	}
+
+	endpoint := isolateIPAddress(preferredArray.Endpoint)
+	maxAttempts := 20
+	for j := 0; j < maxAttempts; j++ {
+		// Steps to Soft Fracture the Metro volume, i.e. pause and resume.
+		err = i.executeMetroAction(endpoint, preferredArray, "pause")
+		if err != nil {
+			log.Warnf("[Soft Fracture] Received error: %s. Retrying...", err.Error())
+			time.Sleep(10 * time.Second)
+			continue
+		}
+
+		err = i.executeMetroAction(endpoint, preferredArray, "resume")
+		if err != nil {
+			log.Warnf("[Soft Fracture] Received error: %s. Retrying...", err.Error())
+			time.Sleep(10 * time.Second)
+			continue
+		}
+
+		err = nil
+		break
+	}
+
+	if err != nil {
+		return fmt.Errorf("[Soft Fracture] Unable to soft fracture all metro volumes after %d attempts", maxAttempts)
+	}
+
+	for name := range i.metroVolInfo {
+		log.Infof("[Soft Fracture] Soft Fractured Metro volume: %s", name)
+
+		pstcli := exec.Command("pstcli", "-d", endpoint, "-u", preferredArray.Username, "-p", preferredArray.Password, "-ssl", "accept",
+			"volume", "-name", name, "show", "-output", "json", "-raw")
+		log.Infof("attempting to get PowerStore volume information: %v", pstcli.Args)
+
+		// execute the command and get the results
+		response, err := pstcli.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("unable to get volume information: %s", err.Error())
+		}
+
+		// unmarshal the json response into something we can more easily parse
+		volumeInformation := volumeInformation{}
+		err = json.Unmarshal(response, &volumeInformation)
+		if err != nil {
+			return fmt.Errorf("unable to unmarshal the response returned by pstcli when querying for iSCSI IPs: %s", err.Error())
+		}
+
+		if volumeInformation.ReplicationSessions[0].State != "Fractured" {
+			return fmt.Errorf("Replication sessions was not in fractured stated")
+		}
+	}
+
+	log.Infoln("Soft Fracture complete")
+	return nil
+}
+
+func (i *integration) iDeleteSnapshotsOfMetroVolumes(id string) error {
+	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[pstoreID.KeyArrayID])
+	if err != nil || preferredArray == nil {
+		return fmt.Errorf("unable to get PowerStore secret: %s", err.Error())
+	}
+
+	// Initializing the gopowerstore client
+	clientOptions := gopowerstore.NewClientOptions()
+	clientOptions.SetDefaultTimeout(5 * time.Second)
+	clientOptions.SetInsecure(true)
+	pstoreClient, err := gopowerstore.NewClientWithArgs(preferredArray.Endpoint, preferredArray.Username, preferredArray.Password, clientOptions)
+	if err != nil {
+		return fmt.Errorf("unable to create PowerStore client: %s", err.Error())
+	}
+
+	pstoreClient.SetCustomHTTPHeaders(http.Header{
+		"Application-Type": {fmt.Sprintf("%s/%s", pstoreID.VerboseName, core.SemVer)},
+	})
+	pstoreClient.SetLogger(&pstoreID.CustomLogger{})
+
+	myCtx, cancel := context.WithDeadline(context.Background(), time.Now().Add(30*time.Second))
+	defer cancel()
+
+	snapshots, err := pstoreClient.GetSnapshotsByVolumeID(myCtx, id)
+	if err != nil {
+		log.Infof("unable to get the remote systems: %s", err.Error())
+	}
+
+	if len(snapshots) > 0 {
+		for _, snapshot := range snapshots {
+			log.Infof("Deleting snapshot: %s", snapshot.Name)
+			_, err = pstoreClient.DeleteSnapshot(myCtx, nil, snapshot.ID)
+			if err != nil {
+				log.Infof("unable to delete snapshot: %s", err.Error())
+			}
+		}
+	}
+
+	return nil
+}
+
+func (i *integration) iDeployPodsForAllMetroVolumesOnFor(storageClassParam, driverType, preferredAffinity string) error {
+	pvcList, err := i.getAllVolumesOfStorageClass(storageClassParam, driverType)
+	if err != nil {
+		return err
+	}
+
+	podmontestRegistry := os.Getenv("REGISTRY_HOST")
+	if podmontestRegistry == "" {
+		return fmt.Errorf("var REGISTRY_HOST is not set, unable to properly deploy podmontest pods")
+	}
+
+	podmontestVersion := os.Getenv("PODMONTEST_VERSION")
+	if podmontestVersion == "" {
+		return fmt.Errorf("var PODMONTEST_VERSION is not set, unable to properly deploy podmontest pods")
+	}
+
+	volMounts := []corev1.VolumeMount{}
+	vols := []corev1.Volume{}
+	volCount := 0
+	for _, pvc := range pvcList {
+		volMounts = append(volMounts, corev1.VolumeMount{
+			Name:      "vol-" + strconv.Itoa(volCount),
+			MountPath: "/data" + strconv.Itoa(volCount),
+		})
+
+		vols = append(vols, corev1.Volume{
+			Name: "vol-" + strconv.Itoa(volCount),
+			VolumeSource: corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: pvc.Name,
+				},
+			},
+		})
+
+		volCount++
+	}
+
+	nsPrefix := i.getTestNamespacePrefix(driverType)
+
+	replicas := int32(1)
+	// Create a statefulset
+	_, err = i.k8s.GetClient().AppsV1().StatefulSets(nsPrefix).Create(context.Background(), &v1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "metro-podmontest",
+			Namespace: nsPrefix,
+		},
+		Spec: v1.StatefulSetSpec{
+			Replicas:    &replicas,
+			ServiceName: "2vols",
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "podmontest",
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app":                       "podmontest",
+						"affinity":                  "affinity",
+						"podmon.dellemc.com/driver": "csi-" + driverType,
+					},
+				},
+				Spec: corev1.PodSpec{
+					Affinity: &corev1.Affinity{
+						NodeAffinity: &corev1.NodeAffinity{
+							PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{
+								{
+									Weight: 1,
+									Preference: corev1.NodeSelectorTerm{
+										MatchExpressions: []corev1.NodeSelectorRequirement{
+											{
+												Key:      preferredLabelKey,
+												Operator: corev1.NodeSelectorOpIn,
+												Values:   []string{preferredAffinity},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Containers: []corev1.Container{
+						{
+							Name:            "podmontest",
+							Image:           podmontestRegistry + "/podmontest:" + podmontestVersion,
+							ImagePullPolicy: "IfNotPresent",
+							Command: []string{
+								"/podmontest",
+							},
+							Args: []string{
+								"-doexit=true",
+							},
+							Env: []corev1.EnvVar{
+								{
+									Name:  "ROOT_DIR",
+									Value: "/",
+								},
+							},
+							VolumeMounts: volMounts,
+						},
+					},
+					Volumes: vols,
+				},
+			},
+		},
+	}, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("unable to create statefulset: %s", err.Error())
+	}
+
+	log.Infof("Waiting for deployed pods to be ready")
+	time.Sleep(30 * time.Second)
+
+	return nil
+}
+
+func (i *integration) iClearVolumeJournals() error {
+	_, err := i.k8s.GetClient().CoreV1().RESTClient().Delete().AbsPath(customResourceDR).Name("volumejournals").DoRaw(context.Background())
+	if err != nil {
+		return fmt.Errorf("Unable to clean all volume journals: %s", err.Error())
+	}
+	return nil
+}
+
+func (i *integration) iCheckVolumeJournals(areVjs string) error {
+	vjsObj := &customResource{}
+	// should be either "are" or "are not"
+	if areVjs != "are not" && areVjs != "are" {
+		return fmt.Errorf("The passed in value must be `are` or `are not`")
+	}
+
+	vjs, err := i.k8s.GetClient().CoreV1().RESTClient().Get().AbsPath(customResourceDR).Resource("volumejournals").DoRaw(context.Background())
+	if err != nil {
+		return fmt.Errorf("problem happening while getting the volume journals: %s", err.Error())
+	}
+
+	err = json.Unmarshal(vjs, vjsObj)
+	if err != nil {
+		return fmt.Errorf("problem happening while unmarshling the volume journals: %s", err.Error())
+	}
+
+	// Check that there should be volume journals
+	if areVjs == "are" && vjs != nil && len(vjsObj.Items) == 0 {
+		return fmt.Errorf("volume journals are not present, but they should be")
+	}
+
+	if areVjs == "are not" && vjs != nil && len(vjsObj.Items) > 0 {
+		return fmt.Errorf("volume journals are present, but they should not be")
+	}
+
+	return nil
+}
+
+func (i *integration) iCleanUpAllMetroPodsAndVolumes(driverType string) error {
+	// For all metro volumes, delete and snapshots.
+	for _, volume := range i.metroVolInfo {
+		err := i.iDeleteSnapshotsOfMetroVolumes(volume.ID)
+		if err != nil {
+			return fmt.Errorf("unable to delete snapshots of Metro volumes: %s", err.Error())
+		}
+	}
+
+	nsPrefix := i.getTestNamespacePrefix(driverType)
+
+	// Delete namespace
+	err := i.k8s.GetClient().CoreV1().Namespaces().Delete(context.Background(), nsPrefix, metav1.DeleteOptions{})
+	if err != nil {
+		return fmt.Errorf("unable to delete namespace: %s", err.Error())
+	}
+
+	return nil
+}
+
+// blockUnblockNodeIPPort
+// Drop forwarded traffic to IP and port
+// eg.iptables -I FORWARD 1 -d 10.2.2.5 -p tcp --dport 443 -j DROP
+
+func (i *integration) blockUnblockNodeIPPort(
+	operation MetroConnection,
+	localIPs []string,
+	remoteIPs []string,
+	port string,
+) error {
+	// Decide action
+	action := "I"
+	seq := "1"
+	if operation == MetroConnectionRestore {
+		action = "D"
+		seq = ""
+	}
+	for _, localIP := range localIPs {
+		for _, remoteIP := range remoteIPs {
+			var dropPacketsCmd string
+			if port != "" {
+				dropPacketsCmd = fmt.Sprintf("iptables -%s FORWARD %s -j DROP -d %s -p tcp --dport %s -m comment --comment %q; ", action, seq, remoteIP, port, "metro testing; delete me")
+			} else {
+				dropPacketsCmd = fmt.Sprintf("iptables -%s FORWARD %s -j DROP -d %s -m comment --comment %q; ", action, remoteIP, seq, "metro testing; delete me")
+			}
+			log.Infof("executing %s on %s", dropPacketsCmd, localIP)
+			client := i.getSSHClient(localIP)
+			if _, err := i.SSHExec(client, localIP, dropPacketsCmd); err != nil {
+				return fmt.Errorf("encountered an error while attempting to drop forward packets on preferred nodes: %s", err.Error())
+			}
+		}
+	}
+	return nil
+}
+
+func (i *integration) handleConnectionForNodeToArray(operation MetroConnection, storageClass string, preference string, port string) error {
+	i.setStorageClass(storageClass)
+	remoteArray, err := i.getNonPreferredArray(i.storageClass)
+	labelKey := preferredLabelKey
+	nodes, err := i.k8s.GetClient().CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+		LabelSelector: labelKey + "=" + preference,
+	})
+	if err != nil {
+		return fmt.Errorf("list nodes: %w", err)
+	}
+	var localIPs []string
+	for _, node := range nodes.Items {
+		// Get the node's IP address by looping over "status.addresses"
+		// field in the K8s node resource and filtering by the "internalIP" type.
+		var nodeIP string
+		for _, address := range node.Status.Addresses {
+			if address.Type == corev1.NodeInternalIP {
+				nodeIP = address.Address
+				localIPs = append(localIPs, nodeIP)
+				break
+			}
+		}
+	}
+	var remoteIPs []string
+	endpoint := remoteArray.Endpoint
+	endpoint = strings.TrimPrefix(endpoint, "https://")
+	endpoint = strings.TrimSuffix(endpoint, "/")
+	endpoint = strings.TrimSuffix(endpoint, "/api/rest")
+	remoteIPs = append(remoteIPs, endpoint)
+	err = i.blockUnblockNodeIPPort(operation, localIPs, remoteIPs, port)
+	return err
+}
+
+func (i *integration) handleConnectionForNodeToLocalArray(operation MetroConnection, storageClass string, preference string, port string) error {
+	i.setStorageClass(storageClass)
+	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[pstoreID.KeyArrayID])
+	if err != nil || preferredArray == nil {
+		return fmt.Errorf("unable to get PowerStore secret: %s", err.Error())
+	}
+	labelKey := preferredLabelKey
+	nodes, err := i.k8s.GetClient().CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{
+		LabelSelector: labelKey + "=" + preference,
+	})
+	if err != nil {
+		return fmt.Errorf("list nodes: %w", err)
+	}
+	var localIPs []string
+	for _, node := range nodes.Items {
+		// Get the node's IP address by looping over "status.addresses"
+		// field in the K8s node resource and filtering by the "internalIP" type.
+		var nodeIP string
+		for _, address := range node.Status.Addresses {
+			if address.Type == corev1.NodeInternalIP {
+				nodeIP = address.Address
+				localIPs = append(localIPs, nodeIP)
+				break
+			}
+		}
+	}
+	var remoteIPs []string
+	endpoint := preferredArray.Endpoint
+	endpoint = strings.TrimPrefix(endpoint, "https://")
+	endpoint = strings.TrimSuffix(endpoint, "/")
+	endpoint = strings.TrimSuffix(endpoint, "/api/rest")
+	remoteIPs = append(remoteIPs, endpoint)
+	err = i.blockUnblockNodeIPPort(operation, localIPs, remoteIPs, port)
+	return err
+}
+
+// blockNodeArrayConnection utilizes iptables entries to simulate network failure between
+// the non preferred storage array in a metro configuration and select worker nodes with the
+// preferred=`labelValue` label.
+func (i *integration) blockNodeArrayConnection(labelValue string, storageClass string) error {
+	return i.handleConnectionForNodeToArray(MetroConnectionFail, storageClass, labelValue, "443")
+}
+
+// restoreNodeArrayConnection removes iptables entries added by failPreferredMetroConnection
+// for worker nodes with preferred=`labelValue` label, restoring the network connection between the
+// worker node and the preferred storage array in a metro configuration.
+func (i *integration) restoreNodeArrayConnection(labelValue string, storageClass string) error {
+	return i.handleConnectionForNodeToArray(MetroConnectionRestore, storageClass, labelValue, "443")
+}
+
+// blockNodeAndLocalArrayConnection utilizes iptables entries to simulate network failure between
+// the preferred storage array in a metro configuration and select worker nodes with the
+// preferred=`labelValue` label.
+func (i *integration) blockNodeAndLocalArrayConnection(labelValue string, storageClass string) error {
+	return i.handleConnectionForNodeToLocalArray(MetroConnectionFail, storageClass, labelValue, "443")
+}
+
+// restoreNodeAndLocalArrayConnection removes iptables entries added by blockNodeAndLocalArrayConnection
+// for worker nodes with preferred=`labelValue` label, restoring the network connection between the
+// worker node and the preferred storage array in a metro configuration.
+func (i *integration) restoreNodeAndLocalArrayConnection(labelValue string, storageClass string) error {
+	return i.handleConnectionForNodeToLocalArray(MetroConnectionRestore, storageClass, labelValue, "443")
+}
+
+func (i *integration) podIsTerminatingInTestNamespace(driverType string, label string) (bool, error) {
+	namespace := fmt.Sprintf("%s%d", i.getTestNamespacePrefix(driverType), 1)
+	log.Infof("Checking if pod in namespace %s is in the 'Terminating' state with label %s", namespace, label)
+	pods, err := i.k8s.GetClient().CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return false, err
+	}
+
+	for _, pod := range pods.Items {
+		// pod.DeletionTimestamp != nil means the pod is in the 'Terminating' state
+		if pod.DeletionTimestamp != nil {
+			nodeObj, err := i.k8s.GetClient().CoreV1().Nodes().Get(context.TODO(), pod.Spec.NodeName, metav1.GetOptions{})
+			if err != nil {
+				return false, err
+			}
+			if _, ok := nodeObj.ObjectMeta.Labels[label]; !ok {
+				log.Infof("Pod is in the 'Terminating' state scheduled on the node with label: %s", label)
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+func (i *integration) checkTerminatingPodWithLabel(driverType string, label string, wait int) error {
+	terminating, err := i.podIsTerminatingInTestNamespace(driverType, label)
+	if err != nil {
+		return err
+	}
+
+	if terminating {
+		log.Info("Pod is in the 'Terminating' state with label in test namespace.")
+		return nil
+	}
+
+	timeoutDuration := time.Duration(wait) * time.Second
+	timeout := time.NewTimer(timeoutDuration)
+	ticker := time.NewTicker(checkTickerInterval * time.Second)
+	done := make(chan bool)
+	start := time.Now()
+
+	go func() {
+		for {
+			select {
+			case <-timeout.C:
+				log.Info("Timed out, but doing a last check to see if all test pods are in terminating state")
+				// Check each of the test namespaces for terminating pod (final check)
+				terminating, err = i.podIsTerminatingInTestNamespace(driverType, label)
+				done <- true
+			case <-ticker.C:
+				log.Infof("Checking if all test pods are in terminating state (time left %v)", timeoutDuration-time.Since(start))
+				// Check each of the test namespaces for terminating pod (final check)
+				terminating, err = i.podIsTerminatingInTestNamespace(driverType, label)
+				if terminating {
+					done <- true
+				}
+			}
+		}
+	}()
+
+	<-done
+	timeout.Stop()
+	ticker.Stop()
+	log.Infof("Completed pod termination check after %v (terminating=%v)", time.Since(start), terminating)
+
+	if !terminating {
+		return fmt.Errorf("Pod is not in the 'Terminating' state")
+	}
+	return nil
+}
+
+func isolateIPAddress(endpoint string) string {
+	// isolate the IP address for the API endpoint
+	endpoint = strings.TrimPrefix(endpoint, "https://")
+	endpoint = strings.TrimSuffix(endpoint, "/")
+	endpoint = strings.TrimSuffix(endpoint, "/api/rest")
+	return endpoint
+}
+
 func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	i := &integration{}
 	pollK8sEnabled := false
@@ -3043,6 +4274,7 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	})
 	context.Step(`^a kubernetes "([^"]*)"$`, i.givenKubernetes)
 	context.Step(`^validate that all pods are running within (\d+) seconds$`, i.allPodsAreRunningWithinSeconds)
+	context.Step(`^validate that all pods are not running within (\d+) seconds$`, i.allPodsAreNotRunningWithinSeconds)
 	context.Step(`^I fail "([^"]*)" worker nodes and "([^"]*)" primary nodes with "([^"]*)" failure for (\d+) seconds$`, i.failWorkerAndPrimaryNodes)
 	context.Step(`^I fail "([^"]*)" worker nodes and "([^"]*)" primary nodes with "([^"]*)" failure for (\d+) and I expect these taints "([^"]*)"$`, i.failAndExpectingTaints)
 	context.Step(`I fail labeled "([^"]*)" nodes with "([^"]*)" failure for (\d+) seconds`, i.failLabeledNodes)
@@ -3055,9 +4287,12 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^there are driver pods in "([^"]*)" with this "([^"]*)" prefix$`, i.thereAreDriverPodsWithThisPrefix)
 	context.Step(`^Check OpenShift Virtualization is installed in the cluster$`, i.verifyKubeVirtIPAMControllerPodExists)
 	context.Step(`^finally cleanup everything$`, i.finallyCleanupEverything)
+	context.Step(`^finally cleanup everything except labels$`, i.finallyCleanupEverythingButLabels)
+	context.Step(`^cluster is clean of test pods but may have labels$`, i.finallyCleanupEverythingButLabels)
 	context.Step(`^cluster is clean of test pods$`, i.finallyCleanupEverything)
 	context.Step(`^cluster is clean of test vms$`, i.finallyCleanupEverything)
 	context.Step(`^test environmental variables are set$`, i.expectedEnvVariablesAreSet)
+	context.Step(`^test metro environmental variables are set$`, i.expectedMetroEnvVariablesAreSet)
 	context.Step(`^can logon to nodes and drop test scripts$`, i.canLogonToNodesAndDropTestScripts)
 	context.Step(`^these storageClasses "([^"]*)" exist in the cluster$`, i.theseStorageClassesExistInTheCluster)
 	context.Step(`^wait (\d+) to see there are no taints$`, i.theTaintsForTheFailedNodesAreRemovedWithinSeconds)
@@ -3085,4 +4320,27 @@ func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
 	context.Step(`^skip if "([^"]*)" is not compatible with "([^"]*)"$`, i.skipIfIsNotCompatibleWith)
 	context.Step(`^I set the correct driver type to "([^"]*)"$`, i.iSetTheCorrectDriverTypeTo)
 	context.Step(`^I fail non "([^"]*)" nodes with "([^"]*)" failure for (\d+) seconds$`, i.failNonpreferredNodesWithFailureForSeconds)
+	context.Step(`^the arrays in storageclass "([^"]*)" are in non uniform configuration$`, i.theArraysInStorageclassAreInNonUniformConfiguration)
+	context.Step(`^the arrays in storageclass "([^"]*)" are in uniform configuration$`, i.theArraysInStorageclassAreInUniformConfiguration)
+	context.Step(`^there are nodes labelled "([^"]*)"$`, i.thereAreNodesLabelled)
+	context.Step(`^I verify that "([^"]*)" is immediate binding$`, i.iVerifyThatIsImmediateBinding)
+	context.Step(`^I deploy (\d+) on "([^"]*)" for "([^"]*)"$`, i.iDeployPvcOn)
+	context.Step(`^I ensure all volumes on "([^"]*)" for "([^"]*)" are Bound$`, i.iEnsureAllVolumesOnForAreBound)
+	context.Step(`^I ensure that all metro volumes on "([^"]*)" for "([^"]*)" are stable$`, i.iEnsureThatAllMetroVolumesOnForAreStable)
+	context.Step(`^I ensure that all metro volumes in test namespaces on "([^"]*)" for "([^"]*)" are stable$`, i.iEnsureMetroVolumesStableInTestNamespaces)
+	context.Step(`^I execute "([^"]*)" on preferred array on "([^"]*)" for "([^"]*)" for metro volumes$`, i.iExecuteMetroActionOnForForMetroVolumes)
+	context.Step(`^I execute "([^"]*)" on non preferred array on "([^"]*)" for "([^"]*)" for metro volumes$`, i.iExecuteMetroActionOnNonPreferredMetroVolumes)
+	context.Step(`^I soft fracture the metro volumes on "([^"]*)" for "([^"]*)"$`, i.iSoftFractureTheMetroVolumesOnFor)
+	context.Step(`^I clean up all metro pods and volumes for "([^"]*)"$`, i.iCleanUpAllMetroPodsAndVolumes)
+	context.Step(`^wait for (\d+) seconds$`, i.wait)
+	context.Step(`^I deploy pods for all metro volumes on "([^"]*)" for "([^"]*)" with "([^"]*)" affinity$`, i.iDeployPodsForAllMetroVolumesOnFor)
+	context.Step(`^I disrupt metro connectivity between arrays in storage class "([^"]*)"$`, i.disruptConnectivityBetweenMetroArrays)
+	context.Step(`^I restore metro connectivity between arrays in storage class "([^"]*)"$`, i.restoreConnectivityBetweenMetroArrays)
+	context.Step(`^clear out all volumejournals`, i.iClearVolumeJournals)
+	context.Step(`^Check that there "([^"]*)" volumejournals$`, i.iCheckVolumeJournals)
+	context.Step(`^block connection for "([^"]*)" node to remote array in "([^"]*)"$`, i.blockNodeArrayConnection)
+	context.Step(`^restore connection for "([^"]*)" node to remote array in "([^"]*)"$`, i.restoreNodeArrayConnection)
+	context.Step(`^block connection for "([^"]*)" node to local array in "([^"]*)"$`, i.blockNodeAndLocalArrayConnection)
+	context.Step(`^restore connection for "([^"]*)" node to local array in "([^"]*)"$`, i.restoreNodeAndLocalArrayConnection)
+	context.Step(`^check for terminating pod for "([^"]*)" with the "([^"]*)" label within (\d+) seconds$`, i.checkTerminatingPodWithLabel)
 }

@@ -15,7 +15,7 @@ Feature: Virtual Machine Integration Test
     And can logon to nodes and drop test scripts
     Examples:
       | kubeConfig | driverNames                | namespace  | name       | storageClasses          |
-      | ""         | "csi-vxflexos.dellemc.com" | "vxflexos" | "vxflexos" | "vxflexos" |
+      | ""         | "csi-vxflexos.dellemc.com" | "vxflexos" | "vxflexos" | "vxflexos,vxflexos-nvmetcp" |
 
   @powerscale-vm-int-setup-check
   Scenario Outline: Validate that we have a valid k8s configuration for the Virtual Machine integration tests
@@ -164,6 +164,8 @@ Feature: Virtual Machine Integration Test
       | kubeConfig | vmsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
       | ""         | "1-1"      | "0-0" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 450      | 300        | 350     | 500           |
       | ""         | "2-2"      | "0-0" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "interfacedown" | 500      | 400        | 500     | 650           |
+      #| ""         | "1-1"      | "0-0" | "1-1" | "vxflexos" | "vxflexos-nvmetcp"   | "one-third" | "zero"  | "interfacedown" | 450      | 300        | 350     | 500           |
+      #| ""         | "2-2"      | "0-0" | "2-2" | "vxflexos" | "vxflexos-nvmetcp"   | "one-third" | "zero"  | "interfacedown" | 500      | 400        | 500     | 650           |
 
   @powerflex-vm-integration
   Scenario Outline: Basic node failover testing using test VM's (node slow reboots)
@@ -184,6 +186,8 @@ Feature: Virtual Machine Integration Test
       | kubeConfig | vmsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure  | failSecs | deploySecs | runSecs | nodeCleanSecs |
       | ""         | "1-1"      | "0-0" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 600      | 600        | 1800     | 1800           |
       | ""         | "2-2"      | "0-0" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "reboot" | 900      | 900        | 1800     | 1800           |
+      #| ""         | "1-1"      | "0-0" | "1-1" | "vxflexos" | "vxflexos-nvmetcp"   | "one-third" | "zero"  | "reboot" | 600      | 600        | 1800     | 1800           |
+      #| ""         | "2-2"      | "0-0" | "2-2" | "vxflexos" | "vxflexos-nvmetcp"   | "one-third" | "zero"  | "reboot" | 900      | 900        | 1800     | 1800           |
 
   @powerflex-vm-integration
   Scenario Outline: Basic node failover testing using test VM's (node kubelet down)
@@ -204,6 +208,8 @@ Feature: Virtual Machine Integration Test
       | kubeConfig | vmsPerNode | nVol  | nDev  | driverType | storageClass | workers     | primary | failure         | failSecs | deploySecs | runSecs | nodeCleanSecs |
       | ""         | "1-1"      | "0-0" | "1-1" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "kubeletdown"   | 600      | 900        | 1800     | 1800           |
       | ""         | "2-2"      | "0-0" | "2-2" | "vxflexos" | "vxflexos"   | "one-third" | "zero"  | "kubeletdown"   | 900      | 900        | 1800     | 1800           |
+      #| ""         | "1-1"      | "0-0" | "1-1" | "vxflexos" | "vxflexos-nvmetcp"   | "one-third" | "zero"  | "kubeletdown"   | 600      | 900        | 1800     | 1800           |
+      #| ""         | "2-2"      | "0-0" | "2-2" | "vxflexos" | "vxflexos-nvmetcp"   | "one-third" | "zero"  | "kubeletdown"   | 900      | 900        | 1800     | 1800           |
 
   @powerscale-vm-integration
   Scenario Outline: Basic node failover testing using test VM's (node interface down)
