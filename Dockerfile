@@ -14,7 +14,7 @@
 
 ARG GOIMAGE
 ARG BASEIMAGE
-ARG VERSION="1.15.0"
+ARG VERSION="1.16.0"
 
 # Build the module binary
 FROM $GOIMAGE as builder
@@ -33,7 +33,7 @@ LABEL vendor="Dell Technologies" \
       name="csm-resiliency" \
       summary="Dell Container Storage Modules (CSM) for Resiliency" \
       description="Makes Kubernetes applications, including those that utilize persistent storage, more resilient to various failures" \
-      release="1.16.0" \
+      release="1.17.0" \
       version=$VERSION \
       license="Apache-2.0"
 

@@ -21,8 +21,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/container-storage-interface/spec/lib/go/csi"
 	csiext "github.com/dell/dell-csi-extensions/podmon"
+	"github.com/container-storage-interface/spec/lib/go/csi"
 )
 
 // CSIMock of csiapi.CSIApi
