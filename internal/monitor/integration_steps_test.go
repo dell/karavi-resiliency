@@ -1392,7 +1392,7 @@ func (i *integration) setNonPreferredMetroConnection(operation MetroConnection, 
 	// Get the list of remote systems for the preferred array
 	remoteSystems, err := pstoreClient.GetAllRemoteSystems(context.Background())
 	if err != nil {
-		log.Infof("unable to get the remote systems: %s", err.Error())
+		log.Warnf("unable to get the remote systems: %s", err.Error())
 	}
 
 	var nonPreferredKeyArrayID string
@@ -1441,7 +1441,7 @@ func (i *integration) getNonPreferredArray(storageClass *storagev1.StorageClass)
 	// Get the list of remote systems for the preferred array
 	remoteSystems, err := pstoreClient.GetAllRemoteSystems(context.Background())
 	if err != nil {
-		log.Infof("unable to get the remote systems: %s", err.Error())
+		log.Warnf("unable to get the remote systems: %s", err.Error())
 	}
 
 	var nonPreferredKeyArrayID string
@@ -1581,7 +1581,7 @@ func (i *integration) manageConnectivityBetweenMetroArrays(operation MetroConnec
 	// Get the list of remote systems for the preferred array
 	remoteSystems, err := pstoreClient.GetAllRemoteSystems(context.Background())
 	if err != nil {
-		log.Infof("unable to get the remote systems: %s", err.Error())
+		log.Warnf("unable to get the remote systems: %s", err.Error())
 	}
 
 	var nonPreferredKeyArrayID string
@@ -1668,7 +1668,7 @@ func (i *integration) blockUnblockReplicationTraffic(
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "bash", args...)
+	cmd := exec.CommandContext(ctx, "bash", args...) // #nosec G702
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	env := os.Environ()
@@ -2195,7 +2195,7 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 			out, err := cmd.CombinedOutput()
 			log.Infof("Driver node pod test executed %s", out)
 			if err != nil {
-				log.Infof("Failing err %v %s", err, out)
+				log.Errorf("Failing err %v %s", err, out)
 				return failedNodes, err
 			}
 			return failedNodes, nil
@@ -2595,49 +2595,105 @@ func nodeHasCondition(node corev1.Node, conditionType corev1.NodeConditionType) 
 	return false
 }
 
-func (i *integration) k8sPoll() {
-	list, getNodesErr := i.k8s.GetClient().CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
-	if getNodesErr == nil {
-		for _, node := range list.Items {
-			nodeReady := nodeHasCondition(node, "Ready")
-			taintKeys := make([]string, 0)
-			for _, taint := range node.Spec.Taints {
-				taintKeys = append(taintKeys, taint.Key)
-			}
-			log.Infof("k8sPoll: Node: %s Ready:%v Taints: %s", node.Name, nodeReady, strings.Join(taintKeys, ","))
-			if expectedTaints, ok := i.nodesToTaints[node.Name]; ok {
-				log.Infof("k8sPoll: ^^^^^^^^^^^ is a failed node. Expecting taints: %s", expectedTaints)
+// k8sPoll uses kubernetes "watch" mechanism to watch for changes to the cluster nodes and
+// test application pods, logging the "ready" status and taints for nodes
+func (i *integration) k8sPoll(ctx context.Context) {
+	for {
+		// the K8sAPI is not initialized when this func is first called.
+		// Wait for the kubernetes client to be ready before executing client operations.
+		if i.k8s != nil {
+			if c, ok := i.k8s.(*k8sapi.Client); ok && c.Client != nil {
+				break
 			}
 		}
-	} else {
-		log.Infof("k8sPoll: listing nodes error: %s", getNodesErr)
+		time.Sleep(1 * time.Second)
+		continue
 	}
 
-	if i.driverType != "" {
-		pods, getPodsErr := i.listPodsByLabel(fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", i.driverType))
-		if getPodsErr == nil {
-			for _, pod := range pods.Items {
-				nodeSpec := pod.Spec.NodeName
-				// Display the initial and the current nodes (if changed)
-				nsPodName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
-				if initialNode, ok := i.labeledPodsToNodes[nsPodName]; ok && initialNode != pod.Spec.NodeName {
-					nodeSpec = fmt.Sprintf("%s --> %s", initialNode, pod.Spec.NodeName)
-				}
-				log.Infof("k8sPoll: %s [ PROTECTED   ] %s/%s %s", nodeSpec, pod.Namespace, pod.Name, pod.Status.Phase)
-			}
-		} else {
-			log.Infof("k8sPoll: get pods failed: %s", getPodsErr)
-		}
-		// List unprotected pods
-		pods, getPodsErr = i.listPodsByLabel("podmon.dellemc.com/driver=none")
-		if getPodsErr == nil {
-			for _, pod := range pods.Items {
-				log.Infof("k8sPoll: %s [ UNPROTECTED ] %s/%s %s", pod.Spec.NodeName, pod.Namespace, pod.Name, pod.Status.Phase)
-			}
-		} else {
-			log.Infof("k8sPoll: get pods failed: %s", getPodsErr)
-		}
+	nodeWatcher, err := i.k8s.GetClient().CoreV1().Nodes().Watch(ctx, metav1.ListOptions{})
+	if err != nil {
+		log.Errorf("k8sPoll: listing nodes error: %s", err)
+	} else {
+		// log Node events, publishing the "Ready" status and any taints
+		go func() {
+			defer nodeWatcher.Stop()
 
+			for event := range nodeWatcher.ResultChan() {
+				if node, ok := event.Object.(*corev1.Node); ok {
+					nodeReady := nodeHasCondition(*node, "Ready")
+					taintKeys := make([]string, 0)
+					for _, taint := range node.Spec.Taints {
+						taintKeys = append(taintKeys, taint.Key)
+					}
+
+					expectedTaints, ok := i.nodesToTaints[node.Name]
+					log.WithFields(log.Fields{
+						"ready":  nodeReady,
+						"taints": strings.Join(taintKeys, ","),
+						"expectedTaints": func() string {
+							if ok {
+								return expectedTaints
+							}
+							return "None"
+						}(),
+					}).Infof("k8sPoll: %s", node.Name)
+				}
+			}
+		}()
+	}
+
+	// allow some time for the driverType to be set
+	for i.driverType == "" {
+		time.Sleep(3 * time.Second)
+	}
+
+	podmonPodWatcher, err := i.k8s.GetClient().CoreV1().Pods("").Watch(ctx,
+		metav1.ListOptions{LabelSelector: fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", i.driverType)})
+	if err != nil {
+		log.Warnf("k8sPoll: failed to watch podmon-monitored pods: %s", err)
+	} else {
+		// log pods monitored by podmon
+		go func() {
+			defer podmonPodWatcher.Stop()
+			for podEvent := range podmonPodWatcher.ResultChan() {
+				if pod, ok := podEvent.Object.(*corev1.Pod); ok {
+					nodeSpec := pod.Spec.NodeName
+					// Display the initial and the current nodes (if changed)
+					nsPodName := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+					if initialNode, ok := i.labeledPodsToNodes[nsPodName]; ok && initialNode != pod.Spec.NodeName {
+						nodeSpec = fmt.Sprintf("%s --> %s", initialNode, pod.Spec.NodeName)
+					}
+					log.WithFields(log.Fields{
+						"podmon": "PROTECTED",
+					}).WithFields(log.Fields{
+						"podNodeName":  nodeSpec,
+						"podStatus":    pod.Status.Phase,
+						"podNamespace": pod.Namespace,
+					}).WithField("timestamp", time.Now().Format(time.RFC3339)).Infof("k8sPoll: %s", pod.Name)
+				}
+			}
+		}()
+	}
+
+	// List unprotected pods
+	podUnlabeledWatch, err := i.k8s.GetClient().CoreV1().Pods("").Watch(ctx,
+		metav1.ListOptions{LabelSelector: "podmon.dellemc.com/driver=none"})
+	if err != nil {
+		log.Warnf("k8sPoll: failed to watch pods without podmon label: %s", err)
+	} else {
+		go func() {
+			defer podUnlabeledWatch.Stop()
+			for podEvent := range podUnlabeledWatch.ResultChan() {
+				if pod, ok := podEvent.Object.(*corev1.Pod); ok {
+					log.WithFields(log.Fields{
+						"podmon":       "UNPROTECTED",
+						"podNodeName":  pod.Spec.NodeName,
+						"podStatus":    pod.Status.Phase,
+						"podNamespace": pod.Namespace,
+					}).Infof("k8sPoll: %s", pod.Name)
+				}
+			}
+		}()
 	}
 }
 
@@ -2658,15 +2714,8 @@ func (i *integration) listPodsByLabel(label string) (*corev1.PodList, error) {
 	return i.k8s.GetClient().CoreV1().Pods("").List(context.Background(), metav1.ListOptions{LabelSelector: label})
 }
 
-func (i *integration) startK8sPoller() {
-	for {
-		select {
-		case <-pollTick.C:
-			i.k8sPoll()
-		default:
-			continue
-		}
-	}
+func (i *integration) startK8sPoller(ctx context.Context) {
+	i.k8sPoll(ctx)
 }
 
 func (i *integration) setDriverType(driver string) {
@@ -3855,7 +3904,7 @@ func (i *integration) iDeleteSnapshotsOfMetroVolumes(id string) error {
 
 	snapshots, err := pstoreClient.GetSnapshotsByVolumeID(myCtx, id)
 	if err != nil {
-		log.Infof("unable to get the remote systems: %s", err.Error())
+		log.Warnf("unable to get the remote systems: %s", err.Error())
 	}
 
 	if len(snapshots) > 0 {
@@ -3863,7 +3912,7 @@ func (i *integration) iDeleteSnapshotsOfMetroVolumes(id string) error {
 			log.Infof("Deleting snapshot: %s", snapshot.Name)
 			_, err = pstoreClient.DeleteSnapshot(myCtx, nil, snapshot.ID)
 			if err != nil {
-				log.Infof("unable to delete snapshot: %s", err.Error())
+				log.Warnf("unable to delete snapshot: %s", err.Error())
 			}
 		}
 	}
@@ -4067,7 +4116,7 @@ func (i *integration) blockUnblockNodeIPPort(
 			if port != "" {
 				dropPacketsCmd = fmt.Sprintf("iptables -%s FORWARD %s -j DROP -d %s -p tcp --dport %s -m comment --comment %q; ", action, seq, remoteIP, port, "metro testing; delete me")
 			} else {
-				dropPacketsCmd = fmt.Sprintf("iptables -%s FORWARD %s -j DROP -d %s -m comment --comment %q; ", action, remoteIP, seq, "metro testing; delete me")
+				dropPacketsCmd = fmt.Sprintf("iptables -%s FORWARD %s -j DROP -d %s -m comment --comment %q; ", action, seq, remoteIP, "metro testing; delete me")
 			}
 			log.Infof("executing %s on %s", dropPacketsCmd, localIP)
 			client := i.getSSHClient(localIP)
@@ -4255,92 +4304,88 @@ func isolateIPAddress(endpoint string) string {
 	return endpoint
 }
 
-func IntegrationTestScenarioInit(context *godog.ScenarioContext) {
+func IntegrationTestScenarioInit(scenario *godog.ScenarioContext) {
 	i := &integration{}
 	pollK8sEnabled := false
 	if pollK8sStr := os.Getenv("POLL_K8S"); strings.ToLower(pollK8sStr) == "true" {
 		pollK8sEnabled = true
 	}
-	context.BeforeScenario(func(_ *godog.Scenario) {
+	scenario.Before(func(ctx context.Context, _ *godog.Scenario) (context.Context, error) {
 		if pollK8sEnabled {
-			pollTick = time.NewTicker(k8sPollInterval)
-			go i.startK8sPoller()
+			go i.startK8sPoller(ctx)
 		}
+		return ctx, nil
 	})
-	context.AfterScenario(func(_ *godog.Scenario, _ error) {
-		if pollK8sEnabled {
-			pollTick.Stop()
-		}
-	})
-	context.Step(`^a kubernetes "([^"]*)"$`, i.givenKubernetes)
-	context.Step(`^validate that all pods are running within (\d+) seconds$`, i.allPodsAreRunningWithinSeconds)
-	context.Step(`^validate that all pods are not running within (\d+) seconds$`, i.allPodsAreNotRunningWithinSeconds)
-	context.Step(`^I fail "([^"]*)" worker nodes and "([^"]*)" primary nodes with "([^"]*)" failure for (\d+) seconds$`, i.failWorkerAndPrimaryNodes)
-	context.Step(`^I fail "([^"]*)" worker nodes and "([^"]*)" primary nodes with "([^"]*)" failure for (\d+) and I expect these taints "([^"]*)"$`, i.failAndExpectingTaints)
-	context.Step(`I fail labeled "([^"]*)" nodes with "([^"]*)" failure for (\d+) seconds`, i.failLabeledNodes)
-	context.Step(`^"([^"]*)" pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployProtectedPods)
-	context.Step(`^"([^"]*)" vms per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployProtectedVMs)
-	context.Step(`^"([^"]*)" unprotected pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployUnprotectedPods)
-	context.Step(`^the taints for the failed nodes are removed within (\d+) seconds$`, i.theTaintsForTheFailedNodesAreRemovedWithinSeconds)
-	context.Step(`^these CSI driver "([^"]*)" are configured on the system$`, i.theseCSIDriverAreConfiguredOnTheSystem)
-	context.Step(`^there is a "([^"]*)" in the cluster$`, i.thereIsThisNamespaceInTheCluster)
-	context.Step(`^there are driver pods in "([^"]*)" with this "([^"]*)" prefix$`, i.thereAreDriverPodsWithThisPrefix)
-	context.Step(`^Check OpenShift Virtualization is installed in the cluster$`, i.verifyKubeVirtIPAMControllerPodExists)
-	context.Step(`^finally cleanup everything$`, i.finallyCleanupEverything)
-	context.Step(`^finally cleanup everything except labels$`, i.finallyCleanupEverythingButLabels)
-	context.Step(`^cluster is clean of test pods but may have labels$`, i.finallyCleanupEverythingButLabels)
-	context.Step(`^cluster is clean of test pods$`, i.finallyCleanupEverything)
-	context.Step(`^cluster is clean of test vms$`, i.finallyCleanupEverything)
-	context.Step(`^test environmental variables are set$`, i.expectedEnvVariablesAreSet)
-	context.Step(`^test metro environmental variables are set$`, i.expectedMetroEnvVariablesAreSet)
-	context.Step(`^can logon to nodes and drop test scripts$`, i.canLogonToNodesAndDropTestScripts)
-	context.Step(`^these storageClasses "([^"]*)" exist in the cluster$`, i.theseStorageClassesExistInTheCluster)
-	context.Step(`^wait (\d+) to see there are no taints$`, i.theTaintsForTheFailedNodesAreRemovedWithinSeconds)
-	context.Step(`^labeled pods are on a different node$`, i.labeledPodsChangedNodes)
-	context.Step(`^I fail "([^"]*)" worker driver pod with "([^"]*)" failure for (\d+) and I expect these taints "([^"]*)"$`, i.iFailDriverPodsTaints)
-	context.Step(`^initial disk write and verify on all VMs succeeds$`, i.initialDiskWriteAndVerifyAllVMs)
-	context.Step(`^post failover disk content verification on all VMs succeeds$`, i.postFailoverVerifyAllVMs)
-	context.Step(`^label "([^"]*)" node as "([^"]*)" site$`, i.labelNodeAsPreferredSite)
-	context.Step(`^"([^"]*)" pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+) with "([^"]*)" affinity$`, i.deployProtectedPreferredPods)
-	context.Step(`^pods are scheduled on the non preferred nodes$`, i.verifyPodsOnNonPreferredNodes)
-	context.Step(`^all pods are running on "([^"]*)" node$`, i.allPodsOnNodesWithPreferredLabel)
-	context.Step(`^there are at least (\d+) worker nodes which are ready$`, i.thereAreAtLeastWorkerNodesWhichAreReady)
-	context.Step(`^I fail "([^"]*)" nodes with label "([^"]*)" with "([^"]*)" failure for (\d+) seconds$`, i.iFailNodesWithLabelWithFailureForSeconds)
-	context.Step(`^labeled pods are on a "([^"]*)" node$`, i.labeledPodsAreOnANode)
-	context.Step(`^wait up to (\d+) seconds for pods to switch nodes$`, i.waitForPodsToSwitchNodes)
-	context.Step(`^verify pods do not migrate for (\d+) seconds$`, i.verifyPodsDoNotMigrate)
-	context.Step(`^"([^"]*)" is installed on this machine$`, i.cliToolIsInstalledOnThisMachine)
-	context.Step(`^a driver namespace name "([^"]*)"$`, i.setDriverNamespaceName)
-	context.Step(`^a driver secret name "([^"]*)"$`, i.setDriverSecretName)
-	context.Step(`^the connection fails between the preferred metro array and the nodes with "([^"]*)" label$`, i.failPreferredMetroConnection)
-	context.Step(`^the connection fails between the non preferred metro array and the nodes with "([^"]*)" label$`, i.failNonPreferredMetroConnection)
-	context.Step(`^the connection is restored between the preferred metro array and the nodes with "([^"]*)" label$`, i.restorePreferredMetroConnection)
-	context.Step(`^the connection is restored between the non preferred metro array and the nodes with "([^"]*)" label$`, i.restoreNonPreferredMetroConnection)
-	context.Step(`^nodes with pods and with "([^"]*)" label have taint "([^"]*)" within (\d+) seconds$`, i.labeledNodesWithPodsAreTainted)
-	context.Step(`^skip if "([^"]*)" is not compatible with "([^"]*)"$`, i.skipIfIsNotCompatibleWith)
-	context.Step(`^I set the correct driver type to "([^"]*)"$`, i.iSetTheCorrectDriverTypeTo)
-	context.Step(`^I fail non "([^"]*)" nodes with "([^"]*)" failure for (\d+) seconds$`, i.failNonpreferredNodesWithFailureForSeconds)
-	context.Step(`^the arrays in storageclass "([^"]*)" are in non uniform configuration$`, i.theArraysInStorageclassAreInNonUniformConfiguration)
-	context.Step(`^the arrays in storageclass "([^"]*)" are in uniform configuration$`, i.theArraysInStorageclassAreInUniformConfiguration)
-	context.Step(`^there are nodes labelled "([^"]*)"$`, i.thereAreNodesLabelled)
-	context.Step(`^I verify that "([^"]*)" is immediate binding$`, i.iVerifyThatIsImmediateBinding)
-	context.Step(`^I deploy (\d+) on "([^"]*)" for "([^"]*)"$`, i.iDeployPvcOn)
-	context.Step(`^I ensure all volumes on "([^"]*)" for "([^"]*)" are Bound$`, i.iEnsureAllVolumesOnForAreBound)
-	context.Step(`^I ensure that all metro volumes on "([^"]*)" for "([^"]*)" are stable$`, i.iEnsureThatAllMetroVolumesOnForAreStable)
-	context.Step(`^I ensure that all metro volumes in test namespaces on "([^"]*)" for "([^"]*)" are stable$`, i.iEnsureMetroVolumesStableInTestNamespaces)
-	context.Step(`^I execute "([^"]*)" on preferred array on "([^"]*)" for "([^"]*)" for metro volumes$`, i.iExecuteMetroActionOnForForMetroVolumes)
-	context.Step(`^I execute "([^"]*)" on non preferred array on "([^"]*)" for "([^"]*)" for metro volumes$`, i.iExecuteMetroActionOnNonPreferredMetroVolumes)
-	context.Step(`^I soft fracture the metro volumes on "([^"]*)" for "([^"]*)"$`, i.iSoftFractureTheMetroVolumesOnFor)
-	context.Step(`^I clean up all metro pods and volumes for "([^"]*)"$`, i.iCleanUpAllMetroPodsAndVolumes)
-	context.Step(`^wait for (\d+) seconds$`, i.wait)
-	context.Step(`^I deploy pods for all metro volumes on "([^"]*)" for "([^"]*)" with "([^"]*)" affinity$`, i.iDeployPodsForAllMetroVolumesOnFor)
-	context.Step(`^I disrupt metro connectivity between arrays in storage class "([^"]*)"$`, i.disruptConnectivityBetweenMetroArrays)
-	context.Step(`^I restore metro connectivity between arrays in storage class "([^"]*)"$`, i.restoreConnectivityBetweenMetroArrays)
-	context.Step(`^clear out all volumejournals`, i.iClearVolumeJournals)
-	context.Step(`^Check that there "([^"]*)" volumejournals$`, i.iCheckVolumeJournals)
-	context.Step(`^block connection for "([^"]*)" node to remote array in "([^"]*)"$`, i.blockNodeArrayConnection)
-	context.Step(`^restore connection for "([^"]*)" node to remote array in "([^"]*)"$`, i.restoreNodeArrayConnection)
-	context.Step(`^block connection for "([^"]*)" node to local array in "([^"]*)"$`, i.blockNodeAndLocalArrayConnection)
-	context.Step(`^restore connection for "([^"]*)" node to local array in "([^"]*)"$`, i.restoreNodeAndLocalArrayConnection)
-	context.Step(`^check for terminating pod for "([^"]*)" with the "([^"]*)" label within (\d+) seconds$`, i.checkTerminatingPodWithLabel)
+
+	scenario.Step(`^a kubernetes "([^"]*)"$`, i.givenKubernetes)
+	scenario.Step(`^validate that all pods are running within (\d+) seconds$`, i.allPodsAreRunningWithinSeconds)
+	scenario.Step(`^validate that all pods are not running within (\d+) seconds$`, i.allPodsAreNotRunningWithinSeconds)
+	scenario.Step(`^I fail "([^"]*)" worker nodes and "([^"]*)" primary nodes with "([^"]*)" failure for (\d+) seconds$`, i.failWorkerAndPrimaryNodes)
+	scenario.Step(`^I fail "([^"]*)" worker nodes and "([^"]*)" primary nodes with "([^"]*)" failure for (\d+) and I expect these taints "([^"]*)"$`, i.failAndExpectingTaints)
+	scenario.Step(`I fail labeled "([^"]*)" nodes with "([^"]*)" failure for (\d+) seconds`, i.failLabeledNodes)
+	scenario.Step(`^"([^"]*)" pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployProtectedPods)
+	scenario.Step(`^"([^"]*)" vms per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployProtectedVMs)
+	scenario.Step(`^"([^"]*)" unprotected pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+)$`, i.deployUnprotectedPods)
+	scenario.Step(`^the taints for the failed nodes are removed within (\d+) seconds$`, i.theTaintsForTheFailedNodesAreRemovedWithinSeconds)
+	scenario.Step(`^these CSI driver "([^"]*)" are configured on the system$`, i.theseCSIDriverAreConfiguredOnTheSystem)
+	scenario.Step(`^there is a "([^"]*)" in the cluster$`, i.thereIsThisNamespaceInTheCluster)
+	scenario.Step(`^there are driver pods in "([^"]*)" with this "([^"]*)" prefix$`, i.thereAreDriverPodsWithThisPrefix)
+	scenario.Step(`^Check OpenShift Virtualization is installed in the cluster$`, i.verifyKubeVirtIPAMControllerPodExists)
+	scenario.Step(`^finally cleanup everything$`, i.finallyCleanupEverything)
+	scenario.Step(`^finally cleanup everything except labels$`, i.finallyCleanupEverythingButLabels)
+	scenario.Step(`^cluster is clean of test pods but may have labels$`, i.finallyCleanupEverythingButLabels)
+	scenario.Step(`^cluster is clean of test pods$`, i.finallyCleanupEverything)
+	scenario.Step(`^cluster is clean of test vms$`, i.finallyCleanupEverything)
+	scenario.Step(`^test environmental variables are set$`, i.expectedEnvVariablesAreSet)
+	scenario.Step(`^test metro environmental variables are set$`, i.expectedMetroEnvVariablesAreSet)
+	scenario.Step(`^can logon to nodes and drop test scripts$`, i.canLogonToNodesAndDropTestScripts)
+	scenario.Step(`^these storageClasses "([^"]*)" exist in the cluster$`, i.theseStorageClassesExistInTheCluster)
+	scenario.Step(`^wait (\d+) to see there are no taints$`, i.theTaintsForTheFailedNodesAreRemovedWithinSeconds)
+	scenario.Step(`^labeled pods are on a different node$`, i.labeledPodsChangedNodes)
+	scenario.Step(`^I fail "([^"]*)" worker driver pod with "([^"]*)" failure for (\d+) and I expect these taints "([^"]*)"$`, i.iFailDriverPodsTaints)
+	scenario.Step(`^initial disk write and verify on all VMs succeeds$`, i.initialDiskWriteAndVerifyAllVMs)
+	scenario.Step(`^post failover disk content verification on all VMs succeeds$`, i.postFailoverVerifyAllVMs)
+	scenario.Step(`^label "([^"]*)" node as "([^"]*)" site$`, i.labelNodeAsPreferredSite)
+	scenario.Step(`^"([^"]*)" pods per node with "([^"]*)" volumes and "([^"]*)" devices using "([^"]*)" and "([^"]*)" in (\d+) with "([^"]*)" affinity$`, i.deployProtectedPreferredPods)
+	scenario.Step(`^pods are scheduled on the non preferred nodes$`, i.verifyPodsOnNonPreferredNodes)
+	scenario.Step(`^all pods are running on "([^"]*)" node$`, i.allPodsOnNodesWithPreferredLabel)
+	scenario.Step(`^there are at least (\d+) worker nodes which are ready$`, i.thereAreAtLeastWorkerNodesWhichAreReady)
+	scenario.Step(`^I fail "([^"]*)" nodes with label "([^"]*)" with "([^"]*)" failure for (\d+) seconds$`, i.iFailNodesWithLabelWithFailureForSeconds)
+	scenario.Step(`^labeled pods are on a "([^"]*)" node$`, i.labeledPodsAreOnANode)
+	scenario.Step(`^wait up to (\d+) seconds for pods to switch nodes$`, i.waitForPodsToSwitchNodes)
+	scenario.Step(`^verify pods do not migrate for (\d+) seconds$`, i.verifyPodsDoNotMigrate)
+	scenario.Step(`^"([^"]*)" is installed on this machine$`, i.cliToolIsInstalledOnThisMachine)
+	scenario.Step(`^a driver namespace name "([^"]*)"$`, i.setDriverNamespaceName)
+	scenario.Step(`^a driver secret name "([^"]*)"$`, i.setDriverSecretName)
+	scenario.Step(`^the connection fails between the preferred metro array and the nodes with "([^"]*)" label$`, i.failPreferredMetroConnection)
+	scenario.Step(`^the connection fails between the non preferred metro array and the nodes with "([^"]*)" label$`, i.failNonPreferredMetroConnection)
+	scenario.Step(`^the connection is restored between the preferred metro array and the nodes with "([^"]*)" label$`, i.restorePreferredMetroConnection)
+	scenario.Step(`^the connection is restored between the non preferred metro array and the nodes with "([^"]*)" label$`, i.restoreNonPreferredMetroConnection)
+	scenario.Step(`^nodes with pods and with "([^"]*)" label have taint "([^"]*)" within (\d+) seconds$`, i.labeledNodesWithPodsAreTainted)
+	scenario.Step(`^skip if "([^"]*)" is not compatible with "([^"]*)"$`, i.skipIfIsNotCompatibleWith)
+	scenario.Step(`^I set the correct driver type to "([^"]*)"$`, i.iSetTheCorrectDriverTypeTo)
+	scenario.Step(`^I fail non "([^"]*)" nodes with "([^"]*)" failure for (\d+) seconds$`, i.failNonpreferredNodesWithFailureForSeconds)
+	scenario.Step(`^the arrays in storageclass "([^"]*)" are in non uniform configuration$`, i.theArraysInStorageclassAreInNonUniformConfiguration)
+	scenario.Step(`^the arrays in storageclass "([^"]*)" are in uniform configuration$`, i.theArraysInStorageclassAreInUniformConfiguration)
+	scenario.Step(`^there are nodes labelled "([^"]*)"$`, i.thereAreNodesLabelled)
+	scenario.Step(`^I verify that "([^"]*)" is immediate binding$`, i.iVerifyThatIsImmediateBinding)
+	scenario.Step(`^I deploy (\d+) on "([^"]*)" for "([^"]*)"$`, i.iDeployPvcOn)
+	scenario.Step(`^I ensure all volumes on "([^"]*)" for "([^"]*)" are Bound$`, i.iEnsureAllVolumesOnForAreBound)
+	scenario.Step(`^I ensure that all metro volumes on "([^"]*)" for "([^"]*)" are stable$`, i.iEnsureThatAllMetroVolumesOnForAreStable)
+	scenario.Step(`^I ensure that all metro volumes in test namespaces on "([^"]*)" for "([^"]*)" are stable$`, i.iEnsureMetroVolumesStableInTestNamespaces)
+	scenario.Step(`^I execute "([^"]*)" on preferred array on "([^"]*)" for "([^"]*)" for metro volumes$`, i.iExecuteMetroActionOnForForMetroVolumes)
+	scenario.Step(`^I execute "([^"]*)" on non preferred array on "([^"]*)" for "([^"]*)" for metro volumes$`, i.iExecuteMetroActionOnNonPreferredMetroVolumes)
+	scenario.Step(`^I soft fracture the metro volumes on "([^"]*)" for "([^"]*)"$`, i.iSoftFractureTheMetroVolumesOnFor)
+	scenario.Step(`^I clean up all metro pods and volumes for "([^"]*)"$`, i.iCleanUpAllMetroPodsAndVolumes)
+	scenario.Step(`^wait for (\d+) seconds$`, i.wait)
+	scenario.Step(`^I deploy pods for all metro volumes on "([^"]*)" for "([^"]*)" with "([^"]*)" affinity$`, i.iDeployPodsForAllMetroVolumesOnFor)
+	scenario.Step(`^I disrupt metro connectivity between arrays in storage class "([^"]*)"$`, i.disruptConnectivityBetweenMetroArrays)
+	scenario.Step(`^I restore metro connectivity between arrays in storage class "([^"]*)"$`, i.restoreConnectivityBetweenMetroArrays)
+	scenario.Step(`^clear out all volumejournals`, i.iClearVolumeJournals)
+	scenario.Step(`^Check that there "([^"]*)" volumejournals$`, i.iCheckVolumeJournals)
+	scenario.Step(`^block connection for "([^"]*)" node to remote array in "([^"]*)"$`, i.blockNodeArrayConnection)
+	scenario.Step(`^restore connection for "([^"]*)" node to remote array in "([^"]*)"$`, i.restoreNodeArrayConnection)
+	scenario.Step(`^block connection for "([^"]*)" node to local array in "([^"]*)"$`, i.blockNodeAndLocalArrayConnection)
+	scenario.Step(`^restore connection for "([^"]*)" node to local array in "([^"]*)"$`, i.restoreNodeAndLocalArrayConnection)
+	scenario.Step(`^check for terminating pod for "([^"]*)" with the "([^"]*)" label within (\d+) seconds$`, i.checkTerminatingPodWithLabel)
 }

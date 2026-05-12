@@ -25,8 +25,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cucumber/godog"
 	"github.com/dell/gofsutil"
+	"github.com/cucumber/godog"
 	logtest "github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"

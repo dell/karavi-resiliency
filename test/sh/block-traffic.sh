@@ -202,6 +202,6 @@ for node in "${LOCAL_IPS[@]}"; do
     pids=()
   fi
 done
-wait "${pids[@]:-}" || true
+wait "${pids[@]:-}"
 
 echo "Done."

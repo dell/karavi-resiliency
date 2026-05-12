@@ -21,7 +21,7 @@ build: generate vendor
 	GOOS=linux CGO_ENABLED=0 go build -mod=vendor -o podmon ./cmd/podmon/ 
 
 go-code-tester:
-	git clone --depth 1 git@github.com:CSM/actions.git temp-repo
+	git clone --depth 1 git@github.com:dell/actions.git temp-repo
 	cp temp-repo/go-code-tester/entrypoint.sh ./go-code-tester
 	chmod +x go-code-tester
 	rm -rf temp-repo

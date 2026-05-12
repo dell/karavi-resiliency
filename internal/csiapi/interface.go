@@ -19,8 +19,8 @@ package csiapi
 import (
 	"context"
 
-	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	csiext "github.com/dell/dell-csi-extensions/podmon"
+	csi "github.com/container-storage-interface/spec/lib/go/csi"
 )
 
 // CSIApi is an interface for CSI driver calls
