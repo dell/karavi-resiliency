@@ -29,8 +29,6 @@ Some of the methods CSM for Resiliency invokes in the driver are standard CSI me
 
 Accordingly, CSM for Resiliency is adapted to, and qualified with each Dell CSI driver it is to be used with. Different storage systems have different nuances and characteristics that CSM for Resiliency must take into account.
 
-For documentation, please visit [Container Storage Modules documentation](https://dell.github.io/csm-docs/).
-
 # Table of Contents
 
 - [Code of Conduct](https://github.com/dell/csm/blob/main/docs/CODE_OF_CONDUCT.md)
