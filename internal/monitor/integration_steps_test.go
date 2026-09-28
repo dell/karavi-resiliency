@@ -1,4 +1,4 @@
-// Copyright © 2021-2023 Dell Inc. or its subsidiaries. All Rights Reserved.
+// Copyright © 2021-2026 Dell Inc. or its subsidiaries. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,13 +32,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dell/csi-powerstore/v2/core"
-	pstoreArray "github.com/dell/csi-powerstore/v2/pkg/array"
-	pstoreController "github.com/dell/csi-powerstore/v2/pkg/controller"
-	pstoreID "github.com/dell/csi-powerstore/v2/pkg/identifiers"
+	"github.com/dell/csmlog"
 	"github.com/dell/gopowerstore"
 	"github.com/cucumber/godog"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/apps/v1"
@@ -53,6 +49,29 @@ type customResource struct {
 	APIVersion string        `json:"apiVersion"`
 	Items      []interface{} `json:"items"`
 	Kind       string        `json:"kind"`
+}
+
+type powerStoreArray struct {
+	Endpoint         string                `yaml:"endpoint" json:"endpoint"`
+	GlobalID         string                `yaml:"globalID" json:"globalID"`
+	Username         string                `yaml:"username" json:"username"`
+	Password         string                `yaml:"password" json:"password"`
+	HostConnectivity *hostConnectivityInfo `yaml:"hostConnectivity" json:"hostConnectivity"`
+}
+
+// hostConnectivityInfo provides two host connectivity options for nodes that will
+// register hosts in a PowerStore system -- Local and Metro.
+type hostConnectivityInfo struct {
+	Local corev1.NodeSelector      `yaml:"local" json:"local"`
+	Metro metroConnectivityOptions `yaml:"metro" json:"metro"`
+}
+
+// metroConnectivityOptions provides options for how a host should be registered
+// to optimize the connection for uniform metro replication.
+type metroConnectivityOptions struct {
+	ColocatedLocal  corev1.NodeSelector `yaml:"colocatedLocal" json:"colocatedLocal"`
+	ColocatedRemote corev1.NodeSelector `yaml:"colocatedRemote" json:"colocatedRemote"`
+	ColocatedBoth   corev1.NodeSelector `yaml:"colocatedBoth" json:"colocatedBoth"`
 }
 
 type integration struct {
@@ -158,6 +177,14 @@ const (
 	powerstoreSecretDataKeyName = "config"
 	blockTrafficScriptName      = "block-traffic.sh"
 	customResourceDR            = "/apis/dr.storage.dell.com/v1"
+
+	keyArrayID = "arrayID"
+
+	replicationPrefix          = "replication.storage.dell.com"
+	keyReplicationRemoteSystem = "remoteSystem"
+
+	powerstoreVerboseName = "CSI Driver for Dell EMC PowerStore"
+	powerstoreSemVer      = "unknown"
 )
 
 // Used for stopping the test from continuing
@@ -218,7 +245,7 @@ func (i *integration) givenKubernetes(configPath string) error {
 
 	// Look for a "stop" file. If found, we signal that the tests should stop.
 	if fileInfo, stopFileErr := os.Stat(stopFilename); stopFileErr == nil {
-		log.Infof("Found stop test file %s", fileInfo.Name())
+		csmlog.Infof("Found stop test file %s", fileInfo.Name())
 		stopTestRequested = true
 		// Clean up the stop file, so that the test can be rerun.
 		os.Remove(fileInfo.Name())
@@ -240,7 +267,7 @@ func (i *integration) givenKubernetes(configPath string) error {
 	err = i.k8s.Connect(&i.configPath)
 	if err != nil {
 		message := fmt.Sprintf("kubernetes connection error: %s", err)
-		log.Info(message)
+		csmlog.Info(message)
 		return fmt.Errorf("%s", message)
 	}
 
@@ -283,7 +310,7 @@ func (i *integration) allPodsAreNotRunningWithinSeconds(wait int) error {
 		return fmt.Errorf("All test pods are in the 'Running' state")
 	}
 
-	log.Infof("Test pods are not all running. Waiting up to %d seconds.", wait)
+	csmlog.Infof("Test pods are not all running. Waiting up to %d seconds.", wait)
 	timeoutDuration := time.Duration(wait) * time.Second
 	timeout := time.NewTimer(timeoutDuration)
 	ticker := time.NewTicker(checkTickerInterval * time.Second)
@@ -294,12 +321,12 @@ func (i *integration) allPodsAreNotRunningWithinSeconds(wait int) error {
 		for {
 			select {
 			case <-timeout.C:
-				log.Info("Timed out, but doing a last check to see if all test pods are running")
+				csmlog.Info("Timed out, but doing a last check to see if all test pods are running")
 				// Check each of the test namespaces for running pods (final check)
 				allRunning, err = i.allPodsInTestNamespacesAreRunning()
 				done <- true
 			case <-ticker.C:
-				log.Infof("Checking if all test pods are running (time left %v)", timeoutDuration-time.Since(start))
+				csmlog.Infof("Checking if all test pods are running (time left %v)", timeoutDuration-time.Since(start))
 				// Check each of the test namespaces for running pods (final check)
 				allRunning, err = i.allPodsInTestNamespacesAreRunning()
 				if allRunning {
@@ -316,7 +343,7 @@ func (i *integration) allPodsAreNotRunningWithinSeconds(wait int) error {
 	if err != nil {
 		return err
 	}
-	log.Infof("Completed pod running check after %v (allRunning=%v)", time.Since(start), allRunning)
+	csmlog.Infof("Completed pod running check after %v (allRunning=%v)", time.Since(start), allRunning)
 
 	return AssertExpectedAndActual(assert.Equal, false, allRunning,
 		fmt.Sprintf("Expected all pods to be not in running state after %d seconds", wait))
@@ -330,11 +357,11 @@ func (i *integration) allPodsAreRunningWithinSeconds(wait int) error {
 	}
 
 	if allRunning {
-		log.Info("All test pods are in the 'Running' state")
+		csmlog.Info("All test pods are in the 'Running' state")
 		return nil
 	}
 
-	log.Infof("Test pods are not all running. Waiting up to %d seconds.", wait)
+	csmlog.Infof("Test pods are not all running. Waiting up to %d seconds.", wait)
 	timeoutDuration := time.Duration(wait) * time.Second
 	timeout := time.NewTimer(timeoutDuration)
 	ticker := time.NewTicker(checkTickerInterval * time.Second)
@@ -345,12 +372,12 @@ func (i *integration) allPodsAreRunningWithinSeconds(wait int) error {
 		for {
 			select {
 			case <-timeout.C:
-				log.Info("Timed out, but doing a last check to see if all test pods are running")
+				csmlog.Info("Timed out, but doing a last check to see if all test pods are running")
 				// Check each of the test namespaces for running pods (final check)
 				allRunning, err = i.allPodsInTestNamespacesAreRunning()
 				done <- true
 			case <-ticker.C:
-				log.Infof("Checking if all test pods are running (time left %v)", timeoutDuration-time.Since(start))
+				csmlog.Infof("Checking if all test pods are running (time left %v)", timeoutDuration-time.Since(start))
 				// Check each of the test namespaces for running pods (final check)
 				allRunning, err = i.allPodsInTestNamespacesAreRunning()
 				if allRunning {
@@ -367,7 +394,7 @@ func (i *integration) allPodsAreRunningWithinSeconds(wait int) error {
 	if err != nil {
 		return err
 	}
-	log.Infof("Completed pod running check after %v (allRunning=%v)", time.Since(start), allRunning)
+	csmlog.Infof("Completed pod running check after %v (allRunning=%v)", time.Since(start), allRunning)
 
 	return AssertExpectedAndActual(assert.Equal, true, allRunning,
 		fmt.Sprintf("Expected all pods to be in running state after %d seconds", wait))
@@ -424,14 +451,14 @@ func (i *integration) verifyExpectedNodesFailed(failedWorkers []string, wait int
 	// Allow a little extra for node failure to be detected than just the node downtime.
 	// This proved necessary for the really short failure times (45 sec.) to be reliable.
 	wait = wait + wait
-	log.Infof("Requested nodes to fail. Waiting up to %d seconds to see if they show up as failed.", wait)
+	csmlog.Infof("Requested nodes to fail. Waiting up to %d seconds to see if they show up as failed.", wait)
 	timeoutDuration := time.Duration(wait) * time.Second
 	timeout := time.NewTimer(timeoutDuration)
 	ticker := time.NewTicker(checkTickerInterval * time.Second)
 	done := make(chan bool)
 	start := time.Now()
 
-	log.Infof("Waiting for failed nodes...")
+	csmlog.Infof("Waiting for failed nodes...")
 
 	requestedWorkersAndFailed := func(node corev1.Node) bool {
 		found := false
@@ -450,11 +477,11 @@ func (i *integration) verifyExpectedNodesFailed(failedWorkers []string, wait int
 		for {
 			select {
 			case <-timeout.C:
-				log.Info("Timed out, but doing last check if requested nodes show up as failed")
+				csmlog.Info("Timed out, but doing last check if requested nodes show up as failed")
 				foundFailedWorkers, err = i.searchForNodes(requestedWorkersAndFailed)
 				return
 			case <-ticker.C:
-				log.Infof("Checking if requested nodes show up as failed (time left %v)", timeoutDuration-time.Since(start))
+				csmlog.Infof("Checking if requested nodes show up as failed (time left %v)", timeoutDuration-time.Since(start))
 				foundFailedWorkers, err = i.searchForNodes(requestedWorkersAndFailed)
 				if len(foundFailedWorkers) == len(failedWorkers) {
 					return
@@ -467,7 +494,7 @@ func (i *integration) verifyExpectedNodesFailed(failedWorkers []string, wait int
 	timeout.Stop()
 	ticker.Stop()
 
-	log.Infof("Completed checks for failed nodes after %v", time.Since(start))
+	csmlog.Infof("Completed checks for failed nodes after %v", time.Since(start))
 	err = AssertExpectedAndActual(assert.Equal, true, len(foundFailedWorkers) == len(failedWorkers),
 		fmt.Sprintf("Expected %d worker node(s) to be failed, but was %d. %v", len(failedWorkers), len(foundFailedWorkers), foundFailedWorkers))
 	if err != nil {
@@ -499,7 +526,7 @@ func (i *integration) internalFailWorkerAndPrimaryNodes(numNodes, numPrimary, fa
 		return err
 	}
 
-	log.Infof("Test with %2.2f failed workers and %2.2f failed primary nodes", workersToFail, primaryToFail)
+	csmlog.Infof("Test with %2.2f failed workers and %2.2f failed primary nodes", workersToFail, primaryToFail)
 
 	failedWorkers, err := i.failWorkerNodes(workersToFail, failure, wait)
 	if err != nil {
@@ -514,14 +541,14 @@ func (i *integration) internalFailWorkerAndPrimaryNodes(numNodes, numPrimary, fa
 	// Allow a little extra for node failure to be detected than just the node downtime.
 	// This proved necessary for the really short failure times (45 sec.) to be reliable.
 	wait = wait + wait
-	log.Infof("Requested nodes to fail. Waiting up to %d seconds to see if they show up as failed.", wait)
+	csmlog.Infof("Requested nodes to fail. Waiting up to %d seconds to see if they show up as failed.", wait)
 	timeoutDuration := time.Duration(wait) * time.Second
 	timeout := time.NewTimer(timeoutDuration)
 	ticker := time.NewTicker(checkTickerInterval * time.Second)
 	done := make(chan bool)
 	start := time.Now()
 
-	log.Infof("Waiting for failed nodes...")
+	csmlog.Infof("Waiting for failed nodes...")
 
 	requestedWorkersAndFailed := func(node corev1.Node) bool {
 		found := false
@@ -560,12 +587,12 @@ func (i *integration) internalFailWorkerAndPrimaryNodes(numNodes, numPrimary, fa
 		for {
 			select {
 			case <-timeout.C:
-				log.Info("Timed out, but doing last check if requested nodes show up as failed")
+				csmlog.Info("Timed out, but doing last check if requested nodes show up as failed")
 				foundFailedWorkers, err = i.searchForNodes(requestedWorkersAndFailed)
 				foundFailedPrimary, err = i.searchForNodes(requestedPrimaryAndFailed)
 				return
 			case <-ticker.C:
-				log.Infof("Checking if requested nodes show up as failed (time left %v)", timeoutDuration-time.Since(start))
+				csmlog.Infof("Checking if requested nodes show up as failed (time left %v)", timeoutDuration-time.Since(start))
 				foundFailedWorkers, err = i.searchForNodes(requestedWorkersAndFailed)
 				foundFailedPrimary, err = i.searchForNodes(requestedPrimaryAndFailed)
 				if len(foundFailedPrimary) == len(failedPrimary) && len(foundFailedWorkers) == len(failedWorkers) {
@@ -579,7 +606,7 @@ func (i *integration) internalFailWorkerAndPrimaryNodes(numNodes, numPrimary, fa
 	timeout.Stop()
 	ticker.Stop()
 
-	log.Infof("Completed checks for failed nodes after %v", time.Since(start))
+	csmlog.Infof("Completed checks for failed nodes after %v", time.Since(start))
 
 	err = AssertExpectedAndActual(assert.Equal, true, len(foundFailedPrimary) == len(failedPrimary),
 		fmt.Sprintf("Expected %d primary nodes to be failed, but was %d. %v", len(failedPrimary), len(foundFailedPrimary), foundFailedPrimary))
@@ -614,7 +641,7 @@ func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, 
 
 	i.storageClass, err = i.k8s.GetClient().StorageV1().StorageClasses().Get(context.Background(), storageClass, metav1.GetOptions{})
 	if err != nil {
-		log.Errorf("failed to deploy pods. Encountered an error while querying for the StorageClass: %s", err.Error())
+		csmlog.Errorf("failed to deploy pods. Encountered an error while querying for the StorageClass: %s", err.Error())
 	}
 
 	// Select the deployment script to use based on the driver type.
@@ -689,7 +716,7 @@ func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, 
 
 	// For consecutive run provide Unity array some cleanup times
 	time.Sleep(cleanUpWait)
-	log.Infof("Attempting to deploy with command: %v", command)
+	csmlog.Infof("Attempting to deploy with command: %v", command)
 	err = command.Start()
 	if err != nil {
 		return err
@@ -705,7 +732,7 @@ func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, 
 	i.devCount = devCount
 	i.volCount = volCount
 
-	log.Infof("Waiting up to %d seconds for pods to deploy", wait)
+	csmlog.Infof("Waiting up to %d seconds for pods to deploy", wait)
 	runningCount := 0
 	timeoutDuration := time.Duration(wait) * time.Second
 	timeout := time.NewTimer(timeoutDuration)
@@ -717,11 +744,11 @@ func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, 
 		for {
 			select {
 			case <-timeout.C:
-				log.Info("Timed out, but doing last check if test pods are running")
+				csmlog.Info("Timed out, but doing last check if test pods are running")
 				runningCount = i.getNumberOfRunningTestPods()
 				done <- true
 			case <-ticker.C:
-				log.Infof("Check if test pods are running (time left %v)", timeoutDuration-time.Since(start))
+				csmlog.Infof("Check if test pods are running (time left %v)", timeoutDuration-time.Since(start))
 				runningCount = i.getNumberOfRunningTestPods()
 				if runningCount == i.podCount {
 					done <- true
@@ -734,7 +761,7 @@ func (i *integration) deployPods(protected bool, podsPerNode, numVols, numDevs, 
 	timeout.Stop()
 	ticker.Stop()
 
-	log.Infof("Test pods running check finished after %v", time.Since(start))
+	csmlog.Infof("Test pods running check finished after %v", time.Since(start))
 	err = AssertExpectedAndActual(assert.Equal, i.podCount, runningCount,
 		fmt.Sprintf("Expected %d test pods to be running after %d seconds", i.podCount, wait))
 	if err != nil {
@@ -836,7 +863,7 @@ func (i *integration) deployVMs(protected bool, vmsPerNode, numVols, numDevs, dr
 
 	// For consecutive run provide Unity array some cleanup times
 	time.Sleep(cleanUpWait)
-	log.Infof("Attempting to deploy with command: %v", command)
+	csmlog.Infof("Attempting to deploy with command: %v", command)
 	err = command.Start()
 	if err != nil {
 		return err
@@ -852,7 +879,7 @@ func (i *integration) deployVMs(protected bool, vmsPerNode, numVols, numDevs, dr
 	i.devCount = devCount
 	i.volCount = volCount
 
-	log.Infof("Waiting up to %d seconds for pods to deploy", wait)
+	csmlog.Infof("Waiting up to %d seconds for pods to deploy", wait)
 	runningCount := 0
 	timeoutDuration := time.Duration(wait) * time.Second
 	timeout := time.NewTimer(timeoutDuration)
@@ -864,11 +891,11 @@ func (i *integration) deployVMs(protected bool, vmsPerNode, numVols, numDevs, dr
 		for {
 			select {
 			case <-timeout.C:
-				log.Info("Timed out, but doing last check if test pods are running")
+				csmlog.Info("Timed out, but doing last check if test pods are running")
 				runningCount = i.getNumberOfRunningTestPods()
 				done <- true
 			case <-ticker.C:
-				log.Infof("Check if test pods are running (time left %v)", timeoutDuration-time.Since(start))
+				csmlog.Infof("Check if test pods are running (time left %v)", timeoutDuration-time.Since(start))
 				runningCount = i.getNumberOfRunningTestPods()
 				if runningCount == i.podCount {
 					done <- true
@@ -881,7 +908,7 @@ func (i *integration) deployVMs(protected bool, vmsPerNode, numVols, numDevs, dr
 	timeout.Stop()
 	ticker.Stop()
 
-	log.Infof("Test pods running check finished after %v", time.Since(start))
+	csmlog.Infof("Test pods running check finished after %v", time.Since(start))
 	err = AssertExpectedAndActual(assert.Equal, i.podCount, runningCount,
 		fmt.Sprintf("Expected %d test pods to be running after %d seconds", i.podCount, wait))
 	if err != nil {
@@ -928,7 +955,7 @@ func (i *integration) theseCSIDriverAreConfiguredOnTheSystem(driverName string) 
 	if err != nil {
 		return err
 	}
-	log.Infof("Driver %s exists on the cluster", driverObj.Name)
+	csmlog.Infof("Driver %s exists on the cluster", driverObj.Name)
 	return AssertExpectedAndActual(assert.Equal, driverName, driverObj.Name,
 		fmt.Sprintf("No CSIDriver named %s found in cluster", driverName))
 }
@@ -1005,7 +1032,7 @@ func (i *integration) thereAreDriverPodsWithThisPrefix(namespace, prefix string)
 }
 
 func (i *integration) removePreferredLabels() error {
-	log.Println("Removing preferred labels from nodes")
+	csmlog.Info("Removing preferred labels from nodes")
 
 	// Clean up nodes with the label
 	labelKey := preferredLabelKey
@@ -1041,7 +1068,7 @@ func (i *integration) finallyCleanupEverything() error {
 		return nil
 	}
 
-	log.Infof("Attempting to clean up everything for driverType '%s'", lastTestDriverType)
+	csmlog.Infof("Attempting to clean up everything for driverType '%s'", lastTestDriverType)
 
 	scriptPath := filepath.Join("..", "..", "test", "podmontest", uninstallScript)
 	script := "bash"
@@ -1056,7 +1083,7 @@ func (i *integration) finallyCleanupEverything() error {
 		command.Stdout = os.Stdout
 		command.Stderr = os.Stderr
 
-		log.Infof("Going to invoke uninstall script %v", command)
+		csmlog.Infof("Going to invoke uninstall script %v", command)
 		err := command.Start()
 		if err != nil {
 			return err
@@ -1162,7 +1189,7 @@ func (i *integration) canLogonToNodesAndDropTestScripts() error {
 			if addr.Type == "InternalIP" {
 				// Check if we already copied files for this node already
 				if _, ok := nodesWithScripts[addr.Address]; ok {
-					log.Infof("Node %s already has scripts.", addr.Address)
+					csmlog.Infof("Node %s already has scripts.", addr.Address)
 					break
 				}
 				err = i.copyOverTestScripts(addr.Address)
@@ -1212,19 +1239,19 @@ func (i *integration) waitForPodsToSwitchNodes(waitTimeSec int) error {
 	timeout, ticker, stop := newTimerWithTicker(waitTimeSec)
 	defer stop()
 
-	log.Infof("waiting for %d seconds for pods to switch nodes", waitTimeSec)
+	csmlog.Infof("waiting for %d seconds for pods to switch nodes", waitTimeSec)
 	for {
 		select {
 		case <-timeout.C:
-			log.Errorf("timed out after %d seconds while waiting for pods to switch nodes", waitTimeSec)
+			csmlog.Errorf("timed out after %d seconds while waiting for pods to switch nodes", waitTimeSec)
 			return errors.New("timed out waiting for pods to switch nodes")
 		case <-ticker.C:
 			err := i.labeledPodsChangedNodes()
 			if err == nil {
-				log.Info("pods successfully changed nodes")
+				csmlog.Info("pods successfully changed nodes")
 				return nil
 			}
-			log.Warn("pods have not yet change nodes")
+			csmlog.Warn("pods have not yet change nodes")
 		}
 	}
 }
@@ -1264,7 +1291,7 @@ func (i *integration) havePodsMigrated() (bool, string, error) {
 // and returns false if migration is detected. At the end of waitTimeSec seconds, a nil error
 // is returned if the pods have not migrated.
 func (i *integration) verifyPodsDoNotMigrate(waitTimeSec int) error {
-	log.Info("validating pods have not and will not migrate")
+	csmlog.Info("validating pods have not and will not migrate")
 
 	// update the list of pods and the node they are on
 	err := i.populateLabeledPodsToNodes()
@@ -1282,10 +1309,10 @@ func (i *integration) verifyPodsDoNotMigrate(waitTimeSec int) error {
 		select {
 		case <-timeout.C:
 			// if the timeout is reached, the test passes
-			log.Infof("success: pods did not migrate in %d seconds", waitTimeSec)
+			csmlog.Infof("success: pods did not migrate in %d seconds", waitTimeSec)
 			return nil
 		case <-ticker.C:
-			log.Infof("validating pods have not migrated (time left %v)", timeoutDuration-time.Since(start))
+			csmlog.Infof("validating pods have not migrated (time left %v)", timeoutDuration-time.Since(start))
 
 			migrated, podName, err := i.havePodsMigrated()
 			if err != nil {
@@ -1313,7 +1340,7 @@ func (i *integration) labeledPodsChangedNodes() error {
 // cliToolIsInstalledOnThisMachine validates whether the provided cliToolName resolves
 // to an installed executable in the PATH.
 func (i *integration) cliToolIsInstalledOnThisMachine(cliToolName string) error {
-	log.Infof("checking if the %q executable is installed and part of the $PATH", cliToolName)
+	csmlog.Infof("checking if the %q executable is installed and part of the $PATH", cliToolName)
 	_, err := exec.LookPath(cliToolName)
 	if err != nil {
 		return fmt.Errorf("could not find cli tool %q on this machine: %s", cliToolName, err.Error())
@@ -1370,7 +1397,7 @@ func (i *integration) restoreNonPreferredMetroConnection(labelValue string) erro
 // for nodes returned by getNodes to either drop or accept (determined by operation) incoming packets from
 // the iSCSI IPs.
 func (i *integration) setNonPreferredMetroConnection(operation MetroConnection, getNodes func() (*corev1.NodeList, error)) error {
-	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[pstoreID.KeyArrayID])
+	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[keyArrayID])
 	if err != nil || preferredArray == nil {
 		return fmt.Errorf("unable to get PowerStore secret: %s", err.Error())
 	}
@@ -1385,19 +1412,18 @@ func (i *integration) setNonPreferredMetroConnection(operation MetroConnection, 
 	}
 
 	pstoreClient.SetCustomHTTPHeaders(http.Header{
-		"Application-Type": {fmt.Sprintf("%s/%s", pstoreID.VerboseName, core.SemVer)},
+		"Application-Type": {fmt.Sprintf("%s/%s", powerstoreVerboseName, powerstoreSemVer)},
 	})
-	pstoreClient.SetLogger(&pstoreID.CustomLogger{})
 
 	// Get the list of remote systems for the preferred array
 	remoteSystems, err := pstoreClient.GetAllRemoteSystems(context.Background())
 	if err != nil {
-		log.Warnf("unable to get the remote systems: %s", err.Error())
+		csmlog.Warnf("unable to get the remote systems: %s", err.Error())
 	}
 
 	var nonPreferredKeyArrayID string
 	// Filter the remote systems to find the arrayID of the non preferred array using the remote system mentioned in the storage class
-	remoteSystemID := i.storageClass.Parameters[pstoreController.ReplicationPrefix+"/"+pstoreController.KeyReplicationRemoteSystem]
+	remoteSystemID := i.storageClass.Parameters[replicationPrefix+"/"+keyReplicationRemoteSystem]
 	for _, remoteSystem := range remoteSystems {
 		if remoteSystem.Name == remoteSystemID {
 			nonPreferredKeyArrayID = remoteSystem.SerialNumber
@@ -1409,7 +1435,7 @@ func (i *integration) setNonPreferredMetroConnection(operation MetroConnection, 
 	if err != nil || nonPreferredArray == nil {
 		return fmt.Errorf("unable to get PowerStore secret: %s", err.Error())
 	}
-	log.Infof("Non Preferred Array: %v", nonPreferredArray)
+	csmlog.Infof("Non Preferred Array: %v", nonPreferredArray)
 
 	err = i.dropIncomingPackets(operation, nonPreferredArray, getNodes)
 	if err != nil {
@@ -1418,8 +1444,8 @@ func (i *integration) setNonPreferredMetroConnection(operation MetroConnection, 
 	return nil
 }
 
-func (i *integration) getNonPreferredArray(storageClass *storagev1.StorageClass) (*pstoreArray.PowerStoreArray, error) {
-	preferredArray, err := i.getPowerStoreArrayInfo(storageClass.Parameters[pstoreID.KeyArrayID])
+func (i *integration) getNonPreferredArray(storageClass *storagev1.StorageClass) (*powerStoreArray, error) {
+	preferredArray, err := i.getPowerStoreArrayInfo(storageClass.Parameters[keyArrayID])
 	if err != nil || preferredArray == nil {
 		return nil, fmt.Errorf("unable to get PowerStore secret: %s", err.Error())
 	}
@@ -1434,19 +1460,18 @@ func (i *integration) getNonPreferredArray(storageClass *storagev1.StorageClass)
 	}
 
 	pstoreClient.SetCustomHTTPHeaders(http.Header{
-		"Application-Type": {fmt.Sprintf("%s/%s", pstoreID.VerboseName, core.SemVer)},
+		"Application-Type": {fmt.Sprintf("%s/%s", powerstoreVerboseName, powerstoreSemVer)},
 	})
-	pstoreClient.SetLogger(&pstoreID.CustomLogger{})
 
 	// Get the list of remote systems for the preferred array
 	remoteSystems, err := pstoreClient.GetAllRemoteSystems(context.Background())
 	if err != nil {
-		log.Warnf("unable to get the remote systems: %s", err.Error())
+		csmlog.Warnf("unable to get the remote systems: %s", err.Error())
 	}
 
 	var nonPreferredKeyArrayID string
 	// Filter the remote systems to find the arrayID of the non preferred array using the remote system mentioned in the storage class
-	remoteSystemID := storageClass.Parameters[pstoreController.ReplicationPrefix+"/"+pstoreController.KeyReplicationRemoteSystem]
+	remoteSystemID := storageClass.Parameters[replicationPrefix+"/"+keyReplicationRemoteSystem]
 	for _, remoteSystem := range remoteSystems {
 		if remoteSystem.Name == remoteSystemID {
 			nonPreferredKeyArrayID = remoteSystem.SerialNumber
@@ -1462,7 +1487,7 @@ func (i *integration) getNonPreferredArray(storageClass *storagev1.StorageClass)
 // for nodes returned by getNodes to either drop or accept (determined by operation) incoming packets from
 // the iSCSI IPs.
 func (i *integration) setPreferredMetroConnection(operation MetroConnection, getNodes func() (*corev1.NodeList, error)) error {
-	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[pstoreID.KeyArrayID])
+	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[keyArrayID])
 	if err != nil || preferredArray == nil {
 		return fmt.Errorf("unable to get PowerStore secret: %s", err.Error())
 	}
@@ -1475,13 +1500,13 @@ func (i *integration) setPreferredMetroConnection(operation MetroConnection, get
 	return nil
 }
 
-func (i *integration) dropIncomingPackets(operation MetroConnection, array *pstoreArray.PowerStoreArray, getNodes func() (*corev1.NodeList, error)) error {
+func (i *integration) dropIncomingPackets(operation MetroConnection, array *powerStoreArray, getNodes func() (*corev1.NodeList, error)) error {
 	// get the iSCSI IPs via pstcli so we know which IPs to fail
 	iscsiIPs, err := getIscsiIPs(array.Endpoint, array.Username, array.Password)
 	if err != nil {
 		return fmt.Errorf("unable to get iSCSI IPs: %s", err.Error())
 	}
-	log.Infof("iSCSI IPs for the Array %s: %v", array.Endpoint, iscsiIPs)
+	csmlog.Infof("iSCSI IPs for the Array %s: %v", array.Endpoint, iscsiIPs)
 
 	// create a list of nodes to fail using the preferred label
 	nodesToFail, err := getNodes()
@@ -1506,10 +1531,10 @@ func (i *integration) dropIncomingPackets(operation MetroConnection, array *psto
 		var dropPacketsCmd, op string
 		switch operation {
 		case MetroConnectionFail:
-			log.Infof("Attempting to block incoming packets from %s on node %s", iscsiIPs, nodeIP)
+			csmlog.Infof("Attempting to block incoming packets from %s on node %s", iscsiIPs, nodeIP)
 			op = "-A" // add rule to DROP all packets
 		case MetroConnectionRestore:
-			log.Infof("Attempting to allow incoming packets from %s on node %s", iscsiIPs, nodeIP)
+			csmlog.Infof("Attempting to allow incoming packets from %s on node %s", iscsiIPs, nodeIP)
 			op = "-D" // delete previously added rule
 		}
 		for _, iscsiIP := range iscsiIPs {
@@ -1556,7 +1581,7 @@ func (i *integration) restoreConnectivityBetweenMetroArrays(storageClassParam st
 }
 
 func (i *integration) manageConnectivityBetweenMetroArrays(operation MetroConnection) error {
-	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[pstoreID.KeyArrayID])
+	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[keyArrayID])
 	if err != nil {
 		return fmt.Errorf("unable to get PowerStore secret: %w", err)
 	}
@@ -1574,19 +1599,18 @@ func (i *integration) manageConnectivityBetweenMetroArrays(operation MetroConnec
 	}
 
 	pstoreClient.SetCustomHTTPHeaders(http.Header{
-		"Application-Type": {fmt.Sprintf("%s/%s", pstoreID.VerboseName, core.SemVer)},
+		"Application-Type": {fmt.Sprintf("%s/%s", powerstoreVerboseName, powerstoreSemVer)},
 	})
-	pstoreClient.SetLogger(&pstoreID.CustomLogger{})
 
 	// Get the list of remote systems for the preferred array
 	remoteSystems, err := pstoreClient.GetAllRemoteSystems(context.Background())
 	if err != nil {
-		log.Warnf("unable to get the remote systems: %s", err.Error())
+		csmlog.Warnf("unable to get the remote systems: %s", err.Error())
 	}
 
 	var nonPreferredKeyArrayID string
 	// Filter the remote systems to find the arrayID of the non preferred array using the remote system mentioned in the storage class
-	remoteSystemID := i.storageClass.Parameters[pstoreController.ReplicationPrefix+"/"+pstoreController.KeyReplicationRemoteSystem]
+	remoteSystemID := i.storageClass.Parameters[replicationPrefix+"/"+keyReplicationRemoteSystem]
 	for _, remoteSystem := range remoteSystems {
 		if remoteSystem.Name == remoteSystemID {
 			nonPreferredKeyArrayID = remoteSystem.SerialNumber
@@ -1601,7 +1625,7 @@ func (i *integration) manageConnectivityBetweenMetroArrays(operation MetroConnec
 	if nonPreferredArray == nil {
 		return fmt.Errorf("unable to get PowerStore secret: array info is nil")
 	}
-	log.Infof("Non Preferred Array: %v", nonPreferredArray)
+	csmlog.Infof("Non Preferred Array: %v", nonPreferredArray)
 
 	err = i.blockUnblockReplicationTraffic(operation, preferredArray, nonPreferredArray)
 	if err != nil {
@@ -1613,8 +1637,8 @@ func (i *integration) manageConnectivityBetweenMetroArrays(operation MetroConnec
 
 func (i *integration) blockUnblockReplicationTraffic(
 	operation MetroConnection,
-	array *pstoreArray.PowerStoreArray,
-	remoteArray *pstoreArray.PowerStoreArray,
+	array *powerStoreArray,
+	remoteArray *powerStoreArray,
 ) error {
 	// Discover local & remote iSCSI IPs
 	localIPs, err := getIscsiIPs(array.Endpoint, array.Username, array.Password)
@@ -1624,7 +1648,7 @@ func (i *integration) blockUnblockReplicationTraffic(
 	if len(localIPs) == 0 {
 		return fmt.Errorf("no local iSCSI IPs discovered for array %s", array.Endpoint)
 	}
-	log.Infof("Local array %s iSCSI IPs: %v", array.Endpoint, localIPs)
+	csmlog.Infof("Local array %s iSCSI IPs: %v", array.Endpoint, localIPs)
 
 	remoteIPs, err := getIscsiIPs(remoteArray.Endpoint, remoteArray.Username, remoteArray.Password)
 	if err != nil {
@@ -1633,7 +1657,7 @@ func (i *integration) blockUnblockReplicationTraffic(
 	if len(remoteIPs) == 0 {
 		return fmt.Errorf("no remote iSCSI IPs discovered for array %s", remoteArray.Endpoint)
 	}
-	log.Infof("Remote array %s iSCSI IPs: %v", remoteArray.Endpoint, remoteIPs)
+	csmlog.Infof("Remote array %s iSCSI IPs: %v", remoteArray.Endpoint, remoteIPs)
 
 	scriptsDir := os.Getenv("SCRIPTS_DIR")
 	scriptPath := fmt.Sprintf("%s/%s", scriptsDir, blockTrafficScriptName)
@@ -1675,7 +1699,7 @@ func (i *integration) blockUnblockReplicationTraffic(
 	env = append(env, "SSHPASS="+sshPassword)
 	cmd.Env = env
 
-	log.Infof("Running block-traffic.sh: %s %s", scriptPath, strings.Join(args, " "))
+	csmlog.Infof("Running block-traffic.sh: %s %s", scriptPath, strings.Join(args, " "))
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("block-traffic.sh failed: %w", err)
 	}
@@ -1715,7 +1739,7 @@ func (i *integration) labeledNodesWithPodsAreTainted(labelValue, taints string, 
 	timeout, ticker, stop := newTimerWithTicker(waitTimeSeconds)
 	defer stop()
 
-	log.Info("waiting for nodes to have the expected taints")
+	csmlog.Info("waiting for nodes to have the expected taints")
 
 	start := time.Now()
 	for {
@@ -1739,13 +1763,13 @@ func (i *integration) labeledNodesWithPodsAreTainted(labelValue, taints string, 
 						LabelSelector: "podmon.dellemc.com/driver",
 					})
 					if err != nil {
-						log.Errorf("error listing pods on node %q: %s", node.Name, err.Error())
+						csmlog.Errorf("error listing pods on node %q: %s", node.Name, err.Error())
 						continue
 					}
 
 					// exit early and return false if a pod exists on the node and the node is not yet tainted
 					if len(podsOnNode.Items) != 0 && !i.isNodeFailed(node, taints) {
-						log.Warnf("node %q still waiting to be tainted; time remaining %v",
+						csmlog.Warnf("node %q still waiting to be tainted; time remaining %v",
 							node.Name, time.Duration(waitTimeSeconds)*time.Second-time.Since(start))
 						return false
 					}
@@ -1754,7 +1778,7 @@ func (i *integration) labeledNodesWithPodsAreTainted(labelValue, taints string, 
 			}()
 
 			if nodesWithPodsTainted {
-				log.Info("all nodes with pods are tainted as expected")
+				csmlog.Info("all nodes with pods are tainted as expected")
 				return nil
 			}
 		}
@@ -1766,7 +1790,7 @@ func (i *integration) labeledNodesWithPodsAreTainted(labelValue, taints string, 
 // getPowerStoreArrayInfo reads the "powerstore-config" secret from the i.driverNamespaceName and returns
 // a pointer to the PowerStoreArray that contains the provided globalID. If the array with the provided
 // globalID is not found, an error and a nil pointer are returned.
-func (i *integration) getPowerStoreArrayInfo(globalID string) (secret *pstoreArray.PowerStoreArray, err error) {
+func (i *integration) getPowerStoreArrayInfo(globalID string) (secret *powerStoreArray, err error) {
 	// get the secret info using the powerstore array info from the storageclass
 	secretObj, err := i.k8s.GetClient().CoreV1().Secrets(i.driverNamespaceName).Get(context.Background(), powerstoreSecretName, metav1.GetOptions{})
 	if err != nil {
@@ -1780,7 +1804,7 @@ func (i *integration) getPowerStoreArrayInfo(globalID string) (secret *pstoreArr
 	}
 
 	var Secrets struct {
-		Arrays []pstoreArray.PowerStoreArray `yaml:"arrays"`
+		Arrays []powerStoreArray `yaml:"arrays"`
 	}
 	if err := viper.Unmarshal(&Secrets); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal Kubernetes secret into PowerStoreArrays struct: %s", err.Error())
@@ -1794,7 +1818,7 @@ func (i *integration) getPowerStoreArrayInfo(globalID string) (secret *pstoreArr
 		}
 	}
 
-	if reflect.DeepEqual(secret, pstoreArray.PowerStoreArray{}) {
+	if reflect.DeepEqual(secret, powerStoreArray{}) {
 		return nil, fmt.Errorf("unable to find the PowerStore array info from the provided StorageClass %q, and Secret %q", i.storageClass.Name, i.driverSecretName)
 	}
 
@@ -1864,7 +1888,7 @@ func (i *integration) SSHExec(client ssh.CommandExecution, IPAddr string, cmd st
 		return response, fmt.Errorf("encountered an error executing ssh on IP %q: %s :%s", IPAddr, response, err.Error())
 	}
 	for _, line := range response {
-		log.Info(line)
+		csmlog.Info(line)
 	}
 
 	return response, nil
@@ -1882,7 +1906,7 @@ func getIscsiIPs(endpoint, username, password string) (iscsiIPs []string, err er
 	pstcli := exec.Command("pstcli", "-d", endpoint, "-u", username, "-p", password, "-ssl", "accept",
 		"ip_pool_address", "show", "-select", "address", "-query", iscsiIPQuery, "-output", "json", "-raw")
 
-	log.Infof("attempting to get PowerStore iSCSI IPs: %v", pstcli.Args)
+	csmlog.Infof("attempting to get PowerStore iSCSI IPs: %v", pstcli.Args)
 
 	// execute the command and get the results
 	iscsiPortsJSON, err := pstcli.CombinedOutput()
@@ -1945,7 +1969,7 @@ func (i *integration) arePodsProperlyChanged(isOnValidNode func(nodeName string)
 		// Check to see if the node was failed, if it wasn't then the pods would not have migrated.
 		_, ok = i.nodesToTaints[initialNode]
 		if !ok {
-			log.Infof("node %s is not tainted so it was not a failed node", currentNode)
+			csmlog.Infof("node %s is not tainted so it was not a failed node", currentNode)
 			continue
 		}
 
@@ -1981,9 +2005,9 @@ func (i *integration) dumpNodeInfo() error {
 				break
 			}
 		}
-		log.Infof("Host: %s IP:%s Ready: %v taint: %s ", node.Name, ipAddr, isReady, node.Spec.Taints)
+		csmlog.Infof("Host: %s IP:%s Ready: %v taint: %s ", node.Name, ipAddr, isReady, node.Spec.Taints)
 		info := node.Status.NodeInfo
-		log.Infof("\tOS: %s/%s/%s, k8s_version: %s", info.OSImage, info.KernelVersion, info.Architecture, info.KubeletVersion)
+		csmlog.Infof("\tOS: %s/%s/%s, k8s_version: %s", info.OSImage, info.KernelVersion, info.Architecture, info.KubeletVersion)
 	}
 
 	return nil
@@ -2153,7 +2177,7 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 		}
 	}
 
-	log.Infof("All the candidate nodes to fail are %v", candidates)
+	csmlog.Infof("All the candidate nodes to fail are %v", candidates)
 
 	if i.driverType == "" {
 		return nil, fmt.Errorf("driver type not specified")
@@ -2176,7 +2200,7 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 
 		for _, pod := range driverPods.Items {
 			if strings.Contains(pod.Name, expectedControllerPodName) {
-				log.Infof("Controller pod is running on node %s", pod.Spec.NodeName)
+				csmlog.Infof("Controller pod is running on node %s", pod.Spec.NodeName)
 				i.shouldNotFailNode = pod.Spec.NodeName
 				break
 			}
@@ -2193,29 +2217,29 @@ func (i *integration) failNodes(filter func(node corev1.Node) bool, count float6
 				"--timeoutseconds", fmt.Sprintf("%d", wait),
 			)
 			out, err := cmd.CombinedOutput()
-			log.Infof("Driver node pod test executed %s", out)
+			csmlog.Infof("Driver node pod test executed %s", out)
 			if err != nil {
-				log.Errorf("Failing err %v %s", err, out)
+				csmlog.Errorf("Failing err %v %s", err, out)
 				return failedNodes, err
 			}
 			return failedNodes, nil
 		}
 
 		if name == i.shouldNotFailNode {
-			log.Infof("Detected only a single controller replica running on a worker node; skipping failing this node %s", name)
+			csmlog.Infof("Detected only a single controller replica running on a worker node; skipping failing this node %s", name)
 			continue
 		}
 
 		if failed < numberToFail {
 			ip, ok := nameToIP[name]
 			if !ok {
-				log.Warnf("the IP address for node %q is unknown; skipping node failure", name)
+				csmlog.Warnf("the IP address for node %q is unknown; skipping node failure", name)
 				continue
 			}
 			if err = i.induceFailureOn(name, ip, failureType, wait); err != nil {
 				return failedNodes, err
 			}
-			log.Infof("Failing %s %s", name, ip)
+			csmlog.Infof("Failing %s %s", name, ip)
 			failedNodes = append(failedNodes, name)
 			failed++
 		}
@@ -2274,12 +2298,12 @@ func (i *integration) copyOverTestScriptsToNode(address string) error {
 		Timeout:    sshTimeoutDuration,
 	}
 
-	log.Infof("Attempting to scp scripts from %s to %s:%s", i.scriptsDir, address, remoteScriptDir)
+	csmlog.Infof("Attempting to scp scripts from %s to %s:%s", i.scriptsDir, address, remoteScriptDir)
 
 	mkDirCmd := fmt.Sprintf("date; rm -rf %s; mkdir %s", remoteScriptDir, remoteScriptDir)
 	if mkDirErr := client.Run(mkDirCmd); mkDirErr == nil {
 		for _, out := range client.GetOutput() {
-			log.Infof("%s", out)
+			csmlog.Infof("%s", out)
 		}
 	} else {
 		return mkDirErr
@@ -2301,13 +2325,13 @@ func (i *integration) copyOverTestScriptsToNode(address string) error {
 	lsDirCmd := fmt.Sprintf("chmod +x %s/* ; ls -ltr %s", remoteScriptDir, remoteScriptDir)
 	if lsErr := client.Run(lsDirCmd); lsErr == nil {
 		for _, out := range client.GetOutput() {
-			log.Infof("%s", out)
+			csmlog.Infof("%s", out)
 		}
 	} else {
 		return lsErr
 	}
 
-	log.Infof("Scripts successfully copied to %s:%s", address, remoteScriptDir)
+	csmlog.Infof("Scripts successfully copied to %s:%s", address, remoteScriptDir)
 	return nil
 }
 
@@ -2332,12 +2356,12 @@ func (i *integration) copyOverTestScriptsToOpenshift(address string) error {
 		Timeout:    sshTimeoutDuration,
 	}
 
-	log.Infof("Attempting to scp scripts from Bastion node %s to %s:%s", i.bastionNode, address, openShiftRemoteScriptDir)
+	csmlog.Infof("Attempting to scp scripts from Bastion node %s to %s:%s", i.bastionNode, address, openShiftRemoteScriptDir)
 	mkDirCmd := fmt.Sprintf("ssh %s core@%s 'date; rm -rf %s; mkdir -p %s'", sshOptions, address, openShiftRemoteScriptDir, openShiftRemoteScriptDir)
-	log.Info(mkDirCmd)
+	csmlog.Info(mkDirCmd)
 	if mkDirErr := client.Run(mkDirCmd); mkDirErr == nil {
 		for _, out := range client.GetOutput() {
-			log.Infof("%s", out)
+			csmlog.Infof("%s", out)
 		}
 	} else {
 		return mkDirErr
@@ -2345,7 +2369,7 @@ func (i *integration) copyOverTestScriptsToOpenshift(address string) error {
 
 	// Use SCP to copy the script files on the Bastion node into the /tmp dir of the Openshift node.
 	copyFileCmd := fmt.Sprintf("scp -r %s %s core@%s:%s", sshOptions, remoteScriptDir, address, "/usr/tmp")
-	log.Info(copyFileCmd)
+	csmlog.Info(copyFileCmd)
 	err := client.Run(copyFileCmd)
 	if err != nil {
 		return err
@@ -2353,16 +2377,16 @@ func (i *integration) copyOverTestScriptsToOpenshift(address string) error {
 
 	// After copying the files, add execute permissions and list the directory
 	lsDirCmd := fmt.Sprintf("ssh %s core@%s 'sudo chmod +x %s/* ; sudo ls -ltr %s'", sshOptions, address, openShiftRemoteScriptDir, openShiftRemoteScriptDir)
-	log.Info(lsDirCmd)
+	csmlog.Info(lsDirCmd)
 	if lsErr := client.Run(lsDirCmd); lsErr == nil {
 		for _, out := range client.GetOutput() {
-			log.Infof("%s", out)
+			csmlog.Infof("%s", out)
 		}
 	} else {
 		return lsErr
 	}
 
-	log.Infof("Scripts successfully copied to %s:%s", address, openShiftRemoteScriptDir)
+	csmlog.Infof("Scripts successfully copied to %s:%s", address, openShiftRemoteScriptDir)
 	return nil
 }
 
@@ -2376,7 +2400,7 @@ func (i *integration) allPodsInTestNamespacesAreRunning() (bool, error) {
 				return false, err
 			}
 			if !running {
-				log.Infof("Pods in %s namespace are not all running", namespace)
+				csmlog.Infof("Pods in %s namespace are not all running", namespace)
 				allRunning = false
 				// Don't break, we want to check all the namespaces so that we display which ones aren't running
 			}
@@ -2386,11 +2410,11 @@ func (i *integration) allPodsInTestNamespacesAreRunning() (bool, error) {
 }
 
 func (i *integration) initialDiskWriteAndVerifyAllVMs() error {
-	log.Infof("Waiting 60 seconds to ensure VMs are fully running before initial disk write...")
+	csmlog.Infof("Waiting 60 seconds to ensure VMs are fully running before initial disk write...")
 	time.Sleep(60 * time.Second)
 	for vmIdx := 1; vmIdx <= i.podCount; vmIdx++ {
 		for prefix := range i.testNamespacePrefix {
-			log.Infof("Verifying disk on VM %d in namespace %s", vmIdx, prefix)
+			csmlog.Infof("Verifying disk on VM %d in namespace %s", vmIdx, prefix)
 
 			ns := fmt.Sprintf("%s%d", prefix, vmIdx)
 			vmName := "vm-0"
@@ -2404,7 +2428,7 @@ func (i *integration) initialDiskWriteAndVerifyAllVMs() error {
 }
 
 func (i *integration) postFailoverVerifyAllVMs() error {
-	log.Infof("Waiting 60 seconds to ensure VMs are fully running after failover...")
+	csmlog.Infof("Waiting 60 seconds to ensure VMs are fully running after failover...")
 	time.Sleep(60 * time.Second)
 	for vmIdx := 1; vmIdx <= i.podCount; vmIdx++ {
 		for prefix := range i.testNamespacePrefix {
@@ -2436,15 +2460,15 @@ func (i *integration) writeAndVerifyDiskOnVM(vmName, namespace string) error {
 	retryDelay := 30 * time.Second
 
 	for attempt := 0; attempt <= retries; attempt++ {
-		log.Printf("Running (attempt %d/%d): %s", attempt+1, retries, writeCmd)
+		csmlog.Infof("Running (attempt %d/%d): %s", attempt+1, retries, writeCmd)
 		writeOut, writeErr = exec.Command("bash", "-c", writeCmd).CombinedOutput()
 		if writeErr != nil {
-			log.Printf("Write failed on %s (attempt %d/%d): %s", vmName, attempt+1, retries, string(writeOut))
+			csmlog.Infof("Write failed on %s (attempt %d/%d): %s", vmName, attempt+1, retries, string(writeOut))
 			if attempt < retries {
 				time.Sleep(retryDelay)
 			}
 		} else {
-			log.Printf("Write output for %s (attempt %d/%d): %s", vmName, attempt+1, retries, string(writeOut))
+			csmlog.Infof("Write output for %s (attempt %d/%d): %s", vmName, attempt+1, retries, string(writeOut))
 			break
 		}
 	}
@@ -2470,15 +2494,15 @@ func (i *integration) verifyDiskContentOnVM(vmName, namespace string) error {
 	var readErr error
 
 	for attempt := 0; attempt <= retries; attempt++ {
-		log.Printf("Running (attempt %d/%d): %s", attempt+1, retries, readCmd)
+		csmlog.Infof("Running (attempt %d/%d): %s", attempt+1, retries, readCmd)
 		readOut, readErr = exec.Command("bash", "-c", readCmd).CombinedOutput()
 		if readErr != nil {
-			log.Printf("Read failed on %s (attempt %d/%d): %s", vmName, attempt+1, retries, string(readOut))
+			csmlog.Infof("Read failed on %s (attempt %d/%d): %s", vmName, attempt+1, retries, string(readOut))
 			if attempt < retries {
 				time.Sleep(retryDelay)
 			}
 		} else {
-			log.Printf("Read output for %s (attempt %d/%d): %s", vmName, attempt+1, retries, string(readOut))
+			csmlog.Infof("Read output for %s (attempt %d/%d): %s", vmName, attempt+1, retries, string(readOut))
 			break
 		}
 	}
@@ -2488,10 +2512,10 @@ func (i *integration) verifyDiskContentOnVM(vmName, namespace string) error {
 	}
 
 	if strings.Contains(string(readOut), expectedData) {
-		log.Printf("Disk content verified for %s", vmName)
+		csmlog.Infof("Disk content verified for %s", vmName)
 		return nil
 	}
-	log.Printf("Expected content not found in %s", vmName)
+	csmlog.Infof("Expected content not found in %s", vmName)
 	return nil
 }
 
@@ -2524,7 +2548,7 @@ func (i *integration) induceFailureOn(name string, ip, failureType string, wait 
 	failureType = failureTypeSplit[0]
 	hasOptions := len(failureTypeSplit) > 1
 
-	log.Infof("Attempting to induce the %s failure on %s/%s for %d seconds", failureType, name, ip, wait)
+	csmlog.Infof("Attempting to induce the %s failure on %s/%s for %d seconds", failureType, name, ip, wait)
 	scriptToUse, ok := failureToScriptMap[failureType]
 	if !ok {
 		return fmt.Errorf("no mapping for failureType %s", failureType)
@@ -2547,7 +2571,7 @@ func (i *integration) induceFailureOn(name string, ip, failureType string, wait 
 		if specificInterfaces == "" {
 			return fmt.Errorf("test case %s failure type is expecting a %s environmental variable, but it does not exist", failureType, interfaceEnvVarName)
 		}
-		log.Infof("Specific interfaces '%s' will be affected", specificInterfaces)
+		csmlog.Infof("Specific interfaces '%s' will be affected", specificInterfaces)
 		invokeFailCmd = fmt.Sprintf("%s %s --seconds %d --interfaces %s", invokerScript, failureScript, wait, specificInterfaces)
 	}
 
@@ -2558,10 +2582,10 @@ func (i *integration) induceFailureOn(name string, ip, failureType string, wait 
 		// For Openshift, failure script invocation is done from the Bastion node to the Openshift node
 		invokeFailCmd = fmt.Sprintf("ssh %s core@%s sudo %s", sshOptions, ip, invokeFailCmd)
 	}
-	log.Infof("Command to invoke: %s", invokeFailCmd)
+	csmlog.Infof("Command to invoke: %s", invokeFailCmd)
 	if invokeErr := client.SendRequest(invokeFailCmd); invokeErr == nil {
 		for _, out := range client.GetOutput() {
-			log.Infof("%s", out)
+			csmlog.Infof("%s", out)
 		}
 	} else {
 		return invokeErr
@@ -2574,8 +2598,8 @@ func (i *integration) podmonContainerRunning(pod corev1.Pod) bool {
 	for index, container := range pod.Spec.Containers {
 		if container.Name == "podmon" {
 			podmonIsReady := pod.Status.ContainerStatuses[index].Ready
-			log.Infof("podmon %s on %s/%s is Ready=%v", container.Image, pod.Name, pod.Spec.NodeName, podmonIsReady)
-			log.Infof("podmon %s on %s/%s args: %s", container.Image, pod.Name, pod.Spec.NodeName, strings.Join(container.Args, " "))
+			csmlog.Infof("podmon %s on %s/%s is Ready=%v", container.Image, pod.Name, pod.Spec.NodeName, podmonIsReady)
+			csmlog.Infof("podmon %s on %s/%s args: %s", container.Image, pod.Name, pod.Spec.NodeName, strings.Join(container.Args, " "))
 			if podmonIsReady {
 				return true
 			}
@@ -2612,7 +2636,7 @@ func (i *integration) k8sPoll(ctx context.Context) {
 
 	nodeWatcher, err := i.k8s.GetClient().CoreV1().Nodes().Watch(ctx, metav1.ListOptions{})
 	if err != nil {
-		log.Errorf("k8sPoll: listing nodes error: %s", err)
+		csmlog.Errorf("k8sPoll: listing nodes error: %s", err)
 	} else {
 		// log Node events, publishing the "Ready" status and any taints
 		go func() {
@@ -2627,7 +2651,7 @@ func (i *integration) k8sPoll(ctx context.Context) {
 					}
 
 					expectedTaints, ok := i.nodesToTaints[node.Name]
-					log.WithFields(log.Fields{
+					csmlog.WithFields(csmlog.Fields{
 						"ready":  nodeReady,
 						"taints": strings.Join(taintKeys, ","),
 						"expectedTaints": func() string {
@@ -2650,7 +2674,7 @@ func (i *integration) k8sPoll(ctx context.Context) {
 	podmonPodWatcher, err := i.k8s.GetClient().CoreV1().Pods("").Watch(ctx,
 		metav1.ListOptions{LabelSelector: fmt.Sprintf("podmon.dellemc.com/driver=csi-%s", i.driverType)})
 	if err != nil {
-		log.Warnf("k8sPoll: failed to watch podmon-monitored pods: %s", err)
+		csmlog.Warnf("k8sPoll: failed to watch podmon-monitored pods: %s", err)
 	} else {
 		// log pods monitored by podmon
 		go func() {
@@ -2663,13 +2687,13 @@ func (i *integration) k8sPoll(ctx context.Context) {
 					if initialNode, ok := i.labeledPodsToNodes[nsPodName]; ok && initialNode != pod.Spec.NodeName {
 						nodeSpec = fmt.Sprintf("%s --> %s", initialNode, pod.Spec.NodeName)
 					}
-					log.WithFields(log.Fields{
-						"podmon": "PROTECTED",
-					}).WithFields(log.Fields{
+					csmlog.WithFields(csmlog.Fields{
+						"podmon":       "PROTECTED",
 						"podNodeName":  nodeSpec,
 						"podStatus":    pod.Status.Phase,
 						"podNamespace": pod.Namespace,
-					}).WithField("timestamp", time.Now().Format(time.RFC3339)).Infof("k8sPoll: %s", pod.Name)
+						"timestamp":    time.Now().Format(time.RFC3339),
+					}).Infof("k8sPoll: %s", pod.Name)
 				}
 			}
 		}()
@@ -2679,13 +2703,13 @@ func (i *integration) k8sPoll(ctx context.Context) {
 	podUnlabeledWatch, err := i.k8s.GetClient().CoreV1().Pods("").Watch(ctx,
 		metav1.ListOptions{LabelSelector: "podmon.dellemc.com/driver=none"})
 	if err != nil {
-		log.Warnf("k8sPoll: failed to watch pods without podmon label: %s", err)
+		csmlog.Warnf("k8sPoll: failed to watch pods without podmon label: %s", err)
 	} else {
 		go func() {
 			defer podUnlabeledWatch.Stop()
 			for podEvent := range podUnlabeledWatch.ResultChan() {
 				if pod, ok := podEvent.Object.(*corev1.Pod); ok {
-					log.WithFields(log.Fields{
+					csmlog.WithFields(csmlog.Fields{
 						"podmon":       "UNPROTECTED",
 						"podNodeName":  pod.Spec.NodeName,
 						"podStatus":    pod.Status.Phase,
@@ -2770,7 +2794,7 @@ func (i *integration) isNodeFailed(node corev1.Node, expectingTheseTaints string
 }
 
 func (i *integration) waitOnNodesToBeReady(wait int) error {
-	log.Infof("Checking if all the nodes are in 'Ready' state")
+	csmlog.Infof("Checking if all the nodes are in 'Ready' state")
 	var notReadyNodes []corev1.Node
 	var err error
 
@@ -2798,13 +2822,13 @@ func (i *integration) waitOnNodesToBeReady(wait int) error {
 		for {
 			select {
 			case <-timeout.C:
-				log.Infof("Timed out, but checking if all nodes are ready")
+				csmlog.Infof("Timed out, but checking if all nodes are ready")
 				if notReadyNodes, err = i.searchForNodes(thatAreNotReady); err == nil {
 					allReady = len(notReadyNodes) == 0
 				}
 				done <- true
 			case <-ticker.C:
-				log.Infof("Checking if all nodes are ready (time left %v)", timeoutDuration-time.Since(start))
+				csmlog.Infof("Checking if all nodes are ready (time left %v)", timeoutDuration-time.Since(start))
 				if notReadyNodes, err = i.searchForNodes(thatAreNotReady); err == nil {
 					if allReady = len(notReadyNodes) == 0; allReady {
 						done <- true
@@ -2818,7 +2842,7 @@ func (i *integration) waitOnNodesToBeReady(wait int) error {
 	timeout.Stop()
 	ticker.Stop()
 
-	log.Infof("Done checking if all nodes are ready after %v", time.Since(start))
+	csmlog.Infof("Done checking if all nodes are ready after %v", time.Since(start))
 
 	if err != nil {
 		return err
@@ -2829,16 +2853,16 @@ func (i *integration) waitOnNodesToBeReady(wait int) error {
 }
 
 func (i *integration) waitOnTaintRemoval(wait int) error {
-	log.Infof("Checking if nodes have taints")
+	csmlog.Infof("Checking if nodes have taints")
 	hasTaints, err := i.checkIfNodesHaveTaints()
 	if err != nil {
 		return err
 	}
 
 	if hasTaints {
-		log.Infof("Taints are still on nodes. Waiting up to %d seconds until the taint is removed.", wait)
+		csmlog.Infof("Taints are still on nodes. Waiting up to %d seconds until the taint is removed.", wait)
 	} else {
-		log.Infof("Taints were not found on the nodes.")
+		csmlog.Infof("Taints were not found on the nodes.")
 		return nil
 	}
 
@@ -2852,11 +2876,11 @@ func (i *integration) waitOnTaintRemoval(wait int) error {
 		for {
 			select {
 			case <-timeout.C:
-				log.Infof("Timed out, but checking again if nodes have podmon taint")
+				csmlog.Infof("Timed out, but checking again if nodes have podmon taint")
 				hasTaints, err = i.checkIfNodesHaveTaints()
 				done <- true
 			case <-ticker.C:
-				log.Infof("Checking if podmon taints have been removed (time left %v)", timeoutDuration-time.Since(start))
+				csmlog.Infof("Checking if podmon taints have been removed (time left %v)", timeoutDuration-time.Since(start))
 				hasTaints, err = i.checkIfNodesHaveTaints()
 				if err == nil && !hasTaints {
 					done <- true
@@ -2869,7 +2893,7 @@ func (i *integration) waitOnTaintRemoval(wait int) error {
 	timeout.Stop()
 	ticker.Stop()
 
-	log.Infof("Done checking if taint removed after %v", time.Since(start))
+	csmlog.Infof("Done checking if taint removed after %v", time.Since(start))
 
 	return AssertExpectedAndActual(assert.Equal, false, hasTaints,
 		fmt.Sprintf("Expected taints to be removed after %d seconds, but still exist", wait))
@@ -2939,7 +2963,7 @@ func (i *integration) iFailDriverPodsTaints(numNodes, failure string, wait int, 
 		return err
 	}
 
-	log.Infof("Test with %2.2f failed workers nodes", workersToFail)
+	csmlog.Infof("Test with %2.2f failed workers nodes", workersToFail)
 
 	failedWorkers, err := i.failWorkerNodes(workersToFail, failure, wait)
 	if err != nil {
@@ -2949,14 +2973,14 @@ func (i *integration) iFailDriverPodsTaints(numNodes, failure string, wait int, 
 	// Allow a little extra for node failure to be detected than just the node down time.
 	// This proved necessary for the really short failure times (45 sec.) to be reliable.
 	wait = wait + wait
-	log.Infof("Requested nodes to fail. Waiting up to %d seconds to see if they show up as failed.", wait)
+	csmlog.Infof("Requested nodes to fail. Waiting up to %d seconds to see if they show up as failed.", wait)
 	timeoutDuration := time.Duration(wait) * time.Second
 	timeout := time.NewTimer(timeoutDuration)
 	ticker := time.NewTicker(checkTickerInterval * time.Second)
 	done := make(chan bool)
 	start := time.Now()
 
-	log.Infof("Wait done, checking for failed nodes...")
+	csmlog.Infof("Wait done, checking for failed nodes...")
 	requestedWorkersAndFailed := func(node corev1.Node) bool {
 		found := false
 		for _, worker := range failedWorkers {
@@ -2975,11 +2999,11 @@ func (i *integration) iFailDriverPodsTaints(numNodes, failure string, wait int, 
 		for {
 			select {
 			case <-timeout.C:
-				log.Info("Timed out, but doing last check if requested nodes show up as failed")
+				csmlog.Info("Timed out, but doing last check if requested nodes show up as failed")
 				foundFailedWorkers, err = i.searchForNodes(requestedWorkersAndFailed)
 				done <- true
 			case <-ticker.C:
-				log.Infof("Checking if requested nodes show up as failed (time left %v)", timeoutDuration-time.Since(start))
+				csmlog.Infof("Checking if requested nodes show up as failed (time left %v)", timeoutDuration-time.Since(start))
 				foundFailedWorkers, err = i.searchForNodes(requestedWorkersAndFailed)
 				if len(foundFailedWorkers) == len(failedWorkers) {
 					done <- true
@@ -2992,7 +3016,7 @@ func (i *integration) iFailDriverPodsTaints(numNodes, failure string, wait int, 
 	timeout.Stop()
 	ticker.Stop()
 
-	log.Infof("Completed checks for failed nodes after %v", time.Since(start))
+	csmlog.Infof("Completed checks for failed nodes after %v", time.Since(start))
 
 	err = AssertExpectedAndActual(assert.Equal, true, len(foundFailedWorkers) == len(failedWorkers),
 		fmt.Sprintf("Expected %d worker node(s) to be failed, but was %d. %v", len(failedWorkers), len(foundFailedWorkers), foundFailedWorkers))
@@ -3014,7 +3038,7 @@ func (i *integration) verifyKubeVirtIPAMControllerPodExists() error {
 
 	for _, pod := range podList.Items {
 		if strings.HasPrefix(pod.Name, podPrefix) {
-			log.Infof("Found pod '%s' in namespace '%s'", pod.Name, pod.Namespace)
+			csmlog.Infof("Found pod '%s' in namespace '%s'", pod.Name, pod.Namespace)
 			return nil
 		}
 	}
@@ -3095,7 +3119,7 @@ func (i *integration) labelNodeAsPreferredSite(numNodes, preferred string) error
 	labeled := 0
 	for _, name := range candidates {
 		if labeled < numberToLabel {
-			log.Infof("Labeling node %s as %s", name, preferred)
+			csmlog.Infof("Labeling node %s as %s", name, preferred)
 
 			nodeObj, err := i.k8s.GetClient().CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
 			if err != nil {
@@ -3154,17 +3178,17 @@ func (i *integration) verifyPodsOnNonPreferredNodes() error {
 		namespace := fmt.Sprintf("%s%d", PowerStoreNS, count)
 		podList, err := i.k8s.GetClient().CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
-			log.Errorf("Failed to list pods in namespace '%s': %v", namespace, err)
+			csmlog.Errorf("Failed to list pods in namespace '%s': %v", namespace, err)
 			return err
 		}
-		log.Infof("Pods in namespace '%s': %v", namespace, podList.Items)
+		csmlog.Infof("Pods in namespace '%s': %v", namespace, podList.Items)
 
 		for _, pod := range podList.Items {
 			nodeName := pod.Spec.NodeName
-			log.Infof("Checking pod %s on node %s", pod.Name, nodeName)
+			csmlog.Infof("Checking pod %s on node %s", pod.Name, nodeName)
 			for _, labeledNode := range i.preferredLabeledNodes {
 				if nodeName == i.shouldNotFailNode {
-					log.Warnf("Due to single replica and controller pod running on a preferred node, pod %s is still running on a preferred node", pod.Name)
+					csmlog.Warnf("Due to single replica and controller pod running on a preferred node, pod %s is still running on a preferred node", pod.Name)
 					continue
 				}
 
@@ -3177,14 +3201,14 @@ func (i *integration) verifyPodsOnNonPreferredNodes() error {
 	return nil
 }
 
-func (i *integration) checkArrayConnectivity(storageClassName string, checkFunc func(*pstoreArray.PowerStoreArray) error) error {
+func (i *integration) checkArrayConnectivity(storageClassName string, checkFunc func(*powerStoreArray) error) error {
 	storageClass, err := i.k8s.GetClient().StorageV1().StorageClasses().Get(context.Background(), storageClassName, metav1.GetOptions{})
 	if err != nil {
-		log.Errorf("Encountered an error while querying for the StorageClass: %s", err.Error())
+		csmlog.Errorf("Encountered an error while querying for the StorageClass: %s", err.Error())
 		return err
 	}
 
-	preferredArray, err := i.getPowerStoreArrayInfo(storageClass.Parameters[pstoreID.KeyArrayID])
+	preferredArray, err := i.getPowerStoreArrayInfo(storageClass.Parameters[keyArrayID])
 	if err != nil || preferredArray == nil {
 		return fmt.Errorf("unable to get PowerStore details from secret: %s", err.Error())
 	}
@@ -3202,9 +3226,8 @@ func (i *integration) checkArrayConnectivity(storageClassName string, checkFunc 
 	}
 
 	pstoreClient.SetCustomHTTPHeaders(http.Header{
-		"Application-Type": {fmt.Sprintf("%s/%s", pstoreID.VerboseName, core.SemVer)},
+		"Application-Type": {fmt.Sprintf("%s/%s", powerstoreVerboseName, powerstoreSemVer)},
 	})
-	pstoreClient.SetLogger(&pstoreID.CustomLogger{})
 
 	// Get the list of remote systems for the preferred array
 	remoteSystems, err := pstoreClient.GetAllRemoteSystems(context.Background())
@@ -3214,7 +3237,7 @@ func (i *integration) checkArrayConnectivity(storageClassName string, checkFunc 
 
 	var nonPreferredKeyArrayID string
 	// Filter the remote systems to find the arrayID of the non preferred array using the remote system mentioned in the storage class
-	remoteSystemID := storageClass.Parameters[pstoreController.ReplicationPrefix+"/"+pstoreController.KeyReplicationRemoteSystem]
+	remoteSystemID := storageClass.Parameters[replicationPrefix+"/"+keyReplicationRemoteSystem]
 	for _, remoteSystem := range remoteSystems {
 		if remoteSystem.Name == remoteSystemID {
 			nonPreferredKeyArrayID = remoteSystem.SerialNumber
@@ -3226,19 +3249,19 @@ func (i *integration) checkArrayConnectivity(storageClassName string, checkFunc 
 	if err != nil || nonPreferredArray == nil {
 		return fmt.Errorf("unable to get PowerStore details from secret: %s", err.Error())
 	}
-	log.Infof("Non Preferred Array: %v", nonPreferredArray)
+	csmlog.Infof("Non Preferred Array: %v", nonPreferredArray)
 
 	return checkFunc(nonPreferredArray)
 }
 
-func (i *integration) checkUniformConnectivity(array *pstoreArray.PowerStoreArray) error {
+func (i *integration) checkUniformConnectivity(array *powerStoreArray) error {
 	if array.HostConnectivity == nil || array.HostConnectivity.Metro.ColocatedLocal.Size() == 0 || array.HostConnectivity.Metro.ColocatedRemote.Size() == 0 {
 		return fmt.Errorf("Array %s not configured for metro connectivity", array.GlobalID)
 	}
 	return nil
 }
 
-func (i *integration) checkNonUniformConnectivity(array *pstoreArray.PowerStoreArray) error {
+func (i *integration) checkNonUniformConnectivity(array *powerStoreArray) error {
 	if array.HostConnectivity == nil || array.HostConnectivity.Local.Size() == 0 {
 		return fmt.Errorf("Array %s not configured for local connectivity", array.GlobalID)
 	}
@@ -3278,7 +3301,7 @@ func (i *integration) thereAreAtLeastWorkerNodesWhichAreReady(count int) error {
 		isControlPlane := false
 		for label := range node.Labels {
 			if label == "node-role.kubernetes.io/control-plane" {
-				log.Infof("Node %s is a control plane node", node.Name)
+				csmlog.Infof("Node %s is a control plane node", node.Name)
 				isControlPlane = true
 				break
 			}
@@ -3295,7 +3318,7 @@ func (i *integration) thereAreAtLeastWorkerNodesWhichAreReady(count int) error {
 	}
 
 	if workerNodesCount < count {
-		log.Warnln("Skipping this scenario. Expected at least", count, "but found", workerNodesCount)
+		csmlog.Warnf("Skipping this scenario. Expected at least %d but found %d", count, workerNodesCount)
 		return godog.ErrSkip
 	}
 
@@ -3316,7 +3339,7 @@ func (i *integration) iFailNodesWithLabelWithFailureForSeconds(numNodes, label, 
 		return err
 	}
 
-	log.Printf("Labeling %d nodes with label %s=%s", numberToLabel, preferredLabelKey, label)
+	csmlog.Infof("Labeling %d nodes with label %s=%s", numberToLabel, preferredLabelKey, label)
 
 	// Get application pods that were deployed by podmontest.
 	nodeToFail := ""
@@ -3341,7 +3364,7 @@ func (i *integration) iFailNodesWithLabelWithFailureForSeconds(numNodes, label, 
 		}
 	}
 
-	log.Info("Node to fail: ", nodeToFail)
+	csmlog.Infof("Node to fail: %s", nodeToFail)
 
 	failedWorkers, err := i.failNodes(func(node corev1.Node) bool {
 		return node.Name == nodeToFail
@@ -3397,15 +3420,15 @@ func newTimerWithTicker(waitTimeSec int) (timeout *time.Timer, ticker *time.Tick
 }
 
 func (i *integration) getDriverControllerDeployment(driverType string, driverNamespace string) (*v1.Deployment, error) {
-	log.Infof("Getting deployment for driver: %s", driverType)
+	csmlog.Infof("Getting deployment for driver: %s", driverType)
 	deployments, err := i.k8s.GetClient().AppsV1().Deployments(driverNamespace).List(context.Background(), metav1.ListOptions{})
 	if err != nil {
-		log.Errorln("Deployment list error: ", err)
+		csmlog.Errorf("Deployment list error: %v", err)
 		return nil, err
 	}
 
 	for _, deployment := range deployments.Items {
-		log.Info("Found deployment: ", deployment.Name)
+		csmlog.Infof("Found deployment: %s", deployment.Name)
 		if deployment.Name == driverType+"-controller" {
 			return &deployment, nil
 		}
@@ -3416,7 +3439,7 @@ func (i *integration) getDriverControllerDeployment(driverType string, driverNam
 
 func (i *integration) skipIfIsNotCompatibleWith(failure, driverType string) error {
 	if driverType == "powerstore" {
-		log.Infoln("Checking if the follwing test is compatible with PowerStore environment")
+		csmlog.Info("Checking if the follwing test is compatible with PowerStore environment")
 
 		deployment, err := i.getDriverControllerDeployment(driverType, driverType)
 		if err != nil {
@@ -3430,7 +3453,7 @@ func (i *integration) skipIfIsNotCompatibleWith(failure, driverType string) erro
 					if strings.Contains(arg, "skipArrayConnectionValidation") {
 						split := strings.Split(arg, "=")
 						if split[1] == "false" && failure == "kubeletdown" {
-							log.Info("For running kubeletdown test on PowerStore, skipArrayConnectionValidation should be set to true")
+							csmlog.Info("For running kubeletdown test on PowerStore, skipArrayConnectionValidation should be set to true")
 							isCompatible = false
 						}
 
@@ -3443,7 +3466,7 @@ func (i *integration) skipIfIsNotCompatibleWith(failure, driverType string) erro
 		}
 
 		if !isCompatible {
-			log.Warnf("Skipping this scenario. Test is not compatible with %s environment", driverType)
+			csmlog.Warnf("Skipping this scenario. Test is not compatible with %s environment", driverType)
 			return godog.ErrSkip
 		}
 	}
@@ -3451,7 +3474,7 @@ func (i *integration) skipIfIsNotCompatibleWith(failure, driverType string) erro
 }
 
 func (i *integration) iSetTheCorrectDriverTypeTo(driverType string) error {
-	log.Infof("Setting driver type to: %s", driverType)
+	csmlog.Infof("Setting driver type to: %s", driverType)
 	i.setDriverType(driverType)
 	return nil
 }
@@ -3510,14 +3533,14 @@ func (i *integration) iDeployPvcOn(nVols int, _, driverType string) error {
 	// Check if the namespace exists
 	_, err := i.k8s.GetClient().CoreV1().Namespaces().Get(context.Background(), nsPrefix, metav1.GetOptions{})
 	if err != nil {
-		log.Infof("Creating namespace: %s", nsPrefix)
+		csmlog.Infof("Creating namespace: %s", nsPrefix)
 		_, err := i.k8s.GetClient().CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: nsPrefix,
 			},
 		}, metav1.CreateOptions{})
 		if err != nil {
-			log.Errorf("Failed to create namespace: %s", err)
+			csmlog.Errorf("Failed to create namespace: %s", err)
 		}
 	}
 
@@ -3557,7 +3580,7 @@ func (i *integration) iEnsureAllVolumesOnForAreBound(storageClassParam, driverTy
 			return nil
 		}
 
-		log.Warnf("Failed to verify all volumes are bound. Retrying...")
+		csmlog.Warnf("Failed to verify all volumes are bound. Retrying...")
 		time.Sleep(5 * time.Second)
 	}
 
@@ -3597,12 +3620,12 @@ func (i *integration) iEnsureThatAllMetroVolumesInNamespaceAreStable(storageClas
 		i.metroVolInfo, err = i.allMetroVolumeSessionsAreStable(pvcList)
 		if err == nil {
 			for name, data := range i.metroVolInfo {
-				log.Infof("metro vol %s replication ID: %s", name, data.ReplicationSessions[0].ID)
+				csmlog.Infof("metro vol %s replication ID: %s", name, data.ReplicationSessions[0].ID)
 			}
 			return nil
 		}
 
-		log.Warnf("Array Metro sessions are not stable. Received error: %s. Retrying...", err.Error())
+		csmlog.Warnf("Array Metro sessions are not stable. Received error: %s. Retrying...", err.Error())
 		time.Sleep(10 * time.Second)
 	}
 
@@ -3620,7 +3643,7 @@ func (i *integration) iEnsureMetroVolumesStableInTestNamespaces(storageClassPara
 	nsPrefix := i.getTestNamespacePrefix(driverType)
 	for podIdx := 1; podIdx <= i.podCount; podIdx++ {
 		namespace := fmt.Sprintf("%s%d", nsPrefix, podIdx)
-		log.Infof("Ensuring Metro volumes in namespace are stable: %s ", namespace)
+		csmlog.Infof("Ensuring Metro volumes in namespace are stable: %s ", namespace)
 		err := i.iEnsureThatAllMetroVolumesInNamespaceAreStable(storageClassParam, driverType, namespace)
 		if err != nil {
 			return err
@@ -3682,7 +3705,7 @@ func (i *integration) iEnsureThatAllMetroVolumesOnForAreStable(storageClassParam
 			return nil
 		}
 
-		log.Warnf("Array Metro sessions are not stable. Received error: %s. Retrying...", err.Error())
+		csmlog.Warnf("Array Metro sessions are not stable. Received error: %s. Retrying...", err.Error())
 		time.Sleep(10 * time.Second)
 	}
 
@@ -3690,10 +3713,10 @@ func (i *integration) iEnsureThatAllMetroVolumesOnForAreStable(storageClassParam
 }
 
 func (i *integration) allMetroVolumeSessionsAreStable(pvcList []*corev1.PersistentVolumeClaim) (map[string]volumeInformation, error) {
-	log.Infof("checking if all metro Volume sessions are stable")
+	csmlog.Infof("checking if all metro Volume sessions are stable")
 	result := make(map[string]volumeInformation)
 
-	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[pstoreID.KeyArrayID])
+	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[keyArrayID])
 	if err != nil || preferredArray == nil {
 		return nil, fmt.Errorf("unable to get PowerStore secret: %s", err.Error())
 	}
@@ -3709,7 +3732,7 @@ func (i *integration) allMetroVolumeSessionsAreStable(pvcList []*corev1.Persiste
 
 		pstcli := exec.Command("pstcli", "-d", endpoint, "-u", preferredArray.Username, "-p", preferredArray.Password, "-ssl", "accept",
 			"volume", "-name", pv.Name, "show", "-output", "json", "-raw")
-		log.Infof("attempting to get PowerStore volume information: %v", pstcli.Args)
+		csmlog.Infof("attempting to get PowerStore volume information: %v", pstcli.Args)
 
 		// execute the command and get the results
 		response, err := pstcli.CombinedOutput()
@@ -3736,13 +3759,13 @@ func (i *integration) allMetroVolumeSessionsAreStable(pvcList []*corev1.Persiste
 	}
 
 	for name, data := range result {
-		log.Infof("Metro volume %s has state: %s", name, data.ReplicationSessions[0].State)
+		csmlog.Infof("Metro volume %s has state: %s", name, data.ReplicationSessions[0].State)
 	}
 
 	return result, nil
 }
 
-func (i *integration) executeMetroAction(endpoint string, array *pstoreArray.PowerStoreArray, action string) error {
+func (i *integration) executeMetroAction(endpoint string, array *powerStoreArray, action string) error {
 	for name, data := range i.metroVolInfo {
 		pstcli := exec.Command("pstcli", "-d", endpoint, "-u", array.Username, "-p", array.Password, "-ssl", "accept",
 			"replication_session", "-id", data.ReplicationSessions[0].ID, action) // #nosec G204
@@ -3753,7 +3776,7 @@ func (i *integration) executeMetroAction(endpoint string, array *pstoreArray.Pow
 			return fmt.Errorf("unable to execute metro action [%s] on replication session for volume %s: %s", action, name, err.Error())
 		}
 
-		log.Infof("Executed %s on Metro volume: %s. Response %s", action, name, response)
+		csmlog.Infof("Executed %s on Metro volume: %s. Response %s", action, name, response)
 	}
 
 	return nil
@@ -3763,7 +3786,7 @@ func (i *integration) iExecuteMetroActionOnNonPreferredMetroVolumes(action, _, _
 	if i.storageClass == nil {
 		return fmt.Errorf("[iExecuteMetroActionOnNonPreferredMetroVolumes] storage class not set; run step to verify binding first")
 	}
-	log.Infof("Executing action %s on nonPreferred Metro volume:", action)
+	csmlog.Infof("Executing action %s on nonPreferred Metro volume:", action)
 	nonPreferredArray, err := i.getNonPreferredArray(i.storageClass)
 	if err != nil {
 		return err
@@ -3774,7 +3797,7 @@ func (i *integration) iExecuteMetroActionOnNonPreferredMetroVolumes(action, _, _
 	for j := 0; j < maxAttempts; j++ {
 		err = i.executeMetroAction(endpoint, nonPreferredArray, action)
 		if err != nil {
-			log.Warnf("[Metro Action] Received error: %s.", err.Error())
+			csmlog.Warnf("[Metro Action] Received error: %s.", err.Error())
 			time.Sleep(10 * time.Second)
 			continue
 		}
@@ -3790,7 +3813,7 @@ func (i *integration) iExecuteMetroActionOnForForMetroVolumes(action, _, _ strin
 		return fmt.Errorf("[iExecuteMetroActionOnForForMetroVolumes] storage class not set; run step to verify binding first")
 	}
 
-	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[pstoreID.KeyArrayID])
+	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[keyArrayID])
 	if err != nil || preferredArray == nil {
 		return fmt.Errorf("unable to get PowerStore secret: %s", err.Error())
 	}
@@ -3800,7 +3823,7 @@ func (i *integration) iExecuteMetroActionOnForForMetroVolumes(action, _, _ strin
 	for j := 0; j < maxAttempts; j++ {
 		err = i.executeMetroAction(endpoint, preferredArray, action)
 		if err != nil {
-			log.Warnf("[Metro Action] Received error: %s.", err.Error())
+			csmlog.Warnf("[Metro Action] Received error: %s.", err.Error())
 			time.Sleep(10 * time.Second)
 			continue
 		}
@@ -3813,13 +3836,13 @@ func (i *integration) iExecuteMetroActionOnForForMetroVolumes(action, _, _ strin
 
 // Waits for whatever is passed in amount of seconds
 func (i integration) wait(seconds int) {
-	log.Infof("Waiting %d seconds", seconds)
+	csmlog.Infof("Waiting %d seconds", seconds)
 	time.Sleep(time.Duration(seconds) * time.Second)
 }
 
 func (i *integration) iSoftFractureTheMetroVolumesOnFor(_, _ string) error {
 	var err error
-	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[pstoreID.KeyArrayID])
+	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[keyArrayID])
 	if err != nil || preferredArray == nil {
 		return fmt.Errorf("unable to get PowerStore secret: %s", err.Error())
 	}
@@ -3830,14 +3853,14 @@ func (i *integration) iSoftFractureTheMetroVolumesOnFor(_, _ string) error {
 		// Steps to Soft Fracture the Metro volume, i.e. pause and resume.
 		err = i.executeMetroAction(endpoint, preferredArray, "pause")
 		if err != nil {
-			log.Warnf("[Soft Fracture] Received error: %s. Retrying...", err.Error())
+			csmlog.Warnf("[Soft Fracture] Received error: %s. Retrying...", err.Error())
 			time.Sleep(10 * time.Second)
 			continue
 		}
 
 		err = i.executeMetroAction(endpoint, preferredArray, "resume")
 		if err != nil {
-			log.Warnf("[Soft Fracture] Received error: %s. Retrying...", err.Error())
+			csmlog.Warnf("[Soft Fracture] Received error: %s. Retrying...", err.Error())
 			time.Sleep(10 * time.Second)
 			continue
 		}
@@ -3851,11 +3874,11 @@ func (i *integration) iSoftFractureTheMetroVolumesOnFor(_, _ string) error {
 	}
 
 	for name := range i.metroVolInfo {
-		log.Infof("[Soft Fracture] Soft Fractured Metro volume: %s", name)
+		csmlog.Infof("[Soft Fracture] Soft Fractured Metro volume: %s", name)
 
 		pstcli := exec.Command("pstcli", "-d", endpoint, "-u", preferredArray.Username, "-p", preferredArray.Password, "-ssl", "accept",
 			"volume", "-name", name, "show", "-output", "json", "-raw")
-		log.Infof("attempting to get PowerStore volume information: %v", pstcli.Args)
+		csmlog.Infof("attempting to get PowerStore volume information: %v", pstcli.Args)
 
 		// execute the command and get the results
 		response, err := pstcli.CombinedOutput()
@@ -3875,12 +3898,12 @@ func (i *integration) iSoftFractureTheMetroVolumesOnFor(_, _ string) error {
 		}
 	}
 
-	log.Infoln("Soft Fracture complete")
+	csmlog.Info("Soft Fracture complete")
 	return nil
 }
 
 func (i *integration) iDeleteSnapshotsOfMetroVolumes(id string) error {
-	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[pstoreID.KeyArrayID])
+	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[keyArrayID])
 	if err != nil || preferredArray == nil {
 		return fmt.Errorf("unable to get PowerStore secret: %s", err.Error())
 	}
@@ -3895,24 +3918,23 @@ func (i *integration) iDeleteSnapshotsOfMetroVolumes(id string) error {
 	}
 
 	pstoreClient.SetCustomHTTPHeaders(http.Header{
-		"Application-Type": {fmt.Sprintf("%s/%s", pstoreID.VerboseName, core.SemVer)},
+		"Application-Type": {fmt.Sprintf("%s/%s", powerstoreVerboseName, powerstoreSemVer)},
 	})
-	pstoreClient.SetLogger(&pstoreID.CustomLogger{})
 
 	myCtx, cancel := context.WithDeadline(context.Background(), time.Now().Add(30*time.Second))
 	defer cancel()
 
 	snapshots, err := pstoreClient.GetSnapshotsByVolumeID(myCtx, id)
 	if err != nil {
-		log.Warnf("unable to get the remote systems: %s", err.Error())
+		csmlog.Warnf("unable to get the remote systems: %s", err.Error())
 	}
 
 	if len(snapshots) > 0 {
 		for _, snapshot := range snapshots {
-			log.Infof("Deleting snapshot: %s", snapshot.Name)
+			csmlog.Infof("Deleting snapshot: %s", snapshot.Name)
 			_, err = pstoreClient.DeleteSnapshot(myCtx, nil, snapshot.ID)
 			if err != nil {
-				log.Warnf("unable to delete snapshot: %s", err.Error())
+				csmlog.Warnf("unable to delete snapshot: %s", err.Error())
 			}
 		}
 	}
@@ -4030,7 +4052,7 @@ func (i *integration) iDeployPodsForAllMetroVolumesOnFor(storageClassParam, driv
 		return fmt.Errorf("unable to create statefulset: %s", err.Error())
 	}
 
-	log.Infof("Waiting for deployed pods to be ready")
+	csmlog.Infof("Waiting for deployed pods to be ready")
 	time.Sleep(30 * time.Second)
 
 	return nil
@@ -4118,7 +4140,7 @@ func (i *integration) blockUnblockNodeIPPort(
 			} else {
 				dropPacketsCmd = fmt.Sprintf("iptables -%s FORWARD %s -j DROP -d %s -m comment --comment %q; ", action, seq, remoteIP, "metro testing; delete me")
 			}
-			log.Infof("executing %s on %s", dropPacketsCmd, localIP)
+			csmlog.Infof("executing %s on %s", dropPacketsCmd, localIP)
 			client := i.getSSHClient(localIP)
 			if _, err := i.SSHExec(client, localIP, dropPacketsCmd); err != nil {
 				return fmt.Errorf("encountered an error while attempting to drop forward packets on preferred nodes: %s", err.Error())
@@ -4163,7 +4185,7 @@ func (i *integration) handleConnectionForNodeToArray(operation MetroConnection, 
 
 func (i *integration) handleConnectionForNodeToLocalArray(operation MetroConnection, storageClass string, preference string, port string) error {
 	i.setStorageClass(storageClass)
-	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[pstoreID.KeyArrayID])
+	preferredArray, err := i.getPowerStoreArrayInfo(i.storageClass.Parameters[keyArrayID])
 	if err != nil || preferredArray == nil {
 		return fmt.Errorf("unable to get PowerStore secret: %s", err.Error())
 	}
@@ -4227,7 +4249,7 @@ func (i *integration) restoreNodeAndLocalArrayConnection(labelValue string, stor
 
 func (i *integration) podIsTerminatingInTestNamespace(driverType string, label string) (bool, error) {
 	namespace := fmt.Sprintf("%s%d", i.getTestNamespacePrefix(driverType), 1)
-	log.Infof("Checking if pod in namespace %s is in the 'Terminating' state with label %s", namespace, label)
+	csmlog.Infof("Checking if pod in namespace %s is in the 'Terminating' state with label %s", namespace, label)
 	pods, err := i.k8s.GetClient().CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return false, err
@@ -4241,7 +4263,7 @@ func (i *integration) podIsTerminatingInTestNamespace(driverType string, label s
 				return false, err
 			}
 			if _, ok := nodeObj.ObjectMeta.Labels[label]; !ok {
-				log.Infof("Pod is in the 'Terminating' state scheduled on the node with label: %s", label)
+				csmlog.Infof("Pod is in the 'Terminating' state scheduled on the node with label: %s", label)
 				return true, nil
 			}
 		}
@@ -4256,7 +4278,7 @@ func (i *integration) checkTerminatingPodWithLabel(driverType string, label stri
 	}
 
 	if terminating {
-		log.Info("Pod is in the 'Terminating' state with label in test namespace.")
+		csmlog.Info("Pod is in the 'Terminating' state with label in test namespace.")
 		return nil
 	}
 
@@ -4270,12 +4292,12 @@ func (i *integration) checkTerminatingPodWithLabel(driverType string, label stri
 		for {
 			select {
 			case <-timeout.C:
-				log.Info("Timed out, but doing a last check to see if all test pods are in terminating state")
+				csmlog.Info("Timed out, but doing a last check to see if all test pods are in terminating state")
 				// Check each of the test namespaces for terminating pod (final check)
 				terminating, err = i.podIsTerminatingInTestNamespace(driverType, label)
 				done <- true
 			case <-ticker.C:
-				log.Infof("Checking if all test pods are in terminating state (time left %v)", timeoutDuration-time.Since(start))
+				csmlog.Infof("Checking if all test pods are in terminating state (time left %v)", timeoutDuration-time.Since(start))
 				// Check each of the test namespaces for terminating pod (final check)
 				terminating, err = i.podIsTerminatingInTestNamespace(driverType, label)
 				if terminating {
@@ -4288,7 +4310,7 @@ func (i *integration) checkTerminatingPodWithLabel(driverType string, label stri
 	<-done
 	timeout.Stop()
 	ticker.Stop()
-	log.Infof("Completed pod termination check after %v (terminating=%v)", time.Since(start), terminating)
+	csmlog.Infof("Completed pod termination check after %v (terminating=%v)", time.Since(start), terminating)
 
 	if !terminating {
 		return fmt.Errorf("Pod is not in the 'Terminating' state")

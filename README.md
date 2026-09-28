@@ -1,5 +1,5 @@
 <!--
- Copyright (c) 2021-2025 Dell Inc., or its subsidiaries. All Rights Reserved.
+ Copyright (c) 2021-2026 Dell Inc., or its subsidiaries. All Rights Reserved.
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ Accordingly, CSM for Resiliency is adapted to, and qualified with each Dell CSI 
 - [Dell support](https://www.dell.com/support/incidents-online/en-us/contactus/product/container-storage-modules)
 - [Security](https://github.com/dell/csm/blob/main/docs/SECURITY.md)
 - [About](#about)
+- [Documentation](#documentation)
 
 ## Building CSM for Resiliency
 
@@ -74,7 +75,7 @@ make unit-test
 
 ## Versioning
 
-This project is adhering to [Semantic Versioning](https://semver.org/).
+This project is adhering to [Semantic Versioning](https://semver.org).
 
 ## About
 
@@ -82,3 +83,5 @@ Dell Container Storage Modules (CSM) is 100% open source and community-driven. A
 under [Apache 2 License](https://www.apache.org/licenses/LICENSE-2.0.html) on
 GitHub.
 
+## Documentation
+For more detailed information on the driver, please refer to [Container Storage Modules documentation](https://www.dell.com/support/product-details/en-us/product/container-storage-modules/resources/manuals).

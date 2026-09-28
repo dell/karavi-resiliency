@@ -24,9 +24,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dell/csmlog"
 	"github.com/dell/gofsutil"
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	cri "k8s.io/cri-api/pkg/apis/runtime/v1"
@@ -56,7 +56,7 @@ func StartAPIMonitor(api k8sapi.K8sAPI, firstTimeout, retryTimeout, interval tim
 	nodeName := os.Getenv("KUBE_NODE_NAME")
 	if nodeName == "" {
 		err := errors.New("KUBE_NODE_NAME environment variable must be set")
-		log.Errorf("%s", err.Error())
+		csmlog.Errorf("%s", err.Error())
 		return err
 	}
 
@@ -88,7 +88,7 @@ func (pm *PodMonitorType) apiMonitorLoop(api k8sapi.K8sAPI, nodeName string, fir
 					"NodeID": nodeName,
 					"Error":  err.Error(),
 				}
-				log.WithFields(f).Info("Lost API connectivity from node")
+				csmlog.WithFields(f).Info("Lost API connectivity from node")
 				pm.APIConnected = false
 				taintCount = 0
 			}
@@ -104,7 +104,7 @@ func (pm *PodMonitorType) apiMonitorLoop(api k8sapi.K8sAPI, nodeName string, fir
 				f := map[string]interface{}{
 					"NodeID": nodeName,
 				}
-				log.WithFields(f).Info("API connectivity restored to node")
+				csmlog.WithFields(f).Info("API connectivity restored to node")
 				pm.APIConnected = true
 
 			}
@@ -117,11 +117,11 @@ func (pm *PodMonitorType) apiMonitorLoop(api k8sapi.K8sAPI, nodeName string, fir
 						taintCount = 0
 					}
 				} else {
-					log.Infof("Waiting on node to stabalize: %d", taintCount)
+					csmlog.Infof("Waiting on node to stabalize: %d", taintCount)
 				}
 			} else {
 				if taintCount > 0 {
-					log.Error("********** taint manually removed **********")
+					csmlog.Error("********** taint manually removed **********")
 				}
 			}
 		}
@@ -157,7 +157,7 @@ func (pm *PodMonitorType) nodeModePodHandler(pod *v1.Pod, eventType watch.EventT
 	fields["PodUID"] = string(pod.ObjectMeta.UID)
 	fields["Node"] = pod.Spec.NodeName
 	fields["EventType"] = eventType
-	log.WithFields(fields).Infof("nodeModePodHandler")
+	csmlog.WithFields(fields).Infof("nodeModePodHandler")
 	if nodeName == pod.Spec.NodeName {
 		if eventType == watch.Added || eventType == watch.Modified {
 			// If so, record the pod watch object so later we can check status of the mounts
@@ -167,7 +167,7 @@ func (pm *PodMonitorType) nodeModePodHandler(pod *v1.Pod, eventType watch.EventT
 				Mounts:  make([]MountPathVolumeInfo, 0),
 				Devices: make([]BlockPathVolumeInfo, 0),
 			}
-			log.WithFields(fields).Infof("podMonitorHandler-node:  message %s reason %s event %v",
+			csmlog.WithFields(fields).Infof("podMonitorHandler-node:  message %s reason %s event %v",
 				pod.Status.Message, pod.Status.Reason, eventType)
 
 			// See if there is already an entry, and if so, make sure we don't save result if fewer devices
@@ -182,19 +182,19 @@ func (pm *PodMonitorType) nodeModePodHandler(pod *v1.Pod, eventType watch.EventT
 
 			// Scan for mounts
 			csiVolumesPath := fmt.Sprintf(CSIVolumePathFormat, string(pod.ObjectMeta.UID))
-			log.Debugf("csiVolumesPath: %s", csiVolumesPath)
+			csmlog.Debugf("csiVolumesPath: %s", csiVolumesPath)
 			volumeEntries, err := os.ReadDir(csiVolumesPath)
 			if err != nil && !os.IsNotExist(err) {
-				log.WithFields(fields).Errorf("Couldn't read directory %s: %s", csiVolumesPath, err.Error())
+				csmlog.WithFields(fields).Errorf("Couldn't read directory %s: %s", csiVolumesPath, err.Error())
 				return err
 			}
 
 			for _, volumeEntry := range volumeEntries {
 				pvName := volumeEntry.Name()
-				log.Debugf("mount pvName %s", pvName)
+				csmlog.Debugf("mount pvName %s", pvName)
 				pv, err := K8sAPI.GetPersistentVolume(ctx, pvName)
 				if err != nil {
-					log.Errorf("Couldn't read mount PV %s: %s", pvName, err.Error())
+					csmlog.Errorf("Couldn't read mount PV %s: %s", pvName, err.Error())
 				} else {
 					volumeID := pv.Spec.CSI.VolumeHandle
 					mountPath := csiVolumesPath + "/" + pvName + "/mount"
@@ -203,25 +203,25 @@ func (pm *PodMonitorType) nodeModePodHandler(pod *v1.Pod, eventType watch.EventT
 						VolumeID: volumeID,
 						PVName:   pvName,
 					}
-					log.WithFields(fields).Infof("Adding mountPathVolumeInfo %v", mountPathVolumeInfo)
+					csmlog.WithFields(fields).Infof("Adding mountPathVolumeInfo %v", mountPathVolumeInfo)
 					podInfo.Mounts = append(podInfo.Mounts, mountPathVolumeInfo)
 				}
 			}
 
 			// Scan for block devices
 			csiDevicesPath := fmt.Sprintf(CSIDevicePathFormat, string(pod.ObjectMeta.UID))
-			log.Infof("csiDevicesPath: %s", csiDevicesPath)
+			csmlog.Infof("csiDevicesPath: %s", csiDevicesPath)
 			deviceEntries, err := os.ReadDir(csiDevicesPath)
 			if err != nil && !os.IsNotExist(err) {
-				log.WithFields(fields).Errorf("Couldn't read directory %s: %s", csiDevicesPath, err.Error())
+				csmlog.WithFields(fields).Errorf("Couldn't read directory %s: %s", csiDevicesPath, err.Error())
 				return err
 			}
 			for _, deviceEntry := range deviceEntries {
 				pvName := deviceEntry.Name()
-				log.Debugf("dev pvName %s", pvName)
+				csmlog.Debugf("dev pvName %s", pvName)
 				pv, err := K8sAPI.GetPersistentVolume(ctx, pvName)
 				if err != nil {
-					log.Errorf("Couldn't read block PV %s: %s", pvName, err.Error())
+					csmlog.Errorf("Couldn't read block PV %s: %s", pvName, err.Error())
 				} else {
 					volumeID := pv.Spec.CSI.VolumeHandle
 					mountPath := csiDevicesPath + "/" + pvName
@@ -230,7 +230,7 @@ func (pm *PodMonitorType) nodeModePodHandler(pod *v1.Pod, eventType watch.EventT
 						VolumeID: volumeID,
 						PVName:   pvName,
 					}
-					log.WithFields(fields).Infof("Add blockPathVolumeInfo %v", blockPathVolumeInfo)
+					csmlog.WithFields(fields).Infof("Add blockPathVolumeInfo %v", blockPathVolumeInfo)
 					podInfo.Devices = append(podInfo.Devices, blockPathVolumeInfo)
 				}
 			}
@@ -238,10 +238,10 @@ func (pm *PodMonitorType) nodeModePodHandler(pod *v1.Pod, eventType watch.EventT
 			// Save the podname key to NodePodInfo object. These are used to eventually cleanup.
 			// Don't save an entry if the volume or device counts are lower than what we already have
 			if len(podInfo.Mounts) >= existingVolumeCount && len(podInfo.Devices) >= existingDeviceCount {
-				log.WithFields(fields).Infof("Storing podInfo %d mounts %d devices", len(podInfo.Mounts), len(podInfo.Devices))
+				csmlog.WithFields(fields).Infof("Storing podInfo %d mounts %d devices", len(podInfo.Mounts), len(podInfo.Devices))
 				pm.PodKeyMap.Store(podKey, podInfo)
 			} else {
-				log.WithFields(fields).Infof("Skipped Storing podInfo %d mounts %d devices", len(podInfo.Mounts), len(podInfo.Devices))
+				csmlog.WithFields(fields).Infof("Skipped Storing podInfo %d mounts %d devices", len(podInfo.Mounts), len(podInfo.Devices))
 			}
 		}
 		if eventType == watch.Deleted {
@@ -287,10 +287,10 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 	// Using CRI, get the pod information
 	containerInfos, err := getContainers(crictx)
 	if err != nil {
-		log.Errorf("Could not get container information: %s", err)
+		csmlog.Errorf("Could not get container information: %s", err)
 	} else {
 		for _, value := range containerInfos {
-			log.Infof("ContainerInfo %+v\n", *value)
+			csmlog.Infof("ContainerInfo %+v\n", *value)
 		}
 	}
 	// Retrieve the podKeys we've been watching for our node
@@ -311,28 +311,28 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 
 		// ignore volumeless pods if needed
 		if IgnoreVolumelessPods && len(podInfo.Mounts) == 0 && len(podInfo.Devices) == 0 {
-			log.Infof("IgnoreVolumelessPods %t mount %d device %d", IgnoreVolumelessPods, len(podInfo.Mounts), len(podInfo.Devices))
+			csmlog.Infof("IgnoreVolumelessPods %t mount %d device %d", IgnoreVolumelessPods, len(podInfo.Mounts), len(podInfo.Devices))
 			return true
 		}
 
 		// Ignore pods that should be running on this node according to K8S API
-		podNamespace, podName := splitPodKey((podKey))
+		podNamespace, podName := splitPodKey(podKey)
 		currentPod, err := K8sAPI.GetPod(ctx, podNamespace, podName)
 		if err != nil {
-			log.Errorf("Could not retrieve pod %s: %s", podKey, err.Error())
+			csmlog.Errorf("Could not retrieve pod %s: %s", podKey, err.Error())
 		} else {
 			podHostIP := currentPod.Status.HostIP
-			log.Debugf("checking podHostIP %s == NodeIP %s podPhase %v", podHostIP, NodeIP, currentPod.Status.Phase)
+			csmlog.Debugf("checking podHostIP %s == NodeIP %s podPhase %v", podHostIP, NodeIP, currentPod.Status.Phase)
 			if podHostIP == NodeIP {
 				switch currentPod.Status.Phase {
 				case v1.PodPending:
-					log.Infof("Ignoring cleanup of pending pod that should be running on this node: %s %s", podKey, NodeIP)
+					csmlog.Infof("Ignoring cleanup of pending pod that should be running on this node: %s %s", podKey, NodeIP)
 					return true
 				case v1.PodRunning:
-					log.Infof("Ignoring cleanup of running pod that should be running on this node: %s %s", podKey, NodeIP)
+					csmlog.Infof("Ignoring cleanup of running pod that should be running on this node: %s %s", podKey, NodeIP)
 					return true
 				default:
-					log.Infof("Pod %s phase %s will attempt cleanup", podKey, currentPod.Status.Phase)
+					csmlog.Infof("Pod %s phase %s will attempt cleanup", podKey, currentPod.Status.Phase)
 				}
 			}
 		}
@@ -342,10 +342,10 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 			containerID := containerStatus.ContainerID
 			cid := strings.Split(containerID, "//")
 			if len(cid) > 1 && containerInfos[cid[1]] != nil {
-				log.Debugf("cid %v", cid[1])
+				csmlog.Debugf("cid %v", cid[1])
 				containerInfo := containerInfos[cid[1]]
 				if containerInfo.State == cri.ContainerState_CONTAINER_RUNNING || containerInfo.State == cri.ContainerState_CONTAINER_CREATED {
-					log.Infof("Skipping pod %s cleanup because container %v still executing", podKey, containerInfo)
+					csmlog.Infof("Skipping pod %s cleanup because container %v still executing", podKey, containerInfo)
 					podKeysSkipped = append(podKeysSkipped, podKey)
 					return true
 				}
@@ -365,7 +365,7 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 				return true
 			}
 		} else {
-			log.Infof("Could not retrieve pod %s: %s", podKey, err.Error())
+			csmlog.Infof("Could not retrieve pod %s: %s", podKey, err.Error())
 		}
 		// Add pod to list to be cleaned up
 		podKeys = append(podKeys, podKey)
@@ -373,8 +373,8 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 		return true
 	}
 	pm.PodKeyMap.Range(fn)
-	log.Infof("pods skipped for cleanup because still present or container executing: %v", podKeysSkipped)
-	log.Infof("pods to be cleaned up: %v", podKeys)
+	csmlog.Infof("pods skipped for cleanup because still present or container executing: %v", podKeysSkipped)
+	csmlog.Infof("pods to be cleaned up: %v", podKeys)
 	for i := 0; i < len(podKeys); i++ {
 		err := pm.nodeModeCleanupPod(podKeys[i], podInfos[i])
 		if err != nil {
@@ -390,16 +390,16 @@ func (pm *PodMonitorType) nodeModeCleanupPods(node *v1.Node) bool {
 	// it was still present. Instead we will do another cleanup cycle.
 	if removeTaint && len(podKeysSkipped) == 0 && len(podKeysWithError) == 0 {
 		if err := taintNode(node.ObjectMeta.Name, PodmonTaintKey, true); err != nil {
-			log.Errorf("Failed to remove taint against %s node: %v", node.ObjectMeta.Name, err)
+			csmlog.Errorf("Failed to remove taint against %s node: %v", node.ObjectMeta.Name, err)
 			return false
 		}
-		log.Infof("Cleanup of pods complete: %v", podKeys)
+		csmlog.Infof("Cleanup of pods complete: %v", podKeys)
 		return true
 	}
 
-	log.Infof("pods skipped for cleanup because still present or container executing: %v", podKeysSkipped)
-	log.Infof("pods with cleanup errors: %v", podKeysWithError)
-	log.Info("Couldn't completely cleanup node- taint not removed- cleanup will be retried, or a manual reboot is advised")
+	csmlog.Infof("pods skipped for cleanup because still present or container executing: %v", podKeysSkipped)
+	csmlog.Infof("pods with cleanup errors: %v", podKeysWithError)
+	csmlog.Info("Couldn't completely cleanup node- taint not removed- cleanup will be retried, or a manual reboot is advised")
 	return false
 }
 
@@ -415,14 +415,14 @@ func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo
 	fields["podKey"] = podKey
 	podUID := podInfo.PodUID
 	fields["podUid"] = podUID
-	log.WithFields(fields).Infof("Cleaning up pod")
+	csmlog.WithFields(fields).Infof("Cleaning up pod")
 
 	// Clean up volume mounts
 	for _, mntInfo := range podInfo.Mounts {
 		// Call NodeUnpublish volume for mount
 		err := pm.callNodeUnpublishVolume(fields, mntInfo.Path, mntInfo.VolumeID)
 		if err != nil && !Driver.NodeUnpublishExcludedError(err) {
-			log.WithFields(fields).Errorf("NodeUnpublishVolume failed: %s %s %s", mntInfo.Path, mntInfo.VolumeID, err)
+			csmlog.WithFields(fields).Errorf("NodeUnpublishVolume failed: %s %s %s", mntInfo.Path, mntInfo.VolumeID, err)
 			returnErr = err
 		} else {
 			// Upto k8s 1.24 release
@@ -430,7 +430,7 @@ func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo
 			if stagingDir != "" {
 				err = pm.callNodeUnstageVolume(fields, stagingDir, mntInfo.VolumeID)
 				if err != nil && !Driver.NodeUnstageExcludedError(err) {
-					log.WithFields(fields).Errorf("NodeUnstageVolume failed: %s %s %s", mntInfo.Path, mntInfo.VolumeID, err)
+					csmlog.WithFields(fields).Errorf("NodeUnstageVolume failed: %s %s %s", mntInfo.Path, mntInfo.VolumeID, err)
 					returnErr = err
 				}
 			}
@@ -439,7 +439,7 @@ func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo
 			if stagingDir != "" {
 				err = pm.callNodeUnstageVolume(fields, stagingDir, mntInfo.VolumeID)
 				if err != nil && !Driver.NodeUnstageExcludedError(err) {
-					log.WithFields(fields).Errorf("NodeUnstageVolume failed: %s %s %s", mntInfo.Path, mntInfo.VolumeID, err)
+					csmlog.WithFields(fields).Errorf("NodeUnstageVolume failed: %s %s %s", mntInfo.Path, mntInfo.VolumeID, err)
 					returnErr = err
 				}
 			}
@@ -447,18 +447,18 @@ func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo
 			privTarget := Driver.GetDriverMountDir(mntInfo.VolumeID, mntInfo.PVName, podUID)
 			err = gofsutil.Unmount(context.Background(), privTarget)
 			if err != nil {
-				log.WithFields(fields).Errorf("Could not Unmount private target: %s because: %s", privTarget, err.Error())
+				csmlog.WithFields(fields).Errorf("Could not Unmount private target: %s because: %s", privTarget, err.Error())
 			}
 			// Remove the private mount target to complete the cleanup.
 			err = RemoveDir(privTarget)
 			if err != nil && !os.IsNotExist(err) {
-				log.WithFields(fields).Errorf("Could not remove private target: %s because: %s", privTarget, err.Error())
+				csmlog.WithFields(fields).Errorf("Could not remove private target: %s because: %s", privTarget, err.Error())
 				returnErr = err
 			}
 			// Do final driver cleanup if any.
 			err = Driver.FinalCleanup(false, mntInfo.VolumeID, mntInfo.PVName, podUID)
 			if err != nil {
-				log.WithFields(fields).Errorf("FinalCleanup failed: %s", err)
+				csmlog.WithFields(fields).Errorf("FinalCleanup failed: %s", err)
 				returnErr = err
 			}
 		}
@@ -469,14 +469,14 @@ func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo
 		// Call Node unpublish for block device
 		err := pm.callNodeUnpublishVolume(fields, devInfo.Path, devInfo.VolumeID)
 		if err != nil && !Driver.NodeUnpublishExcludedError(err) {
-			log.WithFields(fields).Errorf("NodeUnpublishVolume failed: %s %s %s", devInfo.Path, devInfo.VolumeID, err)
+			csmlog.WithFields(fields).Errorf("NodeUnpublishVolume failed: %s %s %s", devInfo.Path, devInfo.VolumeID, err)
 			returnErr = err
 		} else {
 			stagingDir := Driver.GetStagingBlockDir(devInfo.VolumeID, devInfo.PVName)
 			if stagingDir != "" {
 				err = pm.callNodeUnstageVolume(fields, stagingDir, devInfo.VolumeID)
 				if err != nil && !Driver.NodeUnstageExcludedError(err) {
-					log.WithFields(fields).Errorf("NodeUnstageVolume failed: %s %s %s", devInfo.Path, devInfo.VolumeID, err)
+					csmlog.WithFields(fields).Errorf("NodeUnstageVolume failed: %s %s %s", devInfo.Path, devInfo.VolumeID, err)
 					returnErr = err
 				}
 			}
@@ -484,30 +484,30 @@ func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo
 			privBlockDev := Driver.GetDriverBlockDev(devInfo.VolumeID, devInfo.PVName, podUID)
 			err = tools.Unmount(privBlockDev, 0)
 			if err != nil {
-				log.WithFields(fields).Errorf("Could not Unmount private block device: %s because: %s", privBlockDev, err.Error())
+				csmlog.WithFields(fields).Errorf("Could not Unmount private block device: %s because: %s", privBlockDev, err.Error())
 			}
 			// Remove the block device to complete the cleanup
 			err = RemoveDev(privBlockDev)
 			if err != nil && !os.IsNotExist(err) {
-				log.WithFields(fields).Errorf("Could not remove block device: %s because: %s", privBlockDev, err.Error())
+				csmlog.WithFields(fields).Errorf("Could not remove block device: %s because: %s", privBlockDev, err.Error())
 				returnErr = err
 			}
 			// Do final driver cleanup if any.
 			err = Driver.FinalCleanup(true, devInfo.VolumeID, devInfo.PVName, podUID)
 			if err != nil {
-				log.WithFields(fields).Errorf("FinalCleanup failed: %s", err)
+				csmlog.WithFields(fields).Errorf("FinalCleanup failed: %s", err)
 				returnErr = err
 			}
 		}
 	}
 	if returnErr != nil {
-		log.WithFields(fields).Errorf("Pod cleanup failed, reason: %s", returnErr.Error())
+		csmlog.WithFields(fields).Errorf("Pod cleanup failed, reason: %s", returnErr.Error())
 	}
 
 	if returnErr != nil {
-		log.WithFields(fields).Errorf("Pod cleanup failed, reason: %s", returnErr.Error())
+		csmlog.WithFields(fields).Errorf("Pod cleanup failed, reason: %s", returnErr.Error())
 	} else {
-		log.WithFields(fields).Infof("Pod cleanup complete")
+		csmlog.WithFields(fields).Infof("Pod cleanup complete")
 	}
 
 	return returnErr
@@ -517,7 +517,7 @@ func (pm *PodMonitorType) nodeModeCleanupPod(podKey string, podInfo *NodePodInfo
 func (pm *PodMonitorType) callNodeUnpublishVolume(fields map[string]interface{}, targetPath, volumeID string) error {
 	var err error
 	for i := 0; i < CSIMaxRetries; i++ {
-		log.WithFields(fields).Infof("Calling NodeUnpublishVolume path %s volume %s", targetPath, volumeID)
+		csmlog.WithFields(fields).Infof("Calling NodeUnpublishVolume path %s volume %s", targetPath, volumeID)
 		req := &csi.NodeUnpublishVolumeRequest{
 			TargetPath: targetPath,
 			VolumeId:   volumeID,
@@ -526,7 +526,7 @@ func (pm *PodMonitorType) callNodeUnpublishVolume(fields map[string]interface{},
 		if err == nil {
 			break
 		}
-		log.WithFields(fields).Infof("Error calling NodeUnpublishVolume path %s volume %s: %s", targetPath, volumeID, err.Error())
+		csmlog.WithFields(fields).Infof("Error calling NodeUnpublishVolume path %s volume %s: %s", targetPath, volumeID, err.Error())
 		if !strings.HasSuffix(err.Error(), "pending") {
 			break
 		}
@@ -540,7 +540,7 @@ func (pm *PodMonitorType) callNodeUnpublishVolume(fields map[string]interface{},
 func (pm *PodMonitorType) callNodeUnstageVolume(fields map[string]interface{}, targetPath, volumeID string) error {
 	var err error
 	for i := 0; i < CSIMaxRetries; i++ {
-		log.WithFields(fields).Infof("Calling NodeUnstageVolume path %s volume %s", targetPath, volumeID)
+		csmlog.WithFields(fields).Infof("Calling NodeUnstageVolume path %s volume %s", targetPath, volumeID)
 		req := &csi.NodeUnstageVolumeRequest{
 			StagingTargetPath: targetPath,
 			VolumeId:          volumeID,
@@ -549,7 +549,7 @@ func (pm *PodMonitorType) callNodeUnstageVolume(fields map[string]interface{}, t
 		if err == nil {
 			break
 		}
-		log.WithFields(fields).Infof("Error calling NodeUnstageVolume path %s volume %s: %s", targetPath, volumeID, err.Error())
+		csmlog.WithFields(fields).Infof("Error calling NodeUnstageVolume path %s volume %s: %s", targetPath, volumeID, err.Error())
 		if !strings.HasSuffix(err.Error(), "pending") {
 			break
 		}

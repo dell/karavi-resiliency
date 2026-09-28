@@ -121,10 +121,9 @@ Feature: Podmon Main
       | "localhost"  | "1234"  | "--driver-config-params= "                                                          | "--driver-config-params cannot be empty" |
       | "localhost"  | "1234"  | "--driver-config-params=fake"                                                       | "unable to read driver config file"      |
       # Bad data in ConfigMaps
-      | "localhost"  | "1234"  | "--driver-config-params=resources/driver-config-params-bad-format1.yaml"            | "leader election: true"                  |
-      | "localhost"  | "1234"  | "--driver-config-params=resources/driver-config-params-bad-format2.yaml"            | "leader election: true"                  |
-      | "localhost"  | "1234"  | "--driver-config-params=resources/driver-config-params-bad-level1.yaml"             | "error with configuration parameters"    |
-      | "localhost"  | "1234"  | "--mode=node --driver-config-params=resources/driver-config-params-bad-level2.yaml" | "error with configuration parameters"    |
+      | "localhost"  | "1234"  | "--driver-config-params=resources/driver-config-params-bad-format1.yaml"            | "Unexpected format bogus for CSI_LOG_FORMAT" |
+      | "localhost"  | "1234"  | "--driver-config-params=resources/driver-config-params-bad-level1.yaml"             | "Unexpected level bogus for CSI_LOG_LEVEL"   |
+      | "localhost"  | "1234"  | "--driver-config-params=resources/driver-config-params-bad-level2.yaml"             | "Unexpected level bogus for CSI_LOG_LEVEL"   |
       | "localhost"  | "1234"  | "--driver-config-params=resources/driver-config-params-bad-value1.yaml"             | "error with configuration parameters"    |
       | "localhost"  | "1234"  | "--driver-config-params=resources/driver-config-params-bad-value2.yaml"             | "error with configuration parameters"    |
       | "localhost"  | "1234"  | "--driver-config-params=resources/driver-config-params-bad-value3.yaml"             | "error with configuration parameters"    |

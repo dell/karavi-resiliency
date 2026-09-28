@@ -13,7 +13,7 @@ eval:
 	$(eval include csm-common.mk)
 	$(eval include semver.mk)
 
-images: generate vendor download-csm-common eval
+images: vendor generate copy-csm-common eval
 	$(BUILDER) build --pull $(NOCACHE) -t "$(IMAGE_REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)" --build-arg GOIMAGE=$(DEFAULT_GOIMAGE) --build-arg BASEIMAGE=$(CSM_BASEIMAGE) .
 
 images-no-cache:

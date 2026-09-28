@@ -20,9 +20,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/dell/csmlog"
 	csiext "github.com/dell/dell-csi-extensions/podmon"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 )
 
@@ -50,7 +50,7 @@ func NewCSIClient(csiSock string, clientOpts ...grpc.DialOption) (CSIApi, error)
 	for {
 		// Wait on the driver. It will not open its unix socket until it has become leader.
 		CSIClient.DriverConn, err = getGrpcDialContext(context.Background(), csiSock, clientOpts...)
-		log.Debugf("grpc.Dial returned %v %v", CSIClient.DriverConn, err)
+		csmlog.Debugf("grpc.Dial returned %v %v", CSIClient.DriverConn, err)
 		if err != nil || CSIClient.DriverConn == nil {
 			var errMsg string
 			if err == nil {
@@ -58,13 +58,13 @@ func NewCSIClient(csiSock string, clientOpts ...grpc.DialOption) (CSIApi, error)
 			} else {
 				errMsg = err.Error()
 			}
-			log.Errorf("Waiting on connection to driver csi.sock: %s", errMsg)
+			csmlog.Errorf("Waiting on connection to driver csi.sock: %s", errMsg)
 			time.Sleep(CSIClientDialRetry)
 		} else {
 			break
 		}
 	}
-	log.Infof("Connected to driver: %s", csiSock)
+	csmlog.Infof("Connected to driver: %s", csiSock)
 	CSIClient.PodmonClient = csiext.NewPodmonClient(CSIClient.DriverConn)
 	CSIClient.ControllerClient = csi.NewControllerClient(CSIClient.DriverConn)
 	CSIClient.NodeClient = csi.NewNodeClient(CSIClient.DriverConn)

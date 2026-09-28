@@ -18,16 +18,19 @@ import (
 	"fmt"
 	"podmon/internal/csiapi"
 	"podmon/internal/k8sapi"
+	"podmon/internal/metrics"
 	"podmon/internal/monitor"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/dell/csm-metrics-common/pkg/server"
+	"github.com/dell/csmlog"
 	csiext "github.com/dell/dell-csi-extensions/podmon"
 	"github.com/fsnotify/fsnotify"
 	"github.com/kubernetes-csi/csi-lib-utils/leaderelection"
-	log "github.com/sirupsen/logrus"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 )
@@ -51,16 +54,16 @@ const (
 	driverConfigParamsDefault                = "resources/driver-config-params.yaml"
 	ignoreVolumelessPods                     = false
 	// -- Below are constants for dynamic configuration --
-	defaultLogLevel                                = log.DebugLevel
+	defaultLogLevel                                = csmlog.InfoLevel
+	csiLogFormat                                   = "CSI_LOG_FORMAT"
+	csiLogLevel                                    = "CSI_LOG_LEVEL"
 	podmonArrayConnectivityPollRate                = "PODMON_ARRAY_CONNECTIVITY_POLL_RATE"
 	podmonArrayConnectivityConnectionLossThreshold = "PODMON_ARRAY_CONNECTIVITY_CONNECTION_LOSS_THRESHOLD"
-	podmonControllerLogFormat                      = "PODMON_CONTROLLER_LOG_FORMAT"
-	podmonControllerLogLevel                       = "PODMON_CONTROLLER_LOG_LEVEL"
-	podmonNodeLogFormat                            = "PODMON_NODE_LOG_FORMAT"
-	podmonNodeLogLevel                             = "PODMON_NODE_LOG_LEVEL"
 	podmonSkipArrayConnectionValidation            = "PODMON_SKIP_ARRAY_CONNECTION_VALIDATION"
 	driverPodLabelKey                              = "driver.dellemc.com"
 	driverPodLabelValue                            = "dell-storage"
+	// Metrics configuration
+	defaultMetricsPort = 8444
 )
 
 // K8sAPI is reference to the internal Kubernetes wrapper client
@@ -90,13 +93,26 @@ var (
 	createArgsOnce sync.Once
 )
 
+// MetricsRegistry holds the Prometheus registry for metrics
+var MetricsRegistry *prometheus.Registry
+
+// MetricsServer holds the HTTP server for metrics (using csm-metrics-common)
+var MetricsServer *server.MetricsServer
+
+// ResiliencyMetrics holds the resiliency metrics instance
+var ResiliencyMetrics *metrics.ResiliencyMetrics
+
 func main() {
-	log.SetFormatter(&log.TextFormatter{
-		DisableColors:   true,
-		FullTimestamp:   true,
-		TimestampFormat: time.RFC1123,
-	})
 	getArgs()
+
+	// Enable viper to read environment variables
+	viper.AutomaticEnv()
+
+	// Initialize metrics server if enabled
+	if err := initMetricsServer(); err != nil {
+		csmlog.WithFields(csmlog.Fields{"error": err}).Error("Failed to initialize metrics server")
+		// Continue without metrics if initialization fails
+	}
 
 	if err := setupDynamicConfigUpdate(); err != nil {
 		// There was some error with setting up the configuration update, so exit now.
@@ -111,26 +127,26 @@ func main() {
 	case "standalone":
 		monitor.PodMonitor.Mode = *args.mode
 	default:
-		log.Error("invalid mode; choose controller, node, or standalone")
+		csmlog.Error("invalid mode; choose controller, node, or standalone")
 		return
 	}
-	log.Infof("Running in %s mode", monitor.PodMonitor.Mode)
+	csmlog.Infof("Running in %s mode", monitor.PodMonitor.Mode)
 	switch {
 	case strings.Contains(*args.driverPath, "unity"):
-		log.Infof("CSI Driver for Unity")
+		csmlog.Infof("CSI Driver for Unity")
 		monitor.Driver = new(monitor.UnityDriver)
 	case strings.Contains(*args.driverPath, "isilon"):
 		// added condition to create instance of PowerScale driver
-		log.Infof("CSI Driver for PowerScale")
+		csmlog.Infof("CSI Driver for PowerScale")
 		monitor.Driver = new(monitor.PScaleDriver)
 	case strings.Contains(*args.driverPath, "powerstore"):
-		log.Infof("CSI Driver for PowerStore")
+		csmlog.Infof("CSI Driver for PowerStore")
 		monitor.Driver = new(monitor.PStoreDriver)
 	case strings.Contains(*args.driverPath, "powermax"):
-		log.Infof("CSI Driver for PowerMax")
+		csmlog.Infof("CSI Driver for PowerMax")
 		monitor.Driver = new(monitor.PMaxDriver)
 	default:
-		log.Infof("CSI Driver for VxFlex OS")
+		csmlog.Infof("CSI Driver for VxFlex OS")
 		monitor.Driver = new(monitor.VxflexDriver)
 	}
 
@@ -140,7 +156,7 @@ func main() {
 	monitor.IgnoreVolumelessPods = *args.ignoreVolumelessPods
 	err := K8sAPI.Connect(args.kubeconfig)
 	if err != nil {
-		log.Errorf("kubernetes connection error: %s", err)
+		csmlog.Errorf("kubernetes connection error: %s", err)
 		return
 	}
 	monitor.K8sAPI = K8sAPI
@@ -151,28 +167,28 @@ func main() {
 			grpc.WithBlock(),
 			grpc.WithTimeout(10 * time.Second),
 		}
-		log.Infof("Attempting driver connection at: %s", *args.csisock)
+		csmlog.Infof("Attempting driver connection at: %s", *args.csisock)
 		monitor.CSIApi, err = GetCSIClient(*args.csisock, clientOpts...)
 		defer monitor.CSIApi.Close()
 		if monitor.PodMonitor.SkipArrayConnectionValidation {
-			log.Infof("Skipping array connection validation")
+			csmlog.Infof("Skipping array connection validation")
 		}
 		// Check if CSI Extensions are present
 		req := &csiext.ValidateVolumeHostConnectivityRequest{}
 		_, err := monitor.CSIApi.ValidateVolumeHostConnectivity(context.Background(), req)
 		if err != nil {
-			log.Errorf("Error checking presence of ValidateVolumeHostConnectivity: %s", err.Error())
+			csmlog.Errorf("Error checking presence of ValidateVolumeHostConnectivity: %s", err.Error())
 		} else {
 			monitor.PodMonitor.CSIExtensionsPresent = true
 		}
 	}
 	monitor.PodMonitor.DriverPathStr = *args.driverPath
-	log.Infof("PodMonitor.DriverPathStr = %s", monitor.PodMonitor.DriverPathStr)
+	csmlog.Infof("PodMonitor.DriverPathStr = %s", monitor.PodMonitor.DriverPathStr)
 	run := func(context.Context) {
 		if *args.mode == "node" {
 			err := StartAPIMonitorFn(K8sAPI, monitor.APICheckFirstTryTimeout, monitor.APICheckRetryTimeout, monitor.APICheckInterval, monitor.APIMonitorWait)
 			if err != nil {
-				log.Errorf("Couldn't start API monitor: %s", err.Error())
+				csmlog.Errorf("Couldn't start API monitor: %s", err.Error())
 				return
 			}
 		} else if *args.mode == "controller" {
@@ -190,21 +206,118 @@ func main() {
 		go StartPodMonitorFn(K8sAPI, k8sapi.K8sClient.Client, *args.labelKey, *args.labelValue, monitor.MonitorRestartTimeDelay)
 
 		for {
-			log.Printf("podmon alive...")
+			csmlog.Infof("podmon alive...")
 			if stop := PodMonWait(); stop {
 				break
 			}
 		}
 	}
-	log.Printf("leader election: %t", *args.enableLeaderElection)
+	csmlog.Infof("leader election: %t", *args.enableLeaderElection)
 	if *args.enableLeaderElection {
 		le := LeaderElection(run)
 		if err := le.Run(); err != nil {
-			log.Printf("failed to initialize leader election: %v", err)
+			csmlog.Errorf("failed to initialize leader election: %v", err)
 		}
 	} else {
 		run(context.Background())
 	}
+}
+
+// initMetricsServer initializes the Prometheus metrics server if X_CSI_METRICS_ENABLED is set
+func initMetricsServer() error {
+	metricsEnabled := viper.GetString("X_CSI_METRICS_ENABLED")
+	if metricsEnabled != "true" {
+		csmlog.Info("Metrics server disabled (X_CSI_METRICS_ENABLED not set to true)")
+		return nil
+	}
+
+	// Get metrics port from environment variable, default to 8444
+	metricsPortStr := viper.GetString("X_CSI_METRICS_PORT")
+	metricsPort := fmt.Sprintf(":%d", defaultMetricsPort)
+	if metricsPortStr != "" {
+		port, err := strconv.Atoi(metricsPortStr)
+		if err != nil {
+			csmlog.WithFields(csmlog.Fields{"error": err}).Warnf("Invalid X_CSI_METRICS_PORT value: %s, using default %d", metricsPortStr, defaultMetricsPort)
+		} else {
+			metricsPort = fmt.Sprintf(":%d", port)
+		}
+	}
+
+	// Get TLS configuration
+	certFile := viper.GetString("X_CSI_METRICS_TLS_CERT_FILE")
+	keyFile := viper.GetString("X_CSI_METRICS_TLS_KEY_FILE")
+
+	// Create Prometheus registry
+	MetricsRegistry = prometheus.NewRegistry()
+
+	// Get the driver name from the driver path for the driver label
+	driverPath := *args.driverPath
+	driverLabel := metrics.ModulePowerStore
+
+	if strings.Contains(driverPath, "vxflexos") {
+		driverLabel = metrics.ModuleVxFlexOS
+	} else if strings.Contains(driverPath, "unity") {
+		driverLabel = metrics.ModuleUnity
+	} else if strings.Contains(driverPath, "isilon") {
+		driverLabel = metrics.ModulePowerScale
+	} else if strings.Contains(driverPath, "powermax") {
+		driverLabel = metrics.ModulePowerMax
+	}
+
+	// Get metrics collection interval from environment variable, default to 30 seconds
+	collectionInterval := 30 * time.Second
+	if collectionIntervalStr := viper.GetString("X_CSI_METRICS_COLLECTION_INTERVAL"); collectionIntervalStr != "" {
+		if interval, err := time.ParseDuration(collectionIntervalStr); err == nil {
+			collectionInterval = interval
+		} else {
+			csmlog.WithFields(csmlog.Fields{"error": err}).Warnf("Invalid X_CSI_METRICS_COLLECTION_INTERVAL value: %s, using default 30s", collectionIntervalStr)
+		}
+	}
+
+	// Create resiliency metrics with collectors
+	ResiliencyMetrics = metrics.NewResiliencyMetricsWithInterval(driverLabel, collectionInterval)
+	csmlog.Infof("Resiliency metrics collectors created with collection interval: %v", collectionInterval)
+
+	// Register collectors with Prometheus registry
+	if err := ResiliencyMetrics.Register(MetricsRegistry); err != nil {
+		return fmt.Errorf("failed to register metrics collectors: %w", err)
+	}
+	csmlog.Info("Resiliency metrics collectors registered")
+
+	// Make metrics available to monitor package
+	monitor.SetResiliencyMetrics(ResiliencyMetrics)
+
+	// Set initial podmon health to healthy
+	ResiliencyMetrics.SetPodmonHealth(true)
+	csmlog.Infof("Initialized podmon health metric for driver: %s", driverLabel)
+
+	// Create metrics server using csm-metrics-common
+	serverCfg := server.Config{
+		Port:            metricsPort,
+		CertFile:        certFile,
+		KeyFile:         keyFile,
+		Registry:        MetricsRegistry,
+		MinTLSVersion:   0, // Use default TLS12
+		StaleMetricName: "dell_csm_resiliency_metrics_stale",
+		StaleLabels:     []string{metrics.LabelDriver},
+	}
+
+	MetricsServer = server.NewMetricsServer(serverCfg)
+
+	// Start metrics server in background
+	ctx := context.Background()
+	go func() {
+		csmlog.Infof("Starting metrics server on port %s", metricsPort)
+		if err := MetricsServer.Start(ctx); err != nil && ctx.Err() == nil {
+			csmlog.WithFields(csmlog.Fields{"error": err}).Error("Metrics server failed")
+		}
+	}()
+
+	// Start metrics collection
+	ResiliencyMetrics.Start(ctx)
+
+	csmlog.Infof("Metrics server initialized on port %s with driver: %s", metricsPort, driverLabel)
+	return nil
 }
 
 // PodmonArgs is structure holding the podmon command arguments
@@ -279,7 +392,7 @@ func podMonWait() bool {
 func setupDynamicConfigUpdate() error {
 	if *args.driverConfigParamsFile == "" {
 		message := "--driver-config-params cannot be empty"
-		log.Error(message)
+		csmlog.Error(message)
 		return fmt.Errorf("%s", message)
 	}
 
@@ -287,20 +400,20 @@ func setupDynamicConfigUpdate() error {
 	vc.AutomaticEnv()
 	vc.SetConfigFile(*args.driverConfigParamsFile)
 	if err := vc.ReadInConfig(); err != nil {
-		log.WithError(err).Errorf("unable to read driver config file: %s", *args.driverConfigParamsFile)
+		csmlog.WithFields(csmlog.Fields{"error": err}).Errorf("unable to read driver config file: %s", *args.driverConfigParamsFile)
 		return err
 	}
 
 	if err := updateConfiguration(vc); err != nil {
-		log.WithError(err).Errorf("error with configuration parameters")
+		csmlog.WithFields(csmlog.Fields{"error": err}).Errorf("error with configuration parameters")
 		return err
 	}
 
 	vc.WatchConfig()
 	vc.OnConfigChange(func(_ fsnotify.Event) {
-		log.WithField("file", *args.driverConfigParamsFile).Infof("configuration file has changed")
+		csmlog.WithFields(csmlog.Fields{"file": *args.driverConfigParamsFile}).Infof("configuration file has changed")
 		if err := updateConfiguration(vc); err != nil {
-			log.Warn(err)
+			csmlog.Warnf("%v", err)
 		}
 	})
 
@@ -313,27 +426,15 @@ func updateConfiguration(vc *viper.Viper) error {
 	defer func() {
 		message := "parameter value after config file processing"
 		// Dump the values of the parameters at the end
-		if *args.mode == "controller" {
-			log.WithField(podmonControllerLogLevel, log.GetLevel()).Info(message)
-		}
-		if *args.mode == "node" {
-			log.WithField(podmonNodeLogLevel, log.GetLevel()).Info(message)
-		}
-		log.WithField("monitor.ArrayConnectivityPollRate", monitor.GetArrayConnectivityPollRate()).Info(message)
-		log.WithField("monitor.ArrayConnectivityConnectionLossThreshold", monitor.ArrayConnectivityConnectionLossThreshold).Info(message)
-		log.WithField("monitor.PodMonitor.SkipArrayConnectionValidation", monitor.PodMonitor.SkipArrayConnectionValidation).Info(message)
+		csmlog.WithFields(csmlog.Fields{csiLogLevel: csmlog.GetLevel()}).Info(message)
+		csmlog.WithFields(csmlog.Fields{"monitor.ArrayConnectivityPollRate": monitor.GetArrayConnectivityPollRate()}).Info(message)
+		csmlog.WithFields(csmlog.Fields{"monitor.ArrayConnectivityConnectionLossThreshold": monitor.ArrayConnectivityConnectionLossThreshold}).Info(message)
+		csmlog.WithFields(csmlog.Fields{"monitor.PodMonitor.SkipArrayConnectionValidation": monitor.PodMonitor.SkipArrayConnectionValidation}).Info(message)
 	}()
 
-	if *args.mode == "controller" {
-		if err := setLoggingParameters(vc, podmonControllerLogFormat, podmonControllerLogLevel); err != nil {
-			return err
-		}
-	}
-
-	if *args.mode == "node" {
-		if err := setLoggingParameters(vc, podmonNodeLogFormat, podmonNodeLogLevel); err != nil {
-			return err
-		}
+	// Read log level and format from the driver's CSI_LOG_LEVEL and CSI_LOG_FORMAT settings
+	if err := setLoggingParameters(vc, csiLogFormat, csiLogLevel); err != nil {
+		return err
 	}
 
 	pollRate := *args.arrayConnectivityPollRate
@@ -348,7 +449,7 @@ func updateConfiguration(vc *viper.Viper) error {
 			return fmt.Errorf("%s should be greater than zero, but was %d", podmonArrayConnectivityPollRate, value)
 		}
 		pollRate = value
-		log.WithField(podmonArrayConnectivityPollRate, pollRate).Infof("configuration has been set.")
+		csmlog.WithFields(csmlog.Fields{podmonArrayConnectivityPollRate: pollRate}).Infof("configuration has been set.")
 	}
 	monitor.SetArrayConnectivityPollRate(time.Duration(pollRate) * time.Second)
 
@@ -364,7 +465,7 @@ func updateConfiguration(vc *viper.Viper) error {
 			return fmt.Errorf("%s should be greater than zero, but was %d", podmonArrayConnectivityConnectionLossThreshold, value)
 		}
 		lossThreshold = value
-		log.WithField(podmonArrayConnectivityConnectionLossThreshold, lossThreshold).Info("configuration has been set.")
+		csmlog.WithFields(csmlog.Fields{podmonArrayConnectivityConnectionLossThreshold: lossThreshold}).Info("configuration has been set.")
 	}
 	monitor.ArrayConnectivityConnectionLossThreshold = lossThreshold
 
@@ -377,47 +478,41 @@ func updateConfiguration(vc *viper.Viper) error {
 				skipArrayConnectionCheckStr)
 		}
 		skipArrayConnectionCheck = value
-		log.WithField(podmonSkipArrayConnectionValidation, skipArrayConnectionCheck).Info("configuration has been set.")
+		csmlog.WithFields(csmlog.Fields{podmonSkipArrayConnectionValidation: skipArrayConnectionCheck}).Info("configuration has been set.")
 	}
 	monitor.PodMonitor.SkipArrayConnectionValidation = skipArrayConnectionCheck
 
 	return nil
 }
 
-// setLoggingParameters is generic function for extracting logging parameters. The podmon sidecar can run in
-// two different environments, controller or node mode. There are different parameters names for each
-// mode, so this is a generic way to read from a parameters and set the log level and format.
+// setLoggingParameters reads log level and format from the driver's ConfigMap (CSI_LOG_LEVEL, CSI_LOG_FORMAT)
+// and applies them to podmon's logger. This ensures podmon inherits the same logging configuration as the CSI driver.
 func setLoggingParameters(vc *viper.Viper, formatParam, logLevelParam string) error {
-	if vc.IsSet(formatParam) {
-		logFormat := vc.GetString(formatParam)
-		log.WithField("format", logFormat).Infof("Read %s from log configuration file", formatParam)
-		if strings.EqualFold(logFormat, "json") {
-			log.SetFormatter(&log.JSONFormatter{})
-		} else {
-			if !strings.EqualFold(logFormat, "text") {
-				log.WithField("format", logFormat).Warnf("Unexpected format %s for %s. Using text format instead.", logFormat, formatParam)
-			}
-			log.SetFormatter(&log.TextFormatter{})
-		}
+	format := "json"
+	configuredFormat := strings.ToLower(strings.TrimSpace(vc.GetString(formatParam)))
+	switch configuredFormat {
+	case "":
+		csmlog.WithFields(csmlog.Fields{"format": format}).Infof("%s not set, using default JSON format", formatParam)
+	case "json", "text":
+		format = configuredFormat
+	default:
+		csmlog.WithFields(csmlog.Fields{"format": configuredFormat}).Warnf("Unexpected format %s for %s. Defaulting to JSON.", configuredFormat, formatParam)
 	}
+	csmlog.SetFormat(format)
 
 	level := defaultLogLevel
-	if vc.IsSet(logLevelParam) {
-		logLevel := vc.GetString(logLevelParam)
-		if logLevel != "" {
-			logLevel = strings.ToLower(logLevel)
-			log.WithField("level", logLevel).Infof("Read %s from log configuration file", logLevelParam)
-			var err error
-			level, err = log.ParseLevel(logLevel)
-			if err != nil {
-				log.WithError(err).Errorf("%s %s value not recognized, setting to debug error: %s ",
-					logLevelParam, logLevel, err.Error())
-				log.SetLevel(defaultLogLevel)
-				return fmt.Errorf("input log level %q is not valid", logLevel)
-			}
+	configuredLevel := strings.ToLower(strings.TrimSpace(vc.GetString(logLevelParam)))
+	if configuredLevel == "" {
+		csmlog.WithFields(csmlog.Fields{"level": defaultLogLevel.String()}).Infof("%s not set, using default INFO level", logLevelParam)
+	} else {
+		parsedLevel, err := csmlog.ParseLevel(configuredLevel)
+		if err != nil {
+			csmlog.WithFields(csmlog.Fields{"level": configuredLevel, "error": err}).Warnf("Unexpected level %s for %s. Defaulting to INFO.", configuredLevel, logLevelParam)
+		} else {
+			level = parsedLevel
 		}
 	}
-	log.SetLevel(level)
+	csmlog.SetLevel(level)
 
 	return nil
 }

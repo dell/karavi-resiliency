@@ -23,7 +23,7 @@ WORKDIR /workspace
 COPY . /workspace
 
 # Build the binary
-RUN make build
+RUN make build-binary
 
 # Stage to build the module image
 FROM $BASEIMAGE AS final

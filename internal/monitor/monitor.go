@@ -19,11 +19,12 @@ import (
 	"fmt"
 	"podmon/internal/csiapi"
 	"podmon/internal/k8sapi"
+	"podmon/internal/metrics"
 	"strings"
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/dell/csmlog"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -48,6 +49,8 @@ var (
 	PodmonTaintKey = ""
 	// PodmonDriverPodTaintKey is the key for this driver's node pod taint.
 	PodmonDriverPodTaintKey = ""
+	// ResiliencyMetrics holds the resiliency metrics instance
+	ResiliencyMetrics *metrics.ResiliencyMetrics
 	// ShortTimeout used for initial try
 	ShortTimeout = 10 * time.Second
 	// MediumTimeout is a wait-backoff after the ShortTimeout
@@ -152,13 +155,13 @@ func Unlock(podkey string) {
 
 // StoreNodeUID store node name and UID
 func (pm *PodMonitorType) StoreNodeUID(nodeName, uid string) {
-	log.Debugf("StoreNodeUid added node: %s uid: %s", nodeName, uid)
+	csmlog.Debugf("StoreNodeUid added node: %s uid: %s", nodeName, uid)
 	pm.NodeNameToUID.Store(nodeName, uid)
 }
 
 // GetNodeUID returns the node UID
 func (pm *PodMonitorType) GetNodeUID(nodeName string) string {
-	log.Debugf("GetNodeUid added node: %s", nodeName)
+	csmlog.Debugf("GetNodeUid added node: %s", nodeName)
 	value, ok := pm.NodeNameToUID.Load(nodeName)
 	if !ok {
 		return ""
@@ -178,15 +181,15 @@ func (pm *Monitor) Watch(fn WatchFunc) error {
 	for {
 		select {
 		case event, more := <-pm.Watcher.ResultChan():
-			log.Debugf("event received")
+			csmlog.Debugf("event received")
 			if !more {
 				return fmt.Errorf("watcher disconnected")
 			}
 			if event.Object != nil {
-				log.Debugf("received object %+v", event.Object)
+				csmlog.Debugf("received object %+v", event.Object)
 				err := fn(event.Type, event.Object)
 				if err != nil {
-					log.Error(err)
+					csmlog.Errorf("%v", err)
 				}
 			}
 		case stop := <-pm.StopChan:
@@ -198,10 +201,10 @@ func (pm *Monitor) Watch(fn WatchFunc) error {
 }
 
 func podMonitorHandler(eventType watch.EventType, object interface{}) error {
-	log.Debugf("podMonitorHandler %s eventType %+v object %+v", PodMonitor.Mode, eventType, object)
+	csmlog.Debugf("podMonitorHandler %s eventType %+v object %+v", PodMonitor.Mode, eventType, object)
 	pod, ok := object.(*v1.Pod)
 	if !ok || pod == nil {
-		log.Info("podMonitorHandler nil pod")
+		csmlog.Info("podMonitorHandler nil pod")
 		return nil
 	}
 	pm := &PodMonitor
@@ -219,7 +222,7 @@ func podMonitorHandler(eventType watch.EventType, object interface{}) error {
 			return err
 		}
 	default:
-		log.Error("PodMonitor.Mode not set")
+		csmlog.Error("PodMonitor.Mode not set")
 	}
 	return nil
 }
@@ -227,7 +230,7 @@ func podMonitorHandler(eventType watch.EventType, object interface{}) error {
 // StartPodMonitor starts the PodMonitor so that it is processing pods which might have problems.
 // The labelKey and labelValue are used for filtering.
 func StartPodMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, labelValue string, restartDelay time.Duration) {
-	log.Infof("attempting to start PodMonitor\n")
+	csmlog.Infof("attempting to start PodMonitor\n")
 	PodmonTaintKey = fmt.Sprintf("%s.%s", Driver.GetDriverName(), PodmonTaintKeySuffix)
 	PodmonDriverPodTaintKey = fmt.Sprintf("offline.%s.%s", Driver.GetDriverName(), PodmonDriverPodTaintKeySuffix)
 	podMonitor := Monitor{Client: client}
@@ -236,7 +239,7 @@ func StartPodMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, l
 	}
 	if labelKey != "" {
 		labelSelector := metav1.LabelSelector{MatchLabels: map[string]string{labelKey: labelValue}}
-		log.Infof("labelSelector: %v\n", labelSelector)
+		csmlog.Infof("labelSelector: %v\n", labelSelector)
 		listOptions.LabelSelector = labels.Set(labelSelector.MatchLabels).String()
 	}
 	for {
@@ -245,19 +248,19 @@ func StartPodMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, l
 		if err != nil {
 			// The following check excludes unit testing, to avoid polluting the log messages captured
 			if restartDelay > 10*time.Millisecond {
-				log.Errorf("Could not create PodWatcher: %s - will retry\n", err)
+				csmlog.Errorf("Could not create PodWatcher: %s - will retry\n", err)
 			}
 			time.Sleep(restartDelay)
 			continue
 		}
 		podMonitor.Watcher = watcher
-		log.Infof("Setup of PodWatcher complete\n")
+		csmlog.Infof("Setup of PodWatcher complete\n")
 		err = podMonitor.Watch(podMonitorHandler)
 		if err == nil {
 			// requested stop
 			return
 		}
-		log.Warnf("PodWatcher stopped... attempting restart: %s", err)
+		csmlog.Warnf("PodWatcher stopped... attempting restart: %s", err)
 		time.Sleep(restartDelay)
 	}
 }
@@ -265,7 +268,7 @@ func StartPodMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, l
 func nodeMonitorHandler(eventType watch.EventType, object interface{}) error {
 	node, ok := object.(*v1.Node)
 	if !ok {
-		log.Info("nodeMonitorHandler nil node")
+		csmlog.Info("nodeMonitorHandler nil node")
 		return nil
 	}
 	oldUID := string(node.ObjectMeta.UID)
@@ -273,13 +276,13 @@ func nodeMonitorHandler(eventType watch.EventType, object interface{}) error {
 		pm := &PodMonitor
 		switch eventType {
 		case watch.Added:
-			log.Debugf("Node created: %s %s", node.ObjectMeta.Name, node.ObjectMeta.UID)
+			csmlog.Debugf("Node created: %s %s", node.ObjectMeta.Name, node.ObjectMeta.UID)
 			pm.StoreNodeUID(node.ObjectMeta.Name, string(node.ObjectMeta.UID))
 		case watch.Modified:
-			log.Debugf("Node updated: %s %s", node.ObjectMeta.Name, node.ObjectMeta.UID)
+			csmlog.Debugf("Node updated: %s %s", node.ObjectMeta.Name, node.ObjectMeta.UID)
 			pm.StoreNodeUID(node.ObjectMeta.Name, string(node.ObjectMeta.UID))
 		case watch.Deleted:
-			log.Debugf("Node deleted: %s previously %s", node.ObjectMeta.Name, oldUID)
+			csmlog.Debugf("Node deleted: %s previously %s", node.ObjectMeta.Name, oldUID)
 			pm.ClearNodeUID(node.ObjectMeta.Name, oldUID)
 		}
 		// Get the CSI annotations for nodeID
@@ -291,21 +294,21 @@ func nodeMonitorHandler(eventType watch.EventType, object interface{}) error {
 		taintnosched := nodeHasTaint(node, nodeUnreachableTaint, v1.TaintEffectNoSchedule)
 		taintnoexec := nodeHasTaint(node, nodeUnreachableTaint, v1.TaintEffectNoExecute)
 
-		log.Infof("node name: %s uid %s nosched %t noexec %t", node.ObjectMeta.Name, string(node.ObjectMeta.UID), taintnosched, taintnoexec)
+		csmlog.Infof("node name: %s uid %s nosched %t noexec %t", node.ObjectMeta.Name, string(node.ObjectMeta.UID), taintnosched, taintnoexec)
 	}
 	return nil
 }
 
 // StartNodeMonitor starts the NodeMonitor so that it is process nodes which might go offline.
 func StartNodeMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, labelValue string, restartDelay time.Duration) {
-	log.Printf("attempting to start NodeMonitor\n")
+	csmlog.Infof("attempting to start NodeMonitor")
 	nodeMonitor := Monitor{Client: client}
 	listOptions := metav1.ListOptions{
 		Watch: true,
 	}
 	if labelKey != "" {
 		labelSelector := metav1.LabelSelector{MatchLabels: map[string]string{labelKey: labelValue}}
-		log.Infof("labelSelector: %v\n", labelSelector)
+		csmlog.Infof("labelSelector: %v\n", labelSelector)
 		listOptions.LabelSelector = labels.Set(labelSelector.MatchLabels).String()
 	}
 	for {
@@ -314,20 +317,25 @@ func StartNodeMonitor(api k8sapi.K8sAPI, client kubernetes.Interface, labelKey, 
 		if err != nil {
 			// The following check excludes unit testing, to avoid polluting the log messages captured
 			if restartDelay > 10*time.Millisecond {
-				log.Errorf("Could not create NodeWatcher: %s - will retry\n", err)
+				csmlog.Errorf("Could not create NodeWatcher: %s - will retry\n", err)
 			}
 			time.Sleep(restartDelay)
 			continue
 		}
 		nodeMonitor.Watcher = watcher
-		log.Infof("Setup of NodeWatcher complete\n")
+		csmlog.Infof("Setup of NodeWatcher complete\n")
 		err = nodeMonitor.Watch(nodeMonitorHandler)
 
 		if err == nil {
 			// requested stop
 			return
 		}
-		log.Errorf("NodeWatcher stopped... attempting restart: %s", err)
+		csmlog.Errorf("NodeWatcher stopped... attempting restart: %s", err)
 		time.Sleep(restartDelay)
 	}
+}
+
+// SetResiliencyMetrics sets the resiliency metrics instance for the monitor package
+func SetResiliencyMetrics(m *metrics.ResiliencyMetrics) {
+	ResiliencyMetrics = m
 }

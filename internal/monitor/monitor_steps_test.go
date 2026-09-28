@@ -16,6 +16,7 @@
 package monitor
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -29,10 +30,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dell/csmlog"
 	"github.com/dell/gofsutil"
 	"github.com/cucumber/godog"
-	log "github.com/sirupsen/logrus"
-	logtest "github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -50,9 +50,33 @@ const (
 	vxflexDriverPodTaint        = "offline.vxflex.podmon.storage.dell.com"
 )
 
+// syncBuffer is a thread-safe bytes.Buffer for concurrent log capture in tests.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (s *syncBuffer) Write(p []byte) (n int, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.Write(p)
+}
+
+func (s *syncBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.String()
+}
+
+func (s *syncBuffer) Reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.buf.Reset()
+}
+
 type feature struct {
-	// Logrus test hook
-	loghook *logtest.Hook
+	// Buffer to capture csmlog output
+	logbuf *syncBuffer
 	// Kubernetes objects
 	pod  *v1.Pod
 	pod2 *v1.Pod
@@ -103,11 +127,12 @@ func (f *feature) aControllerMonitorPmax() error {
 }
 
 func (f *feature) aControllerMonitor(driver string) error {
-	if f.loghook == nil {
-		f.loghook = logtest.NewGlobal()
+	if f.logbuf == nil {
+		f.logbuf = &syncBuffer{}
 	} else {
-		fmt.Printf("loghook last-entry %+v\n", f.loghook.LastEntry())
+		f.logbuf.Reset()
 	}
+	csmlog.SetOutput(f.logbuf)
 	switch driver {
 	case "vxflex":
 		Driver = new(VxflexDriver)
@@ -174,7 +199,6 @@ func (f *feature) aPodForNodeWithVolumesConditionAffinity(node string, nvolumes 
 		f.pod2 = f.createPod(node, nvolumes, condition, affinity)
 		f.pod2.ObjectMeta.Name = "affinityPod"
 		f.k8sapiMock.AddPod(f.pod2)
-		fmt.Printf("Added affinitPod\n")
 	}
 	return nil
 }
@@ -291,6 +315,9 @@ func (f *feature) iHaveAPodsForNodeWithVolumesDevicesConditionWithPodPhase(nPods
 func (f *feature) iCallControllerCleanupPodForNode(nodeName string) error {
 	node, _ := f.k8sapiMock.GetNode(context.Background(), nodeName)
 	f.node = node
+	if f.logbuf != nil {
+		f.logbuf.Reset()
+	}
 	f.success = f.podmonMonitor.controllerCleanupPod(f.pod, node, "Unit Test", false, false)
 	return nil
 }
@@ -404,31 +431,33 @@ func (f *feature) iInduceErrorForMaxTimes(err, wantFailCount string) error {
 }
 
 func (f *feature) theLastLogMessageContains(errormsg string) error {
-	lastEntry := f.loghook.LastEntry()
+	output := f.logbuf.String()
 	if errormsg == "none" {
-		if f.validateLastMessage && lastEntry != nil &&
-			!strings.Contains(lastEntry.Message, "Cleanup of pods complete:") {
-			return fmt.Errorf("expected no error for test case, but got: %s", lastEntry.Message)
+		if f.validateLastMessage && len(output) > 0 &&
+			!strings.Contains(output, "Cleanup of pods complete:") {
+			return fmt.Errorf("expected no error for test case, but got: %s", output)
 		}
 		return nil
 	}
-	if lastEntry == nil {
-		return fmt.Errorf("expected error message to contain: %s, but last log entry was nil", errormsg)
-	} else if strings.Contains(lastEntry.Message, errormsg) {
+	if len(output) == 0 {
+		return fmt.Errorf("expected error message to contain: %s, but log output was empty", errormsg)
+	}
+	if strings.Contains(output, errormsg) {
 		return nil
-	} else if f.validateWatcherMessage {
+	}
+	if f.validateWatcherMessage {
 		possibleLastMsg := []string{
 			"PodMonitor.Mode not set", "PodWatcher stopped...", "Setup of PodWatcher complete", "node name: node1",
 			"Setup of NodeWatcher complete", "NodeWatcher stopped...", "labelSelector:", "attempting to start",
 		}
 		for _, msg := range possibleLastMsg {
-			if strings.Contains(lastEntry.Message, msg) {
+			if strings.Contains(output, msg) {
 				return nil
 			}
 		}
 	}
 
-	return fmt.Errorf("expected error message to contain: %s, but it was %s", errormsg, lastEntry.Message)
+	return fmt.Errorf("expected error message to contain: %s, but it was %s", errormsg, output)
 }
 
 func (f *feature) theReturnStatusIs(boolean string) error {
@@ -488,6 +517,12 @@ func (f *feature) aNodeWithTaint(nodeName, taint string) error {
 		}
 		node.Spec.Taints = append(node.Spec.Taints, taint)
 	}
+	// Set CSI node ID annotation required for cleanup operations
+	if node.ObjectMeta.Annotations == nil {
+		node.ObjectMeta.Annotations = make(map[string]string)
+	}
+	csiAnnotation := fmt.Sprintf(`{"%s":"node-id-%s"}`, f.podmonMonitor.DriverPathStr, nodeName)
+	node.ObjectMeta.Annotations["csi.volume.kubernetes.io/nodeid"] = csiAnnotation
 	f.k8sapiMock.AddNode(node)
 	return nil
 }
@@ -504,6 +539,9 @@ func (f *feature) iCallControllerModePodHandlerWithEvent(event string) error {
 	default:
 		eventType = watch.Error
 	}
+	if f.logbuf != nil {
+		f.logbuf.Reset()
+	}
 	f.err = f.podmonMonitor.controllerModePodHandler(f.pod, eventType)
 	if f.pod2 != nil {
 		f.podmonMonitor.controllerModePodHandler(f.pod2, eventType)
@@ -518,17 +556,17 @@ func (f *feature) iCallControllerModePodHandlerWithEvent(event string) error {
 }
 
 func (f *feature) thePodIsCleaned(boolean string) error {
-	lastentry := f.loghook.LastEntry()
+	output := f.logbuf.String()
 	switch boolean {
 	case "true":
-		if strings.Contains(lastentry.Message, "End Processing pods with affinity map") && f.pod2 != nil {
+		if strings.Contains(output, "End Processing pods with affinity map") && f.pod2 != nil {
 			return nil
 		}
-		if !strings.Contains(lastentry.Message, "Successfully cleaned up pod") {
-			return fmt.Errorf("Expected pod to be cleaned up but it was not, last message: %s", lastentry.Message)
+		if !strings.Contains(output, "Successfully cleaned up pod") {
+			return fmt.Errorf("Expected pod to be cleaned up but it was not, log output: %s", output)
 		}
 	default:
-		if strings.Contains(lastentry.Message, "Successfully cleaned up pod") {
+		if strings.Contains(output, "Successfully cleaned up pod") {
 			return fmt.Errorf("Expected pod not to be cleaned up, but it was")
 		}
 	}
@@ -691,7 +729,6 @@ func (f *feature) createPod(node string, nvolumes int, condition, affinity strin
 		claimRef.Namespace = podns
 		claimRef.Name = fmt.Sprintf("pvc-%s-%d", f.podUID[podIndex], i)
 		pv.Spec.ClaimRef = claimRef
-		log.Infof("claimRef completed")
 		csiPVSource := &v1.CSIPersistentVolumeSource{}
 		csiPVSource.Driver = "csi-vxflexos.dellemc.com"
 		csiPVSource.VolumeHandle = fmt.Sprintf("vhandle%d", i)
@@ -819,7 +856,6 @@ func (f *feature) createPodWithPhase(node string, nvolumes int, condition, affin
 		claimRef.Namespace = podns
 		claimRef.Name = fmt.Sprintf("pvc-%s-%d", f.podUID[podIndex], i)
 		pv.Spec.ClaimRef = claimRef
-		log.Infof("claimRef completed")
 		csiPVSource := &v1.CSIPersistentVolumeSource{}
 		csiPVSource.Driver = "csi-vxflexos.dellemc.com"
 		csiPVSource.VolumeHandle = fmt.Sprintf("vhandle%d", i)
@@ -890,6 +926,9 @@ func (f *feature) addAffinityToPod(pod *v1.Pod) {
 func (f *feature) theControllerCleanedUpPodsForNode(cleanedUpCount int, nodeName string) error {
 	node, _ := f.k8sapiMock.GetNode(context.Background(), nodeName)
 	for i := 0; i < cleanedUpCount; i++ {
+		if f.logbuf != nil {
+			f.logbuf.Reset()
+		}
 		if success := f.podmonMonitor.controllerCleanupPod(f.podList[i], node, "Unit Test", false, false); !success {
 			return fmt.Errorf("controllerCleanPod was not successful")
 		}
@@ -1042,7 +1081,6 @@ func (c *safeCount) equals(compareTo int) bool {
 func (c *safeCount) dump() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	fmt.Printf("value = %d", c.value)
 }
 
 func (f *feature) iCallTestLockAndGetPodKey() error {
@@ -1163,7 +1201,6 @@ func (f *feature) createPodErrorCase(node string, nvolumes int, condition, affin
 		claimRef.Namespace = podns
 		claimRef.Name = fmt.Sprintf("pvc-%s-%d", f.podUID[podIndex], i)
 		pv.Spec.ClaimRef = claimRef
-		log.Infof("claimRef completed")
 		csiPVSource := &v1.CSIPersistentVolumeSource{}
 		csiPVSource.Driver = "csi-vxflexos.dellemc.com"
 		csiPVSource.VolumeHandle = fmt.Sprintf("vhandle%d", i)
@@ -1248,11 +1285,12 @@ func (f *feature) addAffinityToPodErrorCase(pod *v1.Pod, errorcase string) {
 }
 
 func (f *feature) aControllerPodWithPodaffinitylabels() error {
-	if f.loghook == nil {
-		f.loghook = logtest.NewGlobal()
+	if f.logbuf == nil {
+		f.logbuf = &syncBuffer{}
 	} else {
-		fmt.Printf("loghook last-entry %+v\n", f.loghook.LastEntry())
+		f.logbuf.Reset()
 	}
+	csmlog.SetOutput(f.logbuf)
 	// This test is for error condition of func getPodAffinityLabels
 	// testing only for VxflexosDriver
 	Driver = new(VxflexDriver)
@@ -1341,7 +1379,7 @@ func (f *feature) iTaintTheNodeWith(node, boolean string) error {
 	case "true":
 		err := f.k8sapiMock.TaintNode(context.Background(), node, vxflexDriverPodTaint, v1.TaintEffectNoSchedule, false)
 		if err != nil {
-			log.Infof("err: %v", err)
+			csmlog.Infof("err: %v", err)
 			return err
 		}
 	default:

@@ -24,9 +24,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dell/csmlog"
 	csiext "github.com/dell/dell-csi-extensions/podmon"
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -54,11 +54,11 @@ const (
 
 // controllerModePodHandler handles controller mode functionality when a pod event happens
 func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.EventType) error {
-	log.Debugf("podMonitorHandler-controller:  name %s/%s node %s message %s reason %s event %v",
+	csmlog.Debugf("podMonitorHandler-controller:  name %s/%s node %s message %s reason %s event %v",
 		pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, pod.Spec.NodeName, pod.Status.Message, pod.Status.Reason, eventType)
 
 	driverNamespace := os.Getenv("MY_POD_NAMESPACE")
-	log.Debugf("podMonitorHandler-controller: driverNamespace %s", driverNamespace)
+	csmlog.Debugf("podMonitorHandler-controller: driverNamespace %s", driverNamespace)
 	// For driver pod
 	if driverNamespace == pod.ObjectMeta.Namespace {
 		return cm.controllerModeDriverPodHandler(pod, eventType)
@@ -79,17 +79,17 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 	defer cancel()
 	pod, err := K8sAPI.GetPod(ctx, pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 	if err != nil {
-		log.Errorf("GetPod failed: %s: %s", podKey, err)
+		csmlog.Errorf("GetPod failed: %s: %s", podKey, err)
 		return err
 	}
 	if pod.Spec.NodeName != "" {
-		log.Debugf("Getting node %s", pod.Spec.NodeName)
+		csmlog.Debugf("Getting node %s", pod.Spec.NodeName)
 		node, err := K8sAPI.GetNode(ctx, pod.Spec.NodeName)
 		if err != nil {
-			log.Errorf("GetNode failed: %s: %s", pod.Spec.NodeName, err)
+			csmlog.Errorf("GetNode failed: %s: %s", pod.Spec.NodeName, err)
 		} else {
 			if cm.GetNodeUID(pod.Spec.NodeName) != string(node.ObjectMeta.UID) {
-				log.Debugf("Updating NodeUid from GetNode: %s -> %s", pod.Spec.NodeName, node.ObjectMeta.UID)
+				csmlog.Debugf("Updating NodeUid from GetNode: %s -> %s", pod.Spec.NodeName, node.ObjectMeta.UID)
 				cm.StoreNodeUID(pod.Spec.NodeName, string(node.ObjectMeta.UID))
 			}
 
@@ -105,7 +105,7 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 			crashLoopBackOff := false
 			containerStatuses := pod.Status.ContainerStatuses
 			for _, containerStatus := range containerStatuses {
-				log.Debugf("container status ID %s ready %v state %v", containerStatus.ContainerID, containerStatus.Ready, containerStatus.State)
+				csmlog.Debugf("container status ID %s ready %v state %v", containerStatus.ContainerID, containerStatus.Ready, containerStatus.State)
 				if containerStatus.State.Waiting != nil && containerStatus.State.Waiting.Reason == crashLoopBackOffReason {
 					crashLoopBackOff = true
 				}
@@ -117,19 +117,19 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 			if ready || (eventType == watch.Modified) {
 				arrayIDs, pvcCount, err := cm.podToArrayIDs(ctx, pod)
 				if err != nil {
-					log.Errorf("Could not determine pod to arrayIDs: %s", err)
+					csmlog.Errorf("Could not determine pod to arrayIDs: %s", err)
 				} else {
 					// Do not keep track of Volumeless pods
 					if IgnoreVolumelessPods && pvcCount == 0 {
-						log.Infof("podKey %s ignore because Volumeless", podKey)
+						csmlog.Infof("podKey %s ignore because Volumeless", podKey)
 						return nil
 					}
 				}
-				log.Infof("podKey %s pvcCount %d arrayIDs %v", podKey, pvcCount, arrayIDs)
+				csmlog.Infof("podKey %s pvcCount %d arrayIDs %v", podKey, pvcCount, arrayIDs)
 
 				podAffinityLabels := cm.getPodAffinityLabels(pod)
 				if len(podAffinityLabels) > 0 {
-					log.Infof("podKey %s podAffinityLabels %v", podKey, podAffinityLabels)
+					csmlog.Infof("podKey %s podAffinityLabels %v", podKey, podAffinityLabels)
 				}
 				podUID := string(pod.ObjectMeta.UID)
 				podInfo := &ControllerPodInfo{
@@ -139,7 +139,7 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 					ArrayIDs:          arrayIDs,
 					PodAffinityLabels: podAffinityLabels,
 				}
-				log.Debugf("Updating protected pod info podKey %s pvcCount %d arrayIDs %v", podKey, pvcCount, arrayIDs)
+				csmlog.Debugf("Updating protected pod info podKey %s pvcCount %d arrayIDs %v", podKey, pvcCount, arrayIDs)
 				cm.PodKeyToControllerPodInfo.Store(podKey, podInfo)
 				if ready {
 					// Delete (reset) the CrashLoopBackOff counter since we're running.
@@ -147,7 +147,7 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 				}
 			}
 
-			log.Infof("podMonitorHandler: namespace: %s name: %s nodename: %s initialized: %t ready: %t taints [nosched: %t noexec: %t podmon: %t ]",
+			csmlog.Infof("podMonitorHandler: namespace: %s name: %s nodename: %s initialized: %t ready: %t taints [nosched: %t noexec: %t podmon: %t ]",
 				pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, pod.Spec.NodeName, initialized, ready, taintnosched, taintnoexec, taintpodmon)
 			if (taintnoexec || taintnosched || taintpodmon) && !ready {
 				// Use the last podInfo recorded when pod ready to make sure node has an annotation for the CSI NodeID
@@ -158,15 +158,20 @@ func (cm *PodMonitorType) controllerModePodHandler(pod *v1.Pod, eventType watch.
 						node = controllerPodInfo.Node
 					}
 				}
-				go cm.controllerCleanupPod(pod, node, "NodeFailure", taintnoexec, taintpodmon)
+				go func(p *v1.Pod, n *v1.Node, tne, tpm bool) {
+					cleanupSuccess := cm.controllerCleanupPod(p, n, "NodeFailure", tne, tpm)
+					if ResiliencyMetrics != nil {
+						go ResiliencyMetrics.RecordCleanupOperation("NodeFailure", cleanupSuccess)
+					}
+				}(pod, node, taintnoexec, taintpodmon)
 			} else if !ready && crashLoopBackOff {
 				cnt, _ := cm.PodKeyToCrashLoopBackOffCount.LoadOrStore(podKey, 0)
 				crashLoopBackOffCount := cnt.(int)
 				if crashLoopBackOffCount < MaxCrashLoopBackOffRetry {
-					log.Infof("cleaning up CrashLoopBackOff pod %s", podKey)
+					csmlog.Infof("cleaning up CrashLoopBackOff pod %s", podKey)
 					if err = K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, crashLoopBackOffReason, "podmon cleaning pod %s with delete",
 						string(pod.ObjectMeta.UID), node.ObjectMeta.Name, fmt.Sprintf("retry: %d", crashLoopBackOffCount)); err != nil {
-						log.Errorf("Failed to send %s event: %s", crashLoopBackOffReason, err.Error())
+						csmlog.Errorf("Failed to send %s event: %s", crashLoopBackOffReason, err.Error())
 					}
 					err = K8sAPI.DeletePod(ctx, pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, pod.ObjectMeta.UID, false)
 					crashLoopBackOffCount = crashLoopBackOffCount + 1
@@ -195,16 +200,16 @@ func isRWXVolume(pvlist []*v1.PersistentVolume) bool {
 	for _, pv := range pvlist {
 		// Check if the access mode is "RWX"
 		modes := pv.Spec.AccessModes
-		log.Debugf("Checking PV %v for RWX or ReadWriteMany access mode. AccessModes: %v", pv, modes)
+		csmlog.Debugf("Checking PV %v for RWX or ReadWriteMany access mode. AccessModes: %v", pv, modes)
 		for _, mode := range modes {
 			if mode == "RWX" || mode == "ReadWriteMany" {
-				log.Debugf("Found %s access mode in PV", mode)
+				csmlog.Debugf("Found %s access mode in PV", mode)
 				return true
 			}
 		}
 	}
 	// Return false if no PV in the list has "RWX" access mode
-	log.Debugf("No PV with RWX or ReadWriteMany access mode found in the provided list.")
+	csmlog.Debugf("No PV with RWX or ReadWriteMany access mode found in the provided list.")
 	return false
 }
 
@@ -226,12 +231,12 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 	if ok {
 		controllerPodInfo := podInfoValue.(*ControllerPodInfo)
 		if controllerPodInfo.PodUID != string(pod.ObjectMeta.UID) {
-			log.Infof("monitored pod UID %s different than pod to clean UID %s - aborting pod cleanup", controllerPodInfo.PodUID, string(pod.ObjectMeta.UID))
+			csmlog.Infof("monitored pod UID %s different than pod to clean UID %s - aborting pod cleanup", controllerPodInfo.PodUID, string(pod.ObjectMeta.UID))
 			return false
 		}
 	}
 
-	log.WithFields(fields).Infof("Cleaning up pod")
+	csmlog.WithFields(fields).Infof("Cleaning up pod")
 	ctx, cancel := K8sAPI.GetContext(LongTimeout)
 	defer cancel()
 	// Get the volume attachments
@@ -239,13 +244,13 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 	// Get the PVs associated with this pod.
 	pvlist, err := K8sAPI.GetPersistentVolumesInPod(ctx, pod)
 	if err != nil {
-		log.WithFields(fields).Errorf("Could not get PersistentVolumes: %s", err)
+		csmlog.WithFields(fields).Errorf("Could not get PersistentVolumes: %s", err)
 		return false
 	}
 
 	// ignoreVolumeless pod
 	if IgnoreVolumelessPods && len(pvlist) == 0 {
-		log.WithFields(fields).Infof("Ignoring volumeless pod")
+		csmlog.WithFields(fields).Infof("Ignoring volumeless pod")
 		return true
 	}
 
@@ -258,7 +263,7 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 		}
 	}
 	if len(pvlist) != len(volIDs) {
-		log.WithFields(fields).Warnf("Could not get volume handles for every PV: pvs %d volIDs %d", len(pvlist), len(volIDs))
+		csmlog.WithFields(fields).Warnf("Could not get volume handles for every PV: pvs %d volIDs %d", len(pvlist), len(volIDs))
 	}
 
 	// Get the VolumeAttachments for each of the PVs.
@@ -267,7 +272,7 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 	for _, pv := range pvlist {
 		va, err := K8sAPI.GetCachedVolumeAttachment(ctx, pv.ObjectMeta.Name, node.ObjectMeta.Name)
 		if err != nil {
-			log.WithFields(fields).Errorf("Could not get cached VolumeAttachment: %s", err)
+			csmlog.WithFields(fields).Errorf("Could not get cached VolumeAttachment: %s", err)
 			return false
 		}
 		if va != nil {
@@ -278,12 +283,12 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 
 	// Call the driver to validate the volumes are not in use
 	if cm.CSIExtensionsPresent && CSIApi.Connected() {
-		log.WithFields(fields).Infof("Checking host connectivity for node %s and iosInProgress for volumes %v", node.ObjectMeta.Name, volIDs)
+		csmlog.WithFields(fields).Infof("Checking host connectivity for node %s and iosInProgress for volumes %v", node.ObjectMeta.Name, volIDs)
 		connected, iosInProgress, err := cm.callValidateVolumeHostConnectivity(node, volIDs, true)
-		log.WithFields(fields).Infof("Validating host connectivity for node: %s, volumes: %v, connected: %t, iosInProgress: %t", node.ObjectMeta.Name, volIDs, connected, iosInProgress)
+		csmlog.WithFields(fields).Infof("Validating host connectivity for node: %s, volumes: %v, connected: %t, iosInProgress: %t", node.ObjectMeta.Name, volIDs, connected, iosInProgress)
 		// If the volume's access mode is RWX, ignore iosInProgress, as other applications may perform I/O operations on the volume.
 		if isRWXVolume(pvlist) {
-			log.WithFields(fields).Info("Skipping iosInProgress check as the volume accessMode is RWX or ReadWriteMany")
+			csmlog.WithFields(fields).Info("Skipping iosInProgress check as the volume accessMode is RWX or ReadWriteMany")
 			iosInProgress = false
 		}
 		// Don't consider connected status if taintpodmon is set, because the node may just have come back online.
@@ -292,41 +297,41 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 			fields["iosInProgress"] = iosInProgress
 			// If SkipArrayConnectionValidation and taintnoexec are set, proceed anyway
 			if cm.SkipArrayConnectionValidation && taintnoexec {
-				log.WithFields(fields).Info("SkipArrayConnectionValidation is set and taintnoexec is true- proceeding")
+				csmlog.WithFields(fields).Info("SkipArrayConnectionValidation is set and taintnoexec is true- proceeding")
 			} else {
 				if err != nil {
-					log.WithFields(fields).Info("Aborting pod cleanup due to error: ", err.Error())
+					csmlog.WithFields(fields).Infof("Aborting pod cleanup due to error: %s", err.Error())
 					if strings.Contains(err.Error(), "Could not determine CSI NodeID for node") {
 						if err = K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, reason,
 							"podmon aborted pod cleanup %s due to missing CSI annotations",
 							string(pod.ObjectMeta.UID), node.ObjectMeta.Name); err != nil {
-							log.Errorf("Failed to send %s event: %s", reason, err.Error())
+							csmlog.Errorf("Failed to send %s event: %s", reason, err.Error())
 						}
 					} else {
 						if err = K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, reason,
 							"podmon aborted pod cleanup %s due to error while validating volume host connectivity",
 							string(pod.ObjectMeta.UID), node.ObjectMeta.Name); err != nil {
-							log.Errorf("Failed to send %s event: %s", reason, err.Error())
+							csmlog.Errorf("Failed to send %s event: %s", reason, err.Error())
 						}
 					}
 					return false
 				}
-				log.WithFields(fields).Info("Aborting pod cleanup because array still connected and/or recently did I/O")
+				csmlog.WithFields(fields).Info("Aborting pod cleanup because array still connected and/or recently did I/O")
 				if err = K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, reason,
 					"podmon aborted pod cleanup %s array connected or recent I/O",
 					string(pod.ObjectMeta.UID), node.ObjectMeta.Name); err != nil {
-					log.Errorf("Failed to send %s event: %s", reason, err.Error())
+					csmlog.Errorf("Failed to send %s event: %s", reason, err.Error())
 				}
 				return false
 			}
 		}
 	} else {
-		log.WithFields(fields).Error("Array validation check skipped because CSIApi not connected")
+		csmlog.WithFields(fields).Error("Array validation check skipped because CSIApi not connected")
 	}
 
 	// Fence all the volumes
 	if CSIApi.Connected() {
-		log.WithFields(fields).Infof("Commencing fencing of the node")
+		csmlog.WithFields(fields).Infof("Commencing fencing of the node")
 		nerrors := 0
 		for _, volID := range volIDs {
 			err := cm.callControllerUnpublishVolume(node, volID)
@@ -335,11 +340,11 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 			}
 		}
 		if nerrors > 0 {
-			log.WithFields(fields).Errorf("There were %d errors calling ControllerUnpublishVolume to fence the node. Aborting pod cleanup.", nerrors)
+			csmlog.WithFields(fields).Errorf("There were %d errors calling ControllerUnpublishVolume to fence the node. Aborting pod cleanup.", nerrors)
 			if err = K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, reason,
 				"podmon aborted pod cleanup %s couldn't fence volumes",
 				string(pod.ObjectMeta.UID), node.ObjectMeta.Name); err != nil {
-				log.Errorf("Failed to send %s event: %s", reason, err.Error())
+				csmlog.Errorf("Failed to send %s event: %s", reason, err.Error())
 			}
 			return false
 		}
@@ -347,7 +352,7 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 
 	// Add a taint for the pod on the node.
 	if err = taintNode(node.ObjectMeta.Name, PodmonTaintKey, false); err != nil {
-		log.WithFields(fields).Errorf("Failed to update taint against %s node: %v", node.ObjectMeta.Name, err)
+		csmlog.WithFields(fields).Errorf("Failed to update taint against %s node: %v", node.ObjectMeta.Name, err)
 		return false
 	}
 
@@ -357,7 +362,7 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 		if err != nil {
 			err = K8sAPI.DeleteVolumeAttachment(ctx, vaName)
 			if err != nil && !strings.Contains(err.Error(), notFound) {
-				log.WithFields(fields).Errorf("Couldn't delete VolumeAttachment- aborting after retry: %s: %s", vaName, err.Error())
+				csmlog.WithFields(fields).Errorf("Couldn't delete VolumeAttachment- aborting after retry: %s: %s", vaName, err.Error())
 				return false
 			}
 		}
@@ -367,16 +372,16 @@ func (cm *PodMonitorType) controllerCleanupPod(pod *v1.Pod, node *v1.Node, reaso
 	if err = K8sAPI.CreateEvent(podmon, pod, k8sapi.EventTypeWarning, reason,
 		"podmon cleaning pod %s with force delete",
 		string(pod.ObjectMeta.UID), node.ObjectMeta.Name); err != nil {
-		log.Errorf("Failed to send %s event: %s", reason, err.Error())
+		csmlog.Errorf("Failed to send %s event: %s", reason, err.Error())
 	}
 	err = K8sAPI.DeletePod(ctx, pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, pod.ObjectMeta.UID, true)
 	if err == nil {
-		log.WithFields(fields).Infof("Successfully cleaned up pod")
+		csmlog.WithFields(fields).Infof("Successfully cleaned up pod")
 		// Delete the ControllerPodInfo reference to this pod, we've deleted it.
 		cm.PodKeyToControllerPodInfo.Delete(podKey)
 		return true
 	}
-	log.WithFields(fields).Errorf("Delete pod failed")
+	csmlog.WithFields(fields).Errorf("Delete pod failed")
 	return false
 }
 
@@ -393,7 +398,7 @@ func (cm *PodMonitorType) callValidateVolumeHostConnectivity(node *v1.Node, volu
 		if len(volumeIDs) > 0 {
 			req.VolumeIds = volumeIDs
 		}
-		log.Debugf("calling ValidateVolumeHostConnectivity with %v", req)
+		csmlog.Debugf("calling ValidateVolumeHostConnectivity with %v", req)
 		// Get the connected status of the Node to the StorageSystem
 		ctx, cancel := context.WithTimeout(context.Background(), ShortTimeout)
 		defer cancel()
@@ -401,18 +406,24 @@ func (cm *PodMonitorType) callValidateVolumeHostConnectivity(node *v1.Node, volu
 		if err != nil {
 			if strings.Contains(err.Error(), "there is no corresponding SDC") {
 				// This error is returned if the array cannot find the SDC, which can happen on connectivity loss
-				log.Errorf("%s", err.Error())
+				csmlog.Errorf("%s", err.Error())
 				return false, false, nil
 			}
-			log.Errorf("Error checking ValidateVolumeHostConnectivity: %s", err.Error())
+			csmlog.Errorf("Error checking ValidateVolumeHostConnectivity: %s", err.Error())
 			return true, true, err
 		}
 		if logIt {
 			for _, message := range resp.Messages {
-				log.Info(message)
+				csmlog.Info(message)
 			}
 		}
-		log.Infof("ValidateVolumeHostConnectivity Node: %s, NodeId: %s, Connected: %t, IosInProgress: %t", node.ObjectMeta.Name, req.NodeId, resp.GetConnected(), resp.GetIosInProgress())
+		csmlog.Infof("ValidateVolumeHostConnectivity Node: %s, NodeId: %s, Connected: %t, IosInProgress: %t", node.ObjectMeta.Name, req.NodeId, resp.GetConnected(), resp.GetIosInProgress())
+
+		// Record connectivity check in metrics if metrics are enabled
+		if ResiliencyMetrics != nil {
+			ResiliencyMetrics.RecordConnectivityCheck(resp.GetConnected())
+		}
+
 		return resp.GetConnected(), resp.GetIosInProgress(), nil
 	}
 	return false, false, fmt.Errorf("callValidateVolumeHostConnectivity: Could not determine CSI NodeID for node: %s", node.ObjectMeta.Name)
@@ -423,12 +434,12 @@ func (cm *PodMonitorType) callControllerUnpublishVolume(node *v1.Node, volumeID 
 	var err error
 	csiNodeID := getCSINodeIDAnnotation(node, cm.DriverPathStr)
 	if csiNodeID == "" {
-		log.Errorf("callControllerUnpublishVolume: Could not determine CSI NodeID for node: %s", node.ObjectMeta.Name)
+		csmlog.Errorf("callControllerUnpublishVolume: Could not determine CSI NodeID for node: %s", node.ObjectMeta.Name)
 		return errors.New("csiNodeID is not set")
 	}
 	for i := 0; i < CSIMaxRetries; i++ {
 		// Get the CSI annotations for nodeID
-		log.Infof("Calling ControllerUnpublishVolume node id %s volume %s", csiNodeID, volumeID)
+		csmlog.Infof("Calling ControllerUnpublishVolume node id %s volume %s", csiNodeID, volumeID)
 		req := &csi.ControllerUnpublishVolumeRequest{
 			NodeId:   csiNodeID,
 			VolumeId: volumeID,
@@ -437,7 +448,7 @@ func (cm *PodMonitorType) callControllerUnpublishVolume(node *v1.Node, volumeID 
 		if err == nil {
 			break
 		}
-		log.Errorf("Error fencing volume using ControllerUnpublishVolum node %s volume %s: %s", csiNodeID, volumeID, err.Error())
+		csmlog.Errorf("Error fencing volume using ControllerUnpublishVolum node %s volume %s: %s", csiNodeID, volumeID, err.Error())
 		if !strings.HasSuffix(err.Error(), "pending") {
 			break
 		}
@@ -477,7 +488,7 @@ func (cm *PodMonitorType) ArrayConnectivityMonitor() {
 			for _, arrayID := range controllerPodInfo.ArrayIDs {
 				cnct := connectivityCache.CheckConnectivity(cm, node, arrayID)
 				if !cnct {
-					log.Infof("Pod %s node %s has no connectivity to arrayID %s", podKey, node.ObjectMeta.Name, arrayID)
+					csmlog.Infof("Pod %s node %s has no connectivity to arrayID %s", podKey, node.ObjectMeta.Name, arrayID)
 					connected = false
 				}
 			}
@@ -493,10 +504,10 @@ func (cm *PodMonitorType) ArrayConnectivityMonitor() {
 
 		// Taint all the nodes that were not connected
 		for nodeName := range nodesToTaint {
-			log.Infof("Tainting node %s because of connectivity loss", nodeName)
+			csmlog.Infof("Tainting node %s because of connectivity loss", nodeName)
 			err := taintNode(nodeName, PodmonTaintKey, false)
 			if err != nil {
-				log.Errorf("Unable to taint node: %s: %s", nodeName, err.Error())
+				csmlog.Errorf("Unable to taint node: %s: %s", nodeName, err.Error())
 			}
 		}
 
@@ -510,7 +521,7 @@ func (cm *PodMonitorType) ArrayConnectivityMonitor() {
 			podInfo := info.(*ControllerPodInfo)
 			if len(podInfo.PodAffinityLabels) > 0 {
 				// Process all the pods with affinity together
-				log.Infof("Processing pods with affinity %v", podInfo.PodAffinityLabels)
+				csmlog.Infof("Processing pods with affinity %v", podInfo.PodAffinityLabels)
 				for _, podKey := range podKeysToClean {
 					// Fetch the pod.
 					infox, ok := cm.PodKeyToControllerPodInfo.Load(podKey)
@@ -522,7 +533,7 @@ func (cm *PodMonitorType) ArrayConnectivityMonitor() {
 						cm.ProcessPodInfoForCleanup(podInfox, "ArrayConnectivityLoss")
 					}
 				}
-				log.Infof("End Processing pods with affinity %v", podInfo.PodAffinityLabels)
+				csmlog.Infof("End Processing pods with affinity %v", podInfo.PodAffinityLabels)
 			} else {
 				cm.ProcessPodInfoForCleanup(podInfo, "ArrayConnectivityLoss")
 			}
@@ -546,10 +557,18 @@ func (cm *PodMonitorType) ProcessPodInfoForCleanup(podInfo *ControllerPodInfo, r
 	pod, err := K8sAPI.GetPod(ctx, podNamespace, podName)
 	if err == nil {
 		if string(pod.ObjectMeta.UID) == podInfo.PodUID && pod.Spec.NodeName == podInfo.Node.ObjectMeta.Name {
-			log.Infof("Cleaning up pod %s/%s because of %s", reason, pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
-			cm.controllerCleanupPod(pod, podInfo.Node, reason, false, false)
+			csmlog.Infof("Cleaning up pod %s/%s because of %s", reason, pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
+
+			// Perform the actual cleanup
+			cleanupSuccess := cm.controllerCleanupPod(pod, podInfo.Node, reason, false, false)
+
+			// Record failover operation in metrics if metrics are enabled
+			if ResiliencyMetrics != nil {
+				ResiliencyMetrics.RecordCleanupOperation(reason, cleanupSuccess)
+			}
+
 		} else {
-			log.Infof("Skipping pod %s/%s podUID %s %s node %s %s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name,
+			csmlog.Infof("Skipping pod %s/%s podUID %s %s node %s %s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name,
 				string(pod.ObjectMeta.UID), podInfo.PodUID, pod.Spec.NodeName, podInfo.Node.ObjectMeta.Name)
 		}
 	}
@@ -570,7 +589,7 @@ var ArrayConnectivityConnectionLossThreshold = 3
 func (nacc *nodeArrayConnectivityCache) CheckConnectivity(cm *PodMonitorType, node *v1.Node, arrayID string) bool {
 	nodeUID := cm.GetNodeUID(node.ObjectMeta.Name)
 	if nodeUID == "" || nodeUID != string(node.ObjectMeta.UID) {
-		log.Infof("node %s has stale node uid %s- skipping connectivity check and assuming connected", node.ObjectMeta.Name, string(node.ObjectMeta.UID))
+		csmlog.Infof("node %s has stale node uid %s- skipping connectivity check and assuming connected", node.ObjectMeta.Name, string(node.ObjectMeta.UID))
 		return true
 	}
 	key := node.ObjectMeta.Name + ":" + arrayID
@@ -579,7 +598,7 @@ func (nacc *nodeArrayConnectivityCache) CheckConnectivity(cm *PodMonitorType, no
 		volumeIDs := make([]string, 0)
 		connected, _, err := cm.callValidateVolumeHostConnectivity(node, volumeIDs, false)
 		if err != nil {
-			log.Infof("Could not determine array connectivity, assuming connected, error: %s", err)
+			csmlog.Infof("Could not determine array connectivity, assuming connected, error: %s", err)
 			return true
 		}
 		nacc.nodeArrayConnectivitySampled[key] = true
@@ -608,35 +627,35 @@ func (nacc *nodeArrayConnectivityCache) ResetSampled() {
 func getCSINodeIDAnnotation(node *v1.Node, driverPath string) string {
 	annotations := node.ObjectMeta.Annotations
 	if annotations != nil {
-		log.Debugf("Node annotations: %s", annotations)
+		csmlog.Debugf("Node annotations: %s", annotations)
 		// Get the csi.volume.kubernetes.io/nodeid annotation
 		csiAnnotations := annotations["csi.volume.kubernetes.io/nodeid"]
 		if csiAnnotations != "" {
-			log.Debugf("csiAnnotations: %s", csiAnnotations)
+			csmlog.Debugf("csiAnnotations: %s", csiAnnotations)
 			var csiAnnotationsMap map[string]json.RawMessage
 			err := json.Unmarshal([]byte(csiAnnotations), &csiAnnotationsMap)
 			if err != nil {
-				log.Errorf("could not unmarshal csi annotations %s to json: %s", csiAnnotations, err.Error())
+				csmlog.Errorf("could not unmarshal csi annotations %s to json: %s", csiAnnotations, err.Error())
 				return ""
 			}
 			var nodeID string
 			err = json.Unmarshal(csiAnnotationsMap[driverPath], &nodeID)
 			if err != nil {
-				log.Errorf("could not unmarshal driver path key from nodeid annotation %s: to json: %s", csiAnnotations, err.Error())
+				csmlog.Errorf("could not unmarshal driver path key from nodeid annotation %s: to json: %s", csiAnnotations, err.Error())
 				return ""
 			}
 
-			log.Debugf("Returning CSI Node ID Annotation: %s", nodeID)
+			csmlog.Debugf("Returning CSI Node ID Annotation: %s", nodeID)
 			return nodeID
 		}
-		log.Errorf("No annotation on node %s for csi.volume.kubernetes.io/nodeid: %s", node.ObjectMeta.Name, csiAnnotations)
+		csmlog.Errorf("No annotation on node %s for csi.volume.kubernetes.io/nodeid: %s", node.ObjectMeta.Name, csiAnnotations)
 	}
-	log.Errorf("No annotations on node %s", node.ObjectMeta.Name)
+	csmlog.Errorf("No annotations on node %s", node.ObjectMeta.Name)
 	return ""
 }
 
 func callK8sAPITaint(operation, nodeName, taintKey string, effect v1.TaintEffect, remove bool) error {
-	log.Infof("Calling to %s %s with %s %s (remove = %v)", operation, nodeName, taintKey, effect, remove)
+	csmlog.Infof("Calling to %s %s with %s %s (remove = %v)", operation, nodeName, taintKey, effect, remove)
 	ctx, cancel := K8sAPI.GetContext(MediumTimeout)
 	defer cancel()
 	return K8sAPI.TaintNode(ctx, nodeName, taintKey, effect, remove)
@@ -718,7 +737,7 @@ func mapEqualsMap(map1, map2 map[string]string) bool {
 
 // controllerModeDriverPodHandler handles controller mode functionality when a driver pod event happens
 func (cm *PodMonitorType) controllerModeDriverPodHandler(pod *v1.Pod, eventType watch.EventType) error {
-	log.Debugf("controllerModeDriverPodHandler-controller:  name %s/%s node %s message %s reason %s event %v",
+	csmlog.Debugf("controllerModeDriverPodHandler-controller:  name %s/%s node %s message %s reason %s event %v",
 		pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, pod.Spec.NodeName, pod.Status.Message, pod.Status.Reason, eventType)
 
 	// Lock so that only one thread is processing pod at a time
@@ -731,37 +750,37 @@ func (cm *PodMonitorType) controllerModeDriverPodHandler(pod *v1.Pod, eventType 
 	defer cancel()
 	pod, err := K8sAPI.GetPod(ctx, pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 	if err != nil {
-		log.Errorf("GetPod failed: %s: %s", podKey, err)
+		csmlog.Errorf("GetPod failed: %s: %s", podKey, err)
 		return err
 	}
 	if pod.Spec.NodeName != "" {
-		log.Debugf("Getting node %s", pod.Spec.NodeName)
+		csmlog.Debugf("Getting node %s", pod.Spec.NodeName)
 		node, err := K8sAPI.GetNode(ctx, pod.Spec.NodeName)
 		if err != nil {
-			log.Errorf("GetNode failed: %s: %s", pod.Spec.NodeName, err)
+			csmlog.Errorf("GetNode failed: %s: %s", pod.Spec.NodeName, err)
 		} else {
 			// Determine pod status
 			ready, initialized := podStatus(pod.Status.Conditions)
 
 			if !ready {
-				log.Infof("Taint node %s with %s driver node pod down", node.ObjectMeta.Name, PodmonDriverPodTaintKey)
+				csmlog.Infof("Taint node %s with %s driver node pod down", node.ObjectMeta.Name, PodmonDriverPodTaintKey)
 				err := taintNode(node.ObjectMeta.Name, PodmonDriverPodTaintKey, false)
 				if err != nil {
-					log.Errorf("Unable to taint node: %s: %s", node.ObjectMeta.Name, err.Error())
+					csmlog.Errorf("Unable to taint node: %s: %s", node.ObjectMeta.Name, err.Error())
 				}
 			} else {
 				hasTaint := nodeHasTaint(node, PodmonDriverPodTaintKey, v1.TaintEffectNoSchedule)
-				log.Infof("Removing taint from node %s with %s", node.ObjectMeta.Name, PodmonDriverPodTaintKey)
+				csmlog.Infof("Removing taint from node %s with %s", node.ObjectMeta.Name, PodmonDriverPodTaintKey)
 				// remove taint
 				if hasTaint {
 					err := taintNode(node.ObjectMeta.Name, PodmonDriverPodTaintKey, true)
 					if err != nil {
-						log.Errorf("Unable to untaint node: %s: %s", node.ObjectMeta.Name, err.Error())
+						csmlog.Errorf("Unable to untaint node: %s: %s", node.ObjectMeta.Name, err.Error())
 					}
 				}
 			}
 
-			log.Infof("podMonitorHandler: namespace: %s name: %s nodename: %s initialized: %t ready: %t ",
+			csmlog.Infof("podMonitorHandler: namespace: %s name: %s nodename: %s initialized: %t ready: %t ",
 				pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, pod.Spec.NodeName, initialized, ready)
 		}
 	}
@@ -774,7 +793,7 @@ func podStatus(conditions []v1.PodCondition) (bool, bool) {
 	ready := false
 	initialized := true
 	for _, condition := range conditions {
-		log.Debugf("pod condition.Type: %s %v", condition.Type, condition.Status)
+		csmlog.Debugf("pod condition.Type: %s %v", condition.Type, condition.Status)
 		if condition.Type == podReadyCondition {
 			ready = condition.Status == v1.ConditionTrue
 		}
