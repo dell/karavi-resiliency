@@ -20,7 +20,7 @@ import (
 	"podmon/internal/tools"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/dell/csmlog"
 )
 
 type drivertype interface {
@@ -53,14 +53,14 @@ func (d *VxflexDriver) GetDriverMountDir(volumeHandle, _, _ string) string {
 		privateMountDir = "/var/lib/kubelet/plugins/vxflexos.emc.dell.com/disks"
 	}
 	privateMountDir = fmt.Sprintf("%s/%s", privateMountDir, volumeHandle)
-	log.Debugf("privateMountDir: %s", privateMountDir)
+	csmlog.Debugf("privateMountDir: %s", privateMountDir)
 	return privateMountDir
 }
 
 // GetDriverBlockDev Returns the block device used for a PV by a pod.
 func (d *VxflexDriver) GetDriverBlockDev(_, pvName, podUUID string) string {
 	privateBlockDev := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/volumeDevices/publish/%s/%s", pvName, podUUID)
-	log.Debugf("privateBlockDev: %s", privateBlockDev)
+	csmlog.Debugf("privateBlockDev: %s", privateBlockDev)
 	return privateBlockDev
 }
 
@@ -71,7 +71,7 @@ func (d *VxflexDriver) GetStagingMountDir(volumeHandle, _ string) string {
 		stagingMountDir = "/var/lib/kubelet/plugins/vxflexos.emc.dell.com/disks"
 	}
 	stagingMountDir = fmt.Sprintf("%s/%s", stagingMountDir, volumeHandle)
-	log.Debugf("stagingMountDir: %s", stagingMountDir)
+	csmlog.Debugf("stagingMountDir: %s", stagingMountDir)
 	return stagingMountDir
 }
 
@@ -85,14 +85,14 @@ func (d *VxflexDriver) GetStagingMountDirAfter125(volumeHandle, _ string) string
 		stagingMountDir = "/var/lib/kubelet/plugins/vxflexos.emc.dell.com/disks"
 	}
 	stagingMountDir = fmt.Sprintf("%s/%s", stagingMountDir, volSha)
-	log.Debugf("stagingMountDev: %s", stagingMountDir)
+	csmlog.Debugf("stagingMountDev: %s", stagingMountDir)
 	return stagingMountDir
 }
 
 // GetStagingBlockDir Returns the staging directory used by NodeUnstage for a block device.
 func (d *VxflexDriver) GetStagingBlockDir(_, pvName string) string {
 	stagingBlockDir := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/volumeDevices/staging/%s", pvName)
-	log.Debugf("stagingBlockDir: %s", stagingBlockDir)
+	csmlog.Debugf("stagingBlockDir: %s", stagingBlockDir)
 	return stagingBlockDir
 }
 
@@ -122,21 +122,21 @@ func (d *UnityDriver) GetDriverName() string {
 // GetDriverMountDir returns the Unity private mount directory.
 func (d *UnityDriver) GetDriverMountDir(_, pvName, podUUID string) string {
 	privateMountDir := fmt.Sprintf("/var/lib/kubelet/pods/%s/volumes/kubernetes.io~csi/%s/mount", podUUID, pvName)
-	log.Debugf("privateMountDir: %s", privateMountDir)
+	csmlog.Debugf("privateMountDir: %s", privateMountDir)
 	return privateMountDir
 }
 
 // GetDriverBlockDev Returns the block device used for a PV by a pod.
 func (d *UnityDriver) GetDriverBlockDev(_, pvName, podUUID string) string {
 	privateBlockDev := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/volumeDevices/publish/%s/%s", pvName, podUUID)
-	log.Debugf("privateBlockDev: %s", privateBlockDev)
+	csmlog.Debugf("privateBlockDev: %s", privateBlockDev)
 	return privateBlockDev
 }
 
 // GetStagingMountDir Returns the staging directory used by NodeUnstage for a mount device.
 func (d *UnityDriver) GetStagingMountDir(_, pvName string) string {
 	stagingMountDir := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/pv/%s/globalmount", pvName)
-	log.Debugf("stagingMountDev: %s", stagingMountDir)
+	csmlog.Debugf("stagingMountDev: %s", stagingMountDir)
 	return stagingMountDir
 }
 
@@ -146,21 +146,21 @@ func (d *UnityDriver) GetStagingMountDirAfter125(volumeHandle, _ string) string 
 	volSha := fmt.Sprintf("%x", result)
 
 	stagingMountDir := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/csi-unity.dellemc.com/%s/globalmount", volSha)
-	log.Debugf("stagingMountDev: %s", stagingMountDir)
+	csmlog.Debugf("stagingMountDev: %s", stagingMountDir)
 	return stagingMountDir
 }
 
 // GetStagingBlockDir Returns the staging directory used by NodeUnstage for a block device.
 func (d *UnityDriver) GetStagingBlockDir(_, pvName string) string {
 	stagingBlockDir := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/volumeDevices/staging/%s", pvName)
-	log.Debugf("stagingBlockDir: %s", stagingBlockDir)
+	csmlog.Debugf("stagingBlockDir: %s", stagingBlockDir)
 	return stagingBlockDir
 }
 
 // NodeUnpublishExcludedError filters out NodeUnpublish errors that should be excluded
 func (d *UnityDriver) NodeUnpublishExcludedError(err error) bool {
 	if strings.Contains(err.Error(), "NFS Share for filesystem") && strings.Contains(err.Error(), "not found") {
-		log.Infof("Ignored error: %s", err)
+		csmlog.Infof("Ignored error: %s", err)
 		return true
 	}
 	return false
@@ -169,7 +169,7 @@ func (d *UnityDriver) NodeUnpublishExcludedError(err error) bool {
 // NodeUnstageExcludedError filters out NodeStage errors that should be excluded
 func (d *UnityDriver) NodeUnstageExcludedError(err error) bool {
 	if strings.Contains(err.Error(), "NFS Share for filesystem") && strings.Contains(err.Error(), "not found") {
-		log.Infof("Ignored error: %s", err)
+		csmlog.Infof("Ignored error: %s", err)
 		return true
 	}
 	return false
@@ -186,16 +186,16 @@ func (d *UnityDriver) FinalCleanup(rawBlock bool, _, pvName, podUUID string) err
 
 		_, err = deleteLoopBackDevice(loopBackDev)
 		if err != nil {
-			log.Infof("error deleting loopback device: %s", loopBackDev)
+			csmlog.Infof("error deleting loopback device: %s", loopBackDev)
 			return err
 		}
 
 		blockDev := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/volumeDevices/%s/dev/%s", pvName, podUUID)
 		err = unMountPath(blockDev, 1)
-		log.Infof("unmount block device in FinalCleanup path: %s error: %s", blockDev, err)
+		csmlog.Infof("unmount block device in FinalCleanup path: %s error: %s", blockDev, err)
 
 		err = RemoveDev(blockDev)
-		log.Infof("remove block device FinalCleanup path: %s error: %s", blockDev, err)
+		csmlog.Infof("remove block device FinalCleanup path: %s error: %s", blockDev, err)
 	}
 	return nil
 }
@@ -221,7 +221,7 @@ func (d *PScaleDriver) GetDriverMountDir(_, pvName, podUUID string) string {
 		privateMountDir = "/var/lib/kubelet"
 	}
 	privateMountDir = fmt.Sprintf("%s/pods/%s/volumes/kubernetes.io~csi/%s/mount", privateMountDir, podUUID, pvName)
-	log.Infof("privateMountDir: %s", privateMountDir)
+	csmlog.Infof("privateMountDir: %s", privateMountDir)
 	return privateMountDir
 }
 
@@ -272,7 +272,7 @@ func (d *PStoreDriver) GetDriverName() string {
 func (d *PStoreDriver) GetDriverMountDir(_, pvName, podUUID string) string {
 	privateMountDir := getPrivateMountDir("/var/lib/kubelet")
 	privateMountDir = fmt.Sprintf("%s/pods/%s/volumes/kubernetes.io~csi/%s/mount", privateMountDir, podUUID, pvName)
-	log.Debugf("privateMountDir: %s", privateMountDir)
+	csmlog.Debugf("privateMountDir: %s", privateMountDir)
 	return privateMountDir
 }
 
@@ -280,7 +280,7 @@ func (d *PStoreDriver) GetDriverMountDir(_, pvName, podUUID string) string {
 func (d *PStoreDriver) GetDriverBlockDev(_, pvName, podUUID string) string {
 	privateMountDir := getPrivateMountDir("/var/lib/kubelet")
 	privateBlockDev := fmt.Sprintf("%s/plugins/kubernetes.io/csi/volumeDevices/publish/%s/%s", privateMountDir, pvName, podUUID)
-	log.Debugf("privateBlockDev: %s", privateBlockDev)
+	csmlog.Debugf("privateBlockDev: %s", privateBlockDev)
 	return privateBlockDev
 }
 
@@ -288,7 +288,7 @@ func (d *PStoreDriver) GetDriverBlockDev(_, pvName, podUUID string) string {
 func (d *PStoreDriver) GetStagingMountDir(_, pvName string) string {
 	privateMountDir := getPrivateMountDir("/var/lib/kubelet")
 	stagingMountDev := fmt.Sprintf("%s/plugins/kubernetes.io/csi/pv/%s/globalmount", privateMountDir, pvName)
-	log.Debugf("stagingMountDev: %s", stagingMountDev)
+	csmlog.Debugf("stagingMountDev: %s", stagingMountDev)
 	return stagingMountDev
 }
 
@@ -298,7 +298,7 @@ func (d *PStoreDriver) GetStagingMountDirAfter125(volumeHandle, _ string) string
 	volSha := fmt.Sprintf("%x", result)
 
 	stagingMountDir := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/csi-powerstore.dellemc.com/%s/globalmount", volSha)
-	log.Debugf("stagingMountDev: %s", stagingMountDir)
+	csmlog.Debugf("stagingMountDev: %s", stagingMountDir)
 	return stagingMountDir
 }
 
@@ -306,7 +306,7 @@ func (d *PStoreDriver) GetStagingMountDirAfter125(volumeHandle, _ string) string
 func (d *PStoreDriver) GetStagingBlockDir(_, pvName string) string {
 	privateMountDir := getPrivateMountDir("/var/lib/kubelet")
 	stagingBlockDir := fmt.Sprintf("%s/plugins/kubernetes.io/csi/volumeDevices/staging/%s", privateMountDir, pvName)
-	log.Debugf("stagingBlockDir: %s", stagingBlockDir)
+	csmlog.Debugf("stagingBlockDir: %s", stagingBlockDir)
 	return stagingBlockDir
 }
 
@@ -337,7 +337,7 @@ func (d *PMaxDriver) GetDriverName() string {
 func (d *PMaxDriver) GetDriverMountDir(_, pvName, podUUID string) string {
 	privateMountDir := getPrivateMountDir("/var/lib/kubelet")
 	privateMountDir = fmt.Sprintf("%s/pods/%s/volumes/kubernetes.io~csi/%s/mount", privateMountDir, podUUID, pvName)
-	log.Debugf("privateMountDir: %s", privateMountDir)
+	csmlog.Debugf("privateMountDir: %s", privateMountDir)
 	return privateMountDir
 }
 
@@ -345,7 +345,7 @@ func (d *PMaxDriver) GetDriverMountDir(_, pvName, podUUID string) string {
 func (d *PMaxDriver) GetDriverBlockDev(_, pvName, podUUID string) string {
 	privateMountDir := getPrivateMountDir("/var/lib/kubelet")
 	privateBlockDev := fmt.Sprintf("%s/plugins/kubernetes.io/csi/volumeDevices/publish/%s/%s", privateMountDir, pvName, podUUID)
-	log.Debugf("privateBlockDev: %s", privateBlockDev)
+	csmlog.Debugf("privateBlockDev: %s", privateBlockDev)
 	return privateBlockDev
 }
 
@@ -353,7 +353,7 @@ func (d *PMaxDriver) GetDriverBlockDev(_, pvName, podUUID string) string {
 func (d *PMaxDriver) GetStagingMountDir(_, pvName string) string {
 	privateMountDir := getPrivateMountDir("/var/lib/kubelet")
 	stagingMountDev := fmt.Sprintf("%s/plugins/kubernetes.io/csi/pv/%s/globalmount", privateMountDir, pvName)
-	log.Debugf("stagingMountDev: %s", stagingMountDev)
+	csmlog.Debugf("stagingMountDev: %s", stagingMountDev)
 	return stagingMountDev
 }
 
@@ -363,7 +363,7 @@ func (d *PMaxDriver) GetStagingMountDirAfter125(volumeHandle, _ string) string {
 	volSha := fmt.Sprintf("%x", result)
 
 	stagingMountDir := fmt.Sprintf("/var/lib/kubelet/plugins/kubernetes.io/csi/csi-powermax.dellemc.com/%s/globalmount", volSha)
-	log.Debugf("stagingMountDev: %s", stagingMountDir)
+	csmlog.Debugf("stagingMountDev: %s", stagingMountDir)
 	return stagingMountDir
 }
 
@@ -371,7 +371,7 @@ func (d *PMaxDriver) GetStagingMountDirAfter125(volumeHandle, _ string) string {
 func (d *PMaxDriver) GetStagingBlockDir(_, pvName string) string {
 	privateMountDir := getPrivateMountDir("/var/lib/kubelet")
 	stagingBlockDir := fmt.Sprintf("%s/plugins/kubernetes.io/csi/volumeDevices/staging/%s", privateMountDir, pvName)
-	log.Debugf("stagingBlockDir: %s", stagingBlockDir)
+	csmlog.Debugf("stagingBlockDir: %s", stagingBlockDir)
 	return stagingBlockDir
 }
 
@@ -393,7 +393,7 @@ func (d *PMaxDriver) FinalCleanup(_ bool, _, _, _ string) error {
 func getPrivateMountDir(defaultDir string) string {
 	privateMountDir := os.Getenv("X_CSI_PRIVATE_MOUNT_DIR")
 	if privateMountDir == "" {
-		log.Debugf("Returning defaultDir: %s", defaultDir)
+		csmlog.Debugf("Returning defaultDir: %s", defaultDir)
 		return defaultDir
 	}
 	return privateMountDir

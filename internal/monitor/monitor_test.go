@@ -21,8 +21,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/dell/csmlog"
 	"github.com/cucumber/godog"
-	log "github.com/sirupsen/logrus"
 )
 
 func TestMain(m *testing.M) {
@@ -35,7 +35,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestMonitor(t *testing.T) {
-	log.Printf("Starting monitor test")
+	csmlog.Infof("Starting monitor test")
 	godogOptions := godog.Options{
 		Format: "pretty,junit:monitor-junit-report.xml",
 		Paths:  []string{"features"},
@@ -49,11 +49,11 @@ func TestMonitor(t *testing.T) {
 	if status != 0 {
 		t.Error("There were failed monitor tests")
 	}
-	log.Printf("Monitor test finished")
+	csmlog.Infof("Monitor test finished")
 }
 
 func TestControllerMode(t *testing.T) {
-	log.Printf("Starting controller-mode test")
+	csmlog.Infof("Starting controller-mode test")
 	godogOptions := godog.Options{
 		Format: "pretty,junit:controller-mode-junit-report.xml",
 		Paths:  []string{"features"},
@@ -67,11 +67,11 @@ func TestControllerMode(t *testing.T) {
 	if status != 0 {
 		t.Error("There were failed node-mode tests")
 	}
-	log.Printf("Controller-mode test finished")
+	csmlog.Infof("Controller-mode test finished")
 }
 
 func TestNodeMode(t *testing.T) {
-	log.Printf("Starting node-mode test")
+	csmlog.Infof("Starting node-mode test")
 	godogOptions := godog.Options{
 		Format: "pretty,junit:node-mode-junit-report.xml",
 		Paths:  []string{"features"},
@@ -85,7 +85,7 @@ func TestNodeMode(t *testing.T) {
 	if status != 0 {
 		t.Error("There were failed node-mode tests")
 	}
-	log.Printf("Node-mode test finished")
+	csmlog.Infof("Node-mode test finished")
 }
 
 func TestMapEqualsMap(t *testing.T) {

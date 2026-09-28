@@ -27,7 +27,7 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/dell/csmlog"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -83,10 +83,10 @@ func (api *Client) DeletePod(ctx context.Context, namespace, name string, podUID
 		gracePeriodSec := int64(0)
 		deleteOptions.GracePeriodSeconds = &gracePeriodSec
 	}
-	log.Infof("Deleting pod %s/%s force %t", namespace, name, force)
+	csmlog.Infof("Deleting pod %s/%s force %t", namespace, name, force)
 	err := api.Client.CoreV1().Pods(namespace).Delete(ctx, name, deleteOptions)
 	if err != nil {
-		log.Errorf("Unable to delete pod %s/%s: %s", namespace, name, err)
+		csmlog.Errorf("Unable to delete pod %s/%s: %s", namespace, name, err)
 	}
 	return err
 }
@@ -96,7 +96,7 @@ func (api *Client) GetPod(ctx context.Context, namespace, name string) (*v1.Pod,
 	getopt := metav1.GetOptions{}
 	pod, err := api.Client.CoreV1().Pods(namespace).Get(ctx, name, getopt)
 	if err != nil {
-		log.Errorf("Unable to get pod %s/%s: %s", namespace, name, err)
+		csmlog.Errorf("Unable to get pod %s/%s: %s", namespace, name, err)
 	}
 	return pod, err
 }
@@ -109,11 +109,11 @@ func (api *Client) GetCachedVolumeAttachment(ctx context.Context, pvName, nodeNa
 	api.Lock.Lock()
 	defer api.Lock.Unlock()
 	key := fmt.Sprintf("%s/%s", pvName, nodeName)
-	log.Debugf("Looking for volume attachment %s", key)
+	csmlog.Debugf("Looking for volume attachment %s", key)
 	if api.volumeAttachmentCache != nil && api.volumeAttachmentCache[key] != nil {
 		// Cache hit - return cached VA.
 		vacachehit++
-		log.Debugf("VA Cache Hit %d / Miss %d", vacachehit, vacachemiss)
+		csmlog.Debugf("VA Cache Hit %d / Miss %d", vacachehit, vacachemiss)
 		return api.volumeAttachmentCache[key], nil
 	}
 	// Cache miss. Read all the volume attachments.
@@ -123,17 +123,17 @@ func (api *Client) GetCachedVolumeAttachment(ctx context.Context, pvName, nodeNa
 	}
 	// Rebuild the cache
 	vacachemiss++
-	log.Debugf("VA Cache Miss %d / %d", vacachemiss, vacachehit)
+	csmlog.Debugf("VA Cache Miss %d / %d", vacachemiss, vacachehit)
 	api.volumeAttachmentCache = make(map[string]*storagev1.VolumeAttachment)
 	api.volumeAttachmentNameToKey = make(map[string]string)
-	log.Infof("Rebuilding VA cache, hits %d misses %d", vacachehit, vacachemiss)
+	csmlog.Infof("Rebuilding VA cache, hits %d misses %d", vacachehit, vacachemiss)
 	for _, va := range volumeAttachmentList.Items {
 		vaCopy := va.DeepCopy() // To prevent gosec error: "G601 (CWE-118): Implicit memory aliasing in for loop"
 		if va.Spec.Source.PersistentVolumeName != nil {
 			vaKey := fmt.Sprintf("%s/%s", *va.Spec.Source.PersistentVolumeName, va.Spec.NodeName)
 			api.volumeAttachmentCache[vaKey] = vaCopy
 			api.volumeAttachmentNameToKey[vaCopy.ObjectMeta.Name] = vaKey
-			log.Debugf("Adding VA Cache %s %s", vaCopy.ObjectMeta.Name, vaKey)
+			csmlog.Debugf("Adding VA Cache %s %s", vaCopy.ObjectMeta.Name, vaKey)
 		}
 	}
 	return api.volumeAttachmentCache[key], nil
@@ -151,10 +151,10 @@ func (api *Client) GetVolumeAttachments(ctx context.Context) (*storagev1.VolumeA
 // DeleteVolumeAttachment deletes a volume attachment by name.
 func (api *Client) DeleteVolumeAttachment(ctx context.Context, vaname string) error {
 	deleteOptions := metav1.DeleteOptions{}
-	log.Infof("Deleting volume attachment: %s", vaname)
+	csmlog.Infof("Deleting volume attachment: %s", vaname)
 	err := api.Client.StorageV1().VolumeAttachments().Delete(ctx, vaname, deleteOptions)
 	if err != nil {
-		log.Errorf("Couldn't delete VolumeAttachment %s: %s", vaname, err)
+		csmlog.Errorf("Couldn't delete VolumeAttachment %s: %s", vaname, err)
 	}
 	api.Lock.Lock()
 	defer api.Lock.Unlock()
@@ -162,7 +162,7 @@ func (api *Client) DeleteVolumeAttachment(ctx context.Context, vaname string) er
 		// Look for and delete the name to delete.
 		vaKey := api.volumeAttachmentNameToKey[vaname]
 		if vaKey != "" {
-			log.Infof("Deleting VolumeAttachment from VA Cache %s %s", vaname, vaKey)
+			csmlog.Infof("Deleting VolumeAttachment from VA Cache %s %s", vaname, vaKey)
 			delete(api.volumeAttachmentCache, vaKey)
 			delete(api.volumeAttachmentNameToKey, vaname)
 		}
@@ -205,7 +205,7 @@ func (api *Client) GetPersistentVolumesInPod(ctx context.Context, pod *v1.Pod) (
 	// Fetch the pv for each pvc
 	for _, pvc := range pvcs {
 		if pvc.Status.Phase != "Bound" || pvc.Spec.VolumeName == "" {
-			log.Infof("pvc %s/%s not bound", pvc.ObjectMeta.Namespace, pvc.ObjectMeta.Name)
+			csmlog.Infof("pvc %s/%s not bound", pvc.ObjectMeta.Namespace, pvc.ObjectMeta.Name)
 			continue
 		}
 		pv, err := api.GetPersistentVolume(ctx, pvc.Spec.VolumeName)
@@ -233,7 +233,7 @@ func (api *Client) IsVolumeAttachmentToPod(ctx context.Context, va *storagev1.Vo
 			if pvc != nil {
 				volumeName = pvc.Spec.VolumeName
 			}
-			log.Debugf("va.pv %s pvc.pv %s", *va.Spec.Source.PersistentVolumeName, volumeName)
+			csmlog.Debugf("va.pv %s pvc.pv %s", *va.Spec.Source.PersistentVolumeName, volumeName)
 			if pvc != nil && va.Spec.Source.PersistentVolumeName != nil && *va.Spec.Source.PersistentVolumeName == pvc.Spec.VolumeName {
 				return true, nil
 			}
@@ -250,12 +250,12 @@ func (api *Client) GetPersistentVolumeClaimName(ctx context.Context, pvName stri
 		return "", err
 	}
 	if pv.Spec.ClaimRef != nil {
-		log.Printf("ClaimRef %#v", pv.Spec.ClaimRef)
+		csmlog.Infof("ClaimRef %#v", pv.Spec.ClaimRef)
 		if pv.Spec.ClaimRef.Kind == "PersistentVolumeClaim" {
 			pvcname = pv.Spec.ClaimRef.Namespace + "/" + pv.Spec.ClaimRef.Name
 		}
 	}
-	log.Printf("pvcname %s", pvcname)
+	csmlog.Infof("pvcname %s", pvcname)
 	return pvcname, nil
 }
 
@@ -268,7 +268,7 @@ func (api *Client) GetPersistentVolume(ctx context.Context, pvName string) (*v1.
 	getopt := metav1.GetOptions{}
 	pv, err := api.Client.CoreV1().PersistentVolumes().Get(ctx, pvName, getopt)
 	if err != nil {
-		log.Error("error retrieving PersistentVolume: " + pvName + " : " + err.Error())
+		csmlog.Error("error retrieving PersistentVolume: " + pvName + " : " + err.Error())
 	}
 	return pv, err
 }
@@ -283,7 +283,7 @@ func (api *Client) GetPersistentVolumeClaim(ctx context.Context, namespace, pvcN
 	getopt := metav1.GetOptions{}
 	pvc, err := pvcinterface.Get(ctx, pvcName, getopt)
 	if err != nil {
-		log.Errorf("error retrieving PVC: %s : %s", pvcName, err.Error())
+		csmlog.Errorf("error retrieving PVC: %s : %s", pvcName, err.Error())
 	}
 	return pvc, err
 }
@@ -292,7 +292,7 @@ func (api *Client) GetPersistentVolumeClaim(ctx context.Context, namespace, pvcN
 func (api *Client) GetNode(ctx context.Context, nodeName string) (*v1.Node, error) {
 	node, err := api.Client.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
-		log.Error("error retrieving node: " + nodeName + " : " + err.Error())
+		csmlog.Error("error retrieving node: " + nodeName + " : " + err.Error())
 	}
 	return node, err
 }
@@ -314,10 +314,10 @@ var (
 func (api *Client) Connect(kubeconfig *string) error {
 	var err error
 	var client *kubernetes.Clientset
-	log.Info("attempting k8sapi connection")
+	csmlog.Info("attempting k8sapi connection")
 	var config *rest.Config
 	if kubeconfig != nil && *kubeconfig != "" {
-		log.Infof("Using kubeconfig %s", *kubeconfig)
+		csmlog.Infof("Using kubeconfig %s", *kubeconfig)
 		config, err = buildConfigFromFlagsFunc("", *kubeconfig)
 		if err != nil {
 			return err
@@ -327,7 +327,7 @@ func (api *Client) Connect(kubeconfig *string) error {
 		config.Burst = 100
 		client, err = newForConfigFunc(config)
 	} else {
-		log.Infof("Using InClusterConfig()")
+		csmlog.Infof("Using InClusterConfig()")
 		config, err = inClusterConfigFunc()
 		if err != nil {
 			return err
@@ -335,11 +335,11 @@ func (api *Client) Connect(kubeconfig *string) error {
 		client, err = newForConfigFunc(config)
 	}
 	if err != nil {
-		log.Error("unable to connect to k8sapi: " + err.Error())
+		csmlog.Error("unable to connect to k8sapi: " + err.Error())
 		return err
 	}
 	api.Client = client
-	log.Info("connected to k8sapi")
+	csmlog.Info("connected to k8sapi")
 	return nil
 }
 
@@ -398,7 +398,7 @@ func (api *Client) TaintNode(ctx context.Context, nodeName, taintKey string, eff
 	// Note: node.Spec.Taints will have an updated list if 'shouldPatch' == true
 	operation, shouldPatch := updateTaint(node, taintKey, effect, remove)
 	if shouldPatch {
-		log.Infof("Attempting %s : %s against node %s", operation, taintKey, nodeName)
+		csmlog.Infof("Attempting %s : %s against node %s", operation, taintKey, nodeName)
 
 		// Should be patched, so get latest json data for node containing updated taints
 		newData, err2 := json.Marshal(node)
@@ -420,7 +420,7 @@ func (api *Client) TaintNode(ctx context.Context, nodeName, taintKey string, eff
 		return err2
 	}
 
-	log.Infof("%s : %s on node %s", operation, taintKey, nodeName)
+	csmlog.Infof("%s : %s on node %s", operation, taintKey, nodeName)
 
 	return err
 }
@@ -497,10 +497,10 @@ func taintExists(node *v1.Node, key string, effect v1.TaintEffect) bool {
 func (api *Client) CreateEvent(sourceComponent string, object runtime.Object, eventType, reason, messageFmt string, args ...interface{}) error {
 	if api.eventRecorder == nil {
 		broadcaster := record.NewBroadcaster()
-		broadcaster.StartLogging(log.Infof)
+		broadcaster.StartLogging(csmlog.Infof)
 		broadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: api.Client.CoreV1().Events(v1.NamespaceAll)})
 		api.eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("%s", sourceComponent)})
 	}
-	api.eventRecorder.Eventf(object, eventType, reason, messageFmt, args)
+	api.eventRecorder.Eventf(object, eventType, reason, messageFmt, args...)
 	return nil
 }

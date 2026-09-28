@@ -25,7 +25,7 @@ import (
 	"os/exec"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/dell/csmlog"
 )
 
 // Define the Commander interface
@@ -64,7 +64,7 @@ func GetLoopBackDevice(pvname string) (string, error) {
 	if err != nil || string(textBytes) == "" {
 		return "", err
 	}
-	log.Debugf("losetup output: %s", string(textBytes))
+	csmlog.Debugf("losetup output: %s", string(textBytes))
 	loopDevices := strings.Split(string(textBytes), ":")
 	return loopDevices[0], nil
 }

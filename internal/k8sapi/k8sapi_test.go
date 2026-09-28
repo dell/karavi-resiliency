@@ -1513,13 +1513,27 @@ func TestClient_GetVolumeHandleFromVA(t *testing.T) {
 				},
 			}
 
+			// Create a test PersistentVolume without a CSI source
+			testPVBad := &v1.PersistentVolume{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "pv-test-bad",
+				},
+				Spec: v1.PersistentVolumeSpec{
+					PersistentVolumeSource: v1.PersistentVolumeSource{},
+				},
+			}
+
 			// Create a test VolumeAttachment
 			testVA := tt.args.va
 
-			// Add the PV to the fake client
+			// Add the PVs to the fake client
 			_, err := tt.client.Client.CoreV1().PersistentVolumes().Create(tt.args.ctx, testPV, metav1.CreateOptions{})
 			if err != nil {
 				t.Fatalf("Failed to create test PV: %s", err)
+			}
+			_, err = tt.client.Client.CoreV1().PersistentVolumes().Create(tt.args.ctx, testPVBad, metav1.CreateOptions{})
+			if err != nil {
+				t.Fatalf("Failed to create test PV (bad): %s", err)
 			}
 
 			// Call the function under test

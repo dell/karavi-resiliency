@@ -20,8 +20,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dell/csmlog"
 	"github.com/cucumber/godog"
-	log "github.com/sirupsen/logrus"
 )
 
 const enableVMIntTestVar = "RESILIENCY_VM_INT_TEST"
@@ -29,7 +29,7 @@ const enableVMIntTestVar = "RESILIENCY_VM_INT_TEST"
 func TestOcpVirtPowerStoreCheck(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableVMIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
-		log.Printf("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
+		csmlog.Infof("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
 		return
 	}
 
@@ -37,7 +37,7 @@ func TestOcpVirtPowerStoreCheck(t *testing.T) {
 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
 		stopOnFailure = false
 	}
-	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+	csmlog.Infof("%s = %v", enableStopOnFailure, stopOnFailure)
 
 	godogOptions := godog.Options{
 		Format:        "pretty,junit:powerstore-vm-integration-check-junit-report.xml,cucumber:powersctore-short-check-cucumber-report.json",
@@ -55,13 +55,13 @@ func TestOcpVirtPowerStoreCheck(t *testing.T) {
 	} else {
 		setupIsGood = true
 	}
-	log.Printf("Integration setup check finished")
+	csmlog.Infof("Integration setup check finished")
 }
 
 func TestOcpVirtPowerFlexCheck(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableVMIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
-		log.Printf("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
+		csmlog.Infof("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
 		return
 	}
 
@@ -69,7 +69,7 @@ func TestOcpVirtPowerFlexCheck(t *testing.T) {
 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
 		stopOnFailure = false
 	}
-	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+	csmlog.Infof("%s = %v", enableStopOnFailure, stopOnFailure)
 
 	godogOptions := godog.Options{
 		Format:        "pretty,junit:powerflex-vm-integration-check-junit-report.xml",
@@ -87,20 +87,20 @@ func TestOcpVirtPowerFlexCheck(t *testing.T) {
 	} else {
 		setupIsGood = true
 	}
-	log.Printf("Integration setup check finished")
+	csmlog.Infof("Integration setup check finished")
 }
 
 func TestOcpVirtPowerScaleCheck(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableVMIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
-		log.Printf("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
+		csmlog.Infof("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
 		return
 	}
 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
 		stopOnFailure = false
 	}
-	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+	csmlog.Infof("%s = %v", enableStopOnFailure, stopOnFailure)
 
 	godogOptions := godog.Options{
 		Format:        "pretty,junit:powerscale-vm-integration-check-junit-report.xml,cucumber:powerscale-vm-integration-check-cucumber-report.json",
@@ -118,20 +118,20 @@ func TestOcpVirtPowerScaleCheck(t *testing.T) {
 	} else {
 		setupIsGood = true
 	}
-	log.Printf("Integration setup check finished")
+	csmlog.Infof("Integration setup check finished")
 }
 
 func TestOcpVirtPowerMaxCheck(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableVMIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
-		log.Printf("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
+		csmlog.Infof("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
 		return
 	}
 	stopOnFailureStr := os.Getenv(enableStopOnFailure)
 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
 		stopOnFailure = false
 	}
-	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+	csmlog.Infof("%s = %v", enableStopOnFailure, stopOnFailure)
 
 	godogOptions := godog.Options{
 		Format:        "pretty,junit:powermax-vm-integration-check-junit-report.xml,cucumber:powermax-vm-integration-check-cucumber-report.json",
@@ -149,18 +149,18 @@ func TestOcpVirtPowerMaxCheck(t *testing.T) {
 	} else {
 		setupIsGood = true
 	}
-	log.Printf("Integration setup check finished")
+	csmlog.Infof("Integration setup check finished")
 }
 
 func TestOcpVirtPowerStoreIntegration(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableVMIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
-		log.Printf("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
+		csmlog.Infof("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
 		return
 	}
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
-		log.Print(message)
+		csmlog.Info(message)
 		t.Error(message)
 		return
 	}
@@ -169,9 +169,9 @@ func TestOcpVirtPowerStoreIntegration(t *testing.T) {
 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
 		stopOnFailure = false
 	}
-	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+	csmlog.Infof("%s = %v", enableStopOnFailure, stopOnFailure)
 
-	log.Printf("Starting integration test")
+	csmlog.Infof("Starting integration test")
 	godogOptions := godog.Options{
 		Format:        "pretty,junit:powerstore-vm-integration-junit-report.xml,cucumber:powerstore-vm-integration-cucumber-report.json",
 		Paths:         []string{"features"},
@@ -186,18 +186,18 @@ func TestOcpVirtPowerStoreIntegration(t *testing.T) {
 	if status != 0 {
 		t.Error("There were failed integration tests")
 	}
-	log.Printf("Integration test finished")
+	csmlog.Infof("Integration test finished")
 }
 
 func TestOcpVirtPowerFlexIntegration(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableVMIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
-		log.Printf("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
+		csmlog.Infof("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
 		return
 	}
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
-		log.Print(message)
+		csmlog.Info(message)
 		t.Error(message)
 		return
 	}
@@ -206,9 +206,9 @@ func TestOcpVirtPowerFlexIntegration(t *testing.T) {
 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
 		stopOnFailure = false
 	}
-	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+	csmlog.Infof("%s = %v", enableStopOnFailure, stopOnFailure)
 
-	log.Printf("Starting integration test")
+	csmlog.Infof("Starting integration test")
 	godogOptions := godog.Options{
 		Format:        "pretty,junit:powerflex-vm-integration-integration-junit-report.xml",
 		Paths:         []string{"features"},
@@ -223,18 +223,18 @@ func TestOcpVirtPowerFlexIntegration(t *testing.T) {
 	if status != 0 {
 		t.Error("There were failed integration tests")
 	}
-	log.Printf("Integration test finished")
+	csmlog.Infof("Integration test finished")
 }
 
 func TestOcpVirtPowerScaleIntegration(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableVMIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
-		log.Printf("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
+		csmlog.Infof("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
 		return
 	}
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
-		log.Print(message)
+		csmlog.Info(message)
 		t.Error(message)
 		return
 	}
@@ -243,9 +243,9 @@ func TestOcpVirtPowerScaleIntegration(t *testing.T) {
 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
 		stopOnFailure = false
 	}
-	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+	csmlog.Infof("%s = %v", enableStopOnFailure, stopOnFailure)
 
-	log.Printf("Starting integration test")
+	csmlog.Infof("Starting integration test")
 	godogOptions := godog.Options{
 		Format:        "pretty,junit:powerscale-vm-integration-junit-report.xml,cucumber:powerscale-vm-integration-cucumber-report.json",
 		Paths:         []string{"features"},
@@ -260,18 +260,18 @@ func TestOcpVirtPowerScaleIntegration(t *testing.T) {
 	if status != 0 {
 		t.Error("There were failed integration tests")
 	}
-	log.Printf("Integration test finished")
+	csmlog.Infof("Integration test finished")
 }
 
 func TestOcpVirtPowerMaxIntegration(t *testing.T) {
 	intTestEnvVarStr := os.Getenv(enableVMIntTestVar)
 	if intTestEnvVarStr == "" || strings.ToLower(intTestEnvVarStr) != "true" {
-		log.Printf("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
+		csmlog.Infof("Skipping short integration test. To enable vm integration test: export %s=true", enableVMIntTestVar)
 		return
 	}
 	if !setupIsGood {
 		message := "The setup check failed. Tests skipped"
-		log.Print(message)
+		csmlog.Info(message)
 		t.Error(message)
 		return
 	}
@@ -280,9 +280,9 @@ func TestOcpVirtPowerMaxIntegration(t *testing.T) {
 	if stopOnFailureStr != "" && strings.ToLower(stopOnFailureStr) == "false" {
 		stopOnFailure = false
 	}
-	log.Printf("%s = %v", enableStopOnFailure, stopOnFailure)
+	csmlog.Infof("%s = %v", enableStopOnFailure, stopOnFailure)
 
-	log.Printf("Starting integration test")
+	csmlog.Infof("Starting integration test")
 	godogOptions := godog.Options{
 		Format:        "pretty,junit:powermax-vm-integration-junit-report.xml,cucumber:powermax-vm-integration-cucumber-report.json",
 		Paths:         []string{"features"},
@@ -297,5 +297,5 @@ func TestOcpVirtPowerMaxIntegration(t *testing.T) {
 	if status != 0 {
 		t.Error("There were failed integration tests")
 	}
-	log.Printf("Integration test finished")
+	csmlog.Infof("Integration test finished")
 }

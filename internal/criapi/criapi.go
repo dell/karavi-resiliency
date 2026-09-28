@@ -23,7 +23,7 @@ import (
 	"os"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/dell/csmlog"
 	"google.golang.org/grpc"
 	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
@@ -64,10 +64,10 @@ func NewCRIClient(criSock string, _ ...grpc.DialOption) (*Client, error) {
 			} else {
 				errMsg = err.Error()
 			}
-			log.Errorf("Waiting on connection to CRI socket: %s: %s", criSock, errMsg)
+			csmlog.Errorf("Waiting on connection to CRI socket: %s: %s", criSock, errMsg)
 			time.Sleep(CRIClientDialRetry)
 		} else {
-			log.Infof("Connected to CRI: %s", criSock)
+			csmlog.Infof("Connected to CRI: %s", criSock)
 			CRIClient.RuntimeServiceClient = v1.NewRuntimeServiceClient(CRIClient.CRIConn)
 			return &CRIClient, nil
 		}
@@ -142,7 +142,7 @@ func (cri *Client) GetContainerInfo(_ context.Context) (map[string]*ContainerInf
 	}
 	err = client.Close()
 	if err != nil {
-		log.Infof("close error: %s", err)
+		csmlog.Infof("close error: %s", err)
 	}
 	return result, nil
 }

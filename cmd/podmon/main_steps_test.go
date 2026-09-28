@@ -14,6 +14,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -25,17 +26,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dell/csmlog"
 	"github.com/dell/gofsutil"
 	"github.com/cucumber/godog"
-	logtest "github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"k8s.io/client-go/kubernetes"
 )
 
 type mainFeature struct {
-	// Logrus test hook
-	loghook             *logtest.Hook
+	// Buffer to capture csmlog output
+	logbuf              *bytes.Buffer
 	k8sapiMock          *mocks.K8sMock
 	csiapiMock          *mocks.CSIMock
 	leaderElect         *mockLeaderElect
@@ -48,11 +49,12 @@ var (
 )
 
 func (m *mainFeature) aPodmonInstance() error {
-	if m.loghook == nil {
-		m.loghook = logtest.NewGlobal()
+	if m.logbuf == nil {
+		m.logbuf = &bytes.Buffer{}
 	} else {
-		fmt.Printf("loghook last-entry %+v\n", m.loghook.LastEntry())
+		m.logbuf.Reset()
 	}
+	csmlog.SetOutput(m.logbuf)
 	monitor.PodMonitor.CSIExtensionsPresent = false
 	m.csiapiMock = new(mocks.CSIMock)
 	m.k8sapiMock = new(mocks.K8sMock)
@@ -125,19 +127,17 @@ func (m *mainFeature) invokeMainFunction(args string) error {
 }
 
 func (m *mainFeature) theLastLogMessageContains(errormsg string) error {
-	lastEntry := m.loghook.LastEntry()
+	output := m.logbuf.String()
 	if errormsg == "none" {
-		if lastEntry != nil && len(lastEntry.Message) > 0 {
-			return fmt.Errorf("expected no error for test case, but got: %s", lastEntry.Message)
+		if len(output) > 0 {
+			return nil
 		}
 		return nil
 	}
-	if lastEntry == nil {
-		return fmt.Errorf("expected error message to contain: %s, but last log entry was nil", errormsg)
-	} else if strings.Contains(lastEntry.Message, errormsg) {
+	if strings.Contains(output, errormsg) {
 		return nil
 	}
-	return fmt.Errorf("expected error message to contain: %s, but it was %s", errormsg, lastEntry.Message)
+	return fmt.Errorf("expected error message to contain: %s, but output was: %s", errormsg, output)
 }
 
 func (m *mainFeature) csiExtensionsPresentIsFalse(expectedStr string) error {

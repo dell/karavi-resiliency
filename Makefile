@@ -18,6 +18,9 @@ clean:
 	rm -rf vendor
 
 build: generate vendor
+	GOOS=linux CGO_ENABLED=0 go build -mod=vendor -o podmon ./cmd/podmon/
+
+build-binary:
 	GOOS=linux CGO_ENABLED=0 go build -mod=vendor -o podmon ./cmd/podmon/ 
 
 go-code-tester:

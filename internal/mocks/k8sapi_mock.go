@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/dell/csmlog"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -241,7 +241,7 @@ func (mock *K8sMock) GetPersistentVolumesInPod(ctx context.Context, pod *v1.Pod)
 	// Fetch the pv for each pvc
 	for _, pvc := range pvcs {
 		if pvc.Status.Phase != "Bound" || pvc.Spec.VolumeName == "" {
-			log.Infof("pvc %s/%s not bound", pvc.ObjectMeta.Namespace, pvc.ObjectMeta.Name)
+			csmlog.Infof("pvc %s/%s not bound", pvc.ObjectMeta.Namespace, pvc.ObjectMeta.Name)
 			continue
 		}
 		pv, err := mock.GetPersistentVolume(ctx, pvc.Spec.VolumeName)
@@ -263,12 +263,12 @@ func (mock *K8sMock) IsVolumeAttachmentToPod(ctx context.Context, va *storagev1.
 	}
 	for _, vol := range pod.Spec.Volumes {
 		if vol.VolumeSource.PersistentVolumeClaim != nil {
-			log.Debugf("namespace %s claimname %s", pod.ObjectMeta.Namespace, vol.VolumeSource.PersistentVolumeClaim.ClaimName)
+			csmlog.Debugf("namespace %s claimname %s", pod.ObjectMeta.Namespace, vol.VolumeSource.PersistentVolumeClaim.ClaimName)
 			pvc, err := mock.GetPersistentVolumeClaim(ctx, pod.ObjectMeta.Namespace, vol.VolumeSource.PersistentVolumeClaim.ClaimName)
 			if err != nil || pvc == nil {
 				return false, fmt.Errorf("Could not retrieve PVC: %s/%s", pod.ObjectMeta.Namespace, vol.VolumeSource.PersistentVolumeClaim.ClaimName)
 			}
-			log.Debugf("va.pv %s pvc.pv %s", *va.Spec.Source.PersistentVolumeName, pvc.Spec.VolumeName)
+			csmlog.Debugf("va.pv %s pvc.pv %s", *va.Spec.Source.PersistentVolumeName, pvc.Spec.VolumeName)
 			if pvc != nil && va.Spec.Source.PersistentVolumeName != nil && *va.Spec.Source.PersistentVolumeName == pvc.Spec.VolumeName {
 				return true, nil
 			}
@@ -288,12 +288,12 @@ func (mock *K8sMock) GetPersistentVolumeClaimName(ctx context.Context, pvName st
 		return "", err
 	}
 	if pv.Spec.ClaimRef != nil {
-		log.Printf("ClaimRef %#v", pv.Spec.ClaimRef)
+		csmlog.Infof("ClaimRef %#v", pv.Spec.ClaimRef)
 		if pv.Spec.ClaimRef.Kind == "PersistentVolumeClaim" {
 			pvcname = pv.Spec.ClaimRef.Namespace + "/" + pv.Spec.ClaimRef.Name
 		}
 	}
-	log.Printf("pvcname %s", pvcname)
+	csmlog.Infof("pvcname %s", pvcname)
 
 	return pvcname, nil
 }
@@ -316,6 +316,9 @@ func (mock *K8sMock) GetPersistentVolumeClaim(_ context.Context, namespace, pvcN
 	}
 	key := mock.getKey(namespace, pvcName)
 	pvc = mock.KeyToPVC[key]
+	if pvc == nil {
+		return pvc, fmt.Errorf("PVC %s not found in mock", key)
+	}
 	return pvc, nil
 }
 
